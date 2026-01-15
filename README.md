@@ -83,19 +83,57 @@ See the `examples/` directory for:
 
 ## Roadmap
 
+### Core Foundation
 - [x] Core PNG writer (no dependencies)
 - [x] Basic canvas with drawing primitives
-- [ ] Color palette system
-- [ ] Character body templates
-- [ ] Skeleton/rig system
-- [ ] Pose library
-- [ ] Animation keyframes
-- [ ] Walk cycle generator
-- [ ] Sprite sheet export
-- [ ] GIF/APNG export
-- [ ] Style presets (chibi, retro, modern)
-- [ ] Equipment/clothing system
-- [ ] Effects (projectiles, impacts)
+- [x] Color palette system with HSV operations
+- [x] Color operations (blend modes, dithering, interpolation)
+
+### Animation System
+- [x] Animation keyframes and timing
+- [x] 23 easing functions
+- [x] Track-based timeline system
+- [x] Procedural animations (breathing, bobbing, blinking)
+- [x] Pre-built cycles (walk, run, attack, jump)
+- [x] Animation blending and state machines
+
+### Rigging & Parts
+- [x] Skeleton/rig system with bone hierarchies
+- [x] Pose library with interpolation
+- [x] Body part templates (heads, bodies, hair, eyes)
+- [ ] Equipment/armor parts system
+
+### Generation
+- [x] Character generator
+- [x] Creature generator (slime, beast, undead, elemental)
+- [x] Item generator (weapons, potions, keys)
+- [x] Prop generator (furniture, vegetation, chests)
+- [x] Environment generator (sky, terrain, weather)
+- [x] Structure generator (houses, castles, dungeons)
+- [ ] Character assembly from parts
+
+### Effects & Visual
+- [x] Particle system with presets
+- [x] Weather effects (rain, snow)
+- [x] Motion trails and smear frames
+- [x] Screen effects
+
+### Export
+- [x] Sprite sheet export with metadata
+- [x] GIF export with optimization
+- [x] APNG export
+- [x] Sprite atlas with bin packing
+
+### Tools & Quality
+- [x] Style presets (chibi, retro, modern)
+- [x] UI components (fonts, icons, 9-patch)
+- [x] Tile system with autotiling
+- [x] Quality validators and analyzers
+- [x] Auto-shading and color harmony
+- [ ] Style transfer between sprites
+- [ ] Full editor toolchain
+
+See [ROADMAP.md](ROADMAP.md) for detailed development plan.
 
 ## License
 
