@@ -90,7 +90,8 @@ def find_test_modules(category: str = None) -> List[str]:
     else:
         categories = [
             'core', 'generators', 'effects', 'ui',
-            'editor', 'export', 'integration', 'visual', 'quality', 'preview'
+            'editor', 'export', 'integration', 'visual', 'quality', 'preview',
+            'characters', 'animation', 'style'
         ]
 
     for cat in categories:
@@ -438,7 +439,7 @@ Examples:
 
     parser.add_argument(
         '-c', '--category',
-        choices=['core', 'generators', 'effects', 'ui', 'editor', 'export', 'integration', 'visual', 'quality', 'preview'],
+        choices=['core', 'generators', 'effects', 'ui', 'editor', 'export', 'integration', 'visual', 'quality', 'preview', 'characters', 'animation', 'style'],
         help='Run tests from specific category'
     )
 
