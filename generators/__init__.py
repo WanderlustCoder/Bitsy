@@ -92,6 +92,24 @@ from .scene import (
     list_weather_types,
 )
 
+from .texture import (
+    TextureType,
+    TexturePalette,
+    TextureGenerator,
+    generate_texture,
+    list_texture_types,
+    TEXTURE_GENERATORS,
+)
+
+from .vehicle import (
+    VehicleType,
+    VehiclePalette,
+    VehicleGenerator,
+    generate_vehicle,
+    list_vehicle_types,
+    VEHICLE_GENERATORS,
+)
+
 __all__ = [
     # Character generation
     'CharacterGenerator',
@@ -166,4 +184,18 @@ __all__ = [
     'generate_parallax_background',
     'list_times_of_day',
     'list_weather_types',
+    # Texture generation
+    'TextureType',
+    'TexturePalette',
+    'TextureGenerator',
+    'generate_texture',
+    'list_texture_types',
+    'TEXTURE_GENERATORS',
+    # Vehicle generation
+    'VehicleType',
+    'VehiclePalette',
+    'VehicleGenerator',
+    'generate_vehicle',
+    'list_vehicle_types',
+    'VEHICLE_GENERATORS',
 ]
