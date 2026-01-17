@@ -28,6 +28,19 @@ from .pose import (
     POSE_LIBRARY_PRESETS,
 )
 
+from .retarget import (
+    BoneMapping,
+    SkeletonMapping,
+    RetargetingConfig,
+    retarget_animation,
+    retarget_pose,
+    retarget_timeline,
+    retarget_frame,
+    create_mapping,
+    list_mappings,
+    infer_mapping,
+)
+
 __all__ = [
     # Skeleton
     'Bone',
@@ -49,4 +62,16 @@ __all__ = [
     'create_chibi_poses',
     'create_humanoid_poses',
     'POSE_LIBRARY_PRESETS',
+
+    # Retargeting
+    'BoneMapping',
+    'SkeletonMapping',
+    'RetargetingConfig',
+    'retarget_animation',
+    'retarget_pose',
+    'retarget_timeline',
+    'retarget_frame',
+    'create_mapping',
+    'list_mappings',
+    'infer_mapping',
 ]

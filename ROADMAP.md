@@ -182,7 +182,7 @@ Nice-to-have features for completeness.
 Ideas for future consideration.
 
 - **3D to 2D**: Generate pixel art from 3D models
-- **Animation Retargeting**: Apply animations across different skeletons
+- **Animation Retargeting** ✓: Apply animations across different skeletons
 - **Procedural Sound**: Generate 8-bit sound effects to match sprites
 - **Mod Support**: Plugin system for custom generators
 - **Collaborative**: Multi-user generation sessions
