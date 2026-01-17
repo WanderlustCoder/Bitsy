@@ -5,7 +5,11 @@ This module provides:
 - Particle systems for dynamic effects
 - Motion trails and afterimages
 - Screen effects (shake, flash, fade)
-- Post-processing filters
+- Post-processing filters (blur, sharpen, emboss)
+- Glow and bloom effects
+- Color grading and LUTs
+- Displacement effects (wave, ripple, twirl)
+- Palette cycling animations
 
 Example usage:
 
@@ -28,6 +32,26 @@ Example usage:
     # In game loop:
     effects.update(dt)
     result = effects.apply(game_canvas)
+
+    # Post-processing
+    from bitsy.effects import blur, add_glow, apply_color_grade
+
+    blurred = blur(canvas, radius=2)
+    glowing = add_glow(canvas, threshold=200)
+    graded = apply_color_grade(canvas, "cyberpunk")
+
+    # Displacement
+    from bitsy.effects import apply_wave, apply_ripple
+
+    wavy = apply_wave(canvas, amplitude=3, frequency=0.2)
+    rippled = apply_ripple(canvas, amplitude=4, wavelength=8)
+
+    # Palette cycling
+    from bitsy.effects import create_water_cycle
+
+    cycler = create_water_cycle()
+    cycler.update(dt)
+    animated = cycler.apply(canvas)
 """
 
 # Particles
@@ -109,6 +133,105 @@ from .screen import (
     create_rumble_shake,
 )
 
+# Post-processing effects
+from .post_process import (
+    # Base classes
+    Effect,
+    PostProcessor,
+    ConvolutionKernel,
+    # Convolution effects
+    GaussianBlur,
+    BoxBlur,
+    Sharpen,
+    Emboss,
+    EdgeDetect,
+    # Pixel-level effects
+    Pixelate,
+    Posterize,
+    Dither,
+    DitherMethod,
+    Invert,
+    Grayscale,
+    Sepia,
+    # Convenience functions
+    blur,
+    sharpen,
+    pixelate,
+    posterize,
+    grayscale,
+    sepia,
+    invert,
+    emboss,
+    detect_edges,
+)
+
+# Glow and bloom effects
+from .glow import (
+    GlowEffect,
+    BloomEffect,
+    InnerGlow,
+    OuterGlow,
+    ColorGlow,
+    add_glow,
+    add_bloom,
+    add_outer_glow,
+    add_inner_glow,
+)
+
+# Color grading
+from .color_grading import (
+    LUT,
+    ColorGrader,
+    create_warm_grade,
+    create_cool_grade,
+    create_vintage_grade,
+    create_cyberpunk_grade,
+    create_noir_grade,
+    create_golden_hour_grade,
+    apply_color_grade,
+    adjust_levels,
+    adjust_temperature,
+    list_color_grades,
+)
+
+# Displacement effects
+from .displacement import (
+    Displacement,
+    WaveDisplacement,
+    RippleDisplacement,
+    TwirlDisplacement,
+    BulgeDisplacement,
+    NoiseDisplacement,
+    BarrelDisplacement,
+    ShearDisplacement,
+    CompositeDisplacement,
+    apply_wave,
+    apply_ripple,
+    apply_twirl,
+    apply_bulge,
+    apply_noise,
+    apply_barrel,
+)
+
+# Palette cycling
+from .palette_cycle import (
+    CycleRange,
+    PaletteCycler,
+    ColorShifter,
+    PaletteCycleAnimation,
+    create_water_palette,
+    create_fire_palette,
+    create_rainbow_palette,
+    create_lava_palette,
+    create_water_cycle,
+    create_fire_cycle,
+    create_rainbow_cycle,
+    create_shimmer_cycle,
+    create_lava_cycle,
+    create_cycle,
+    list_cycle_presets,
+)
+
 __all__ = [
     # Particles
     'ParticleShape',
@@ -169,4 +292,89 @@ __all__ = [
     'apply_weather_to_scene',
     'list_weather_types',
     'list_intensity_levels',
+
+    # Post-processing
+    'Effect',
+    'PostProcessor',
+    'ConvolutionKernel',
+    'GaussianBlur',
+    'BoxBlur',
+    'Sharpen',
+    'Emboss',
+    'EdgeDetect',
+    'Pixelate',
+    'Posterize',
+    'Dither',
+    'DitherMethod',
+    'Invert',
+    'Grayscale',
+    'Sepia',
+    'blur',
+    'sharpen',
+    'pixelate',
+    'posterize',
+    'grayscale',
+    'sepia',
+    'invert',
+    'emboss',
+    'detect_edges',
+
+    # Glow and bloom
+    'GlowEffect',
+    'BloomEffect',
+    'InnerGlow',
+    'OuterGlow',
+    'ColorGlow',
+    'add_glow',
+    'add_bloom',
+    'add_outer_glow',
+    'add_inner_glow',
+
+    # Color grading
+    'LUT',
+    'ColorGrader',
+    'create_warm_grade',
+    'create_cool_grade',
+    'create_vintage_grade',
+    'create_cyberpunk_grade',
+    'create_noir_grade',
+    'create_golden_hour_grade',
+    'apply_color_grade',
+    'adjust_levels',
+    'adjust_temperature',
+    'list_color_grades',
+
+    # Displacement
+    'Displacement',
+    'WaveDisplacement',
+    'RippleDisplacement',
+    'TwirlDisplacement',
+    'BulgeDisplacement',
+    'NoiseDisplacement',
+    'BarrelDisplacement',
+    'ShearDisplacement',
+    'CompositeDisplacement',
+    'apply_wave',
+    'apply_ripple',
+    'apply_twirl',
+    'apply_bulge',
+    'apply_noise',
+    'apply_barrel',
+
+    # Palette cycling
+    'CycleRange',
+    'PaletteCycler',
+    'ColorShifter',
+    'PaletteCycleAnimation',
+    'create_water_palette',
+    'create_fire_palette',
+    'create_rainbow_palette',
+    'create_lava_palette',
+    'create_water_cycle',
+    'create_fire_cycle',
+    'create_rainbow_cycle',
+    'create_shimmer_cycle',
+    'create_lava_cycle',
+    'create_cycle',
+    'list_cycle_presets',
 ]

@@ -141,12 +141,12 @@ Features for direct game integration.
 
 Nice-to-have features for completeness.
 
-### 4.1 Advanced Effects
-- [ ] Shader-like post-processing
-- [ ] Glow and bloom effects
-- [ ] Color grading and LUTs
-- [ ] Displacement effects
-- [ ] Palette cycling animations
+### 4.1 Advanced Effects ✓
+- [x] Shader-like post-processing
+- [x] Glow and bloom effects
+- [x] Color grading and LUTs
+- [x] Displacement effects
+- [x] Palette cycling animations
 
 ### 4.2 Import Capabilities
 - [ ] Import existing sprites for editing
@@ -155,12 +155,12 @@ Nice-to-have features for completeness.
 - [ ] Sprite splitting and detection
 - [ ] Reference image tracing
 
-### 4.3 AI Integration Hooks
-- [ ] Prompt-to-sprite generation interface
-- [ ] Style description parsing
-- [ ] Variation generation from examples
-- [ ] Quality scoring and selection
-- [ ] Iterative refinement loops
+### 4.3 AI Integration Hooks ✓
+- [x] Prompt-to-sprite generation interface
+- [x] Style description parsing
+- [x] Variation generation from examples
+- [x] Quality scoring and selection
+- [x] Iterative refinement loops
 
 ### 4.4 Web/Interactive
 - [ ] Browser-based preview server
