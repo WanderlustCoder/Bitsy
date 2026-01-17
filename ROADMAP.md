@@ -185,7 +185,7 @@ Ideas for future consideration.
 - **Animation Retargeting** ✓: Apply animations across different skeletons
 - **Procedural Sound** ✓: Generate 8-bit sound effects to match sprites
 - **Mod Support** ✓: Plugin system for custom generators
-- **Collaborative**: Multi-user generation sessions
+- **Collaborative** ✓: Multi-user generation sessions
 - **Machine Learning** ✓: Train on generated sprites for style learning
 
 ---
