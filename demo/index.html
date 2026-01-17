@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitsy - Pixel Art Generation Toolkit Demo</title>
+    <style>
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-hover: #1f3460;
+            --accent: #e94560;
+            --accent-light: #ff6b6b;
+            --text: #eaeaea;
+            --text-muted: #a0a0a0;
+            --border: #2a2a4a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--bg-card) 0%, #0f0f23 100%);
+            padding: 3rem 2rem;
+            text-align: center;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, var(--accent), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .feature-badge {
+            background: var(--bg-hover);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+        }
+
+        nav {
+            background: var(--bg-card);
+            padding: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+        }
+
+        nav ul {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        nav a:hover {
+            background: var(--accent);
+        }
+
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        section {
+            margin-bottom: 4rem;
+        }
+
+        section h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent);
+            display: inline-block;
+        }
+
+        section > p {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .gallery-large {
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        }
+
+        .gallery-item {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+            border: 1px solid var(--border);
+            transition: all 0.3s;
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+            box-shadow: 0 10px 30px rgba(233, 69, 96, 0.2);
+        }
+
+        .gallery-item img {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            max-width: 100%;
+            height: auto;
+            background: repeating-conic-gradient(#2a2a4a 0% 25%, #1a1a2e 0% 50%) 50% / 16px 16px;
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .gallery-item .label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .animation-gallery {
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        }
+
+        .animation-gallery img {
+            width: 128px;
+            height: 128px;
+        }
+
+        .scene-gallery {
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        }
+
+        .scene-gallery img {
+            width: 256px;
+            height: 256px;
+        }
+
+        .texture-item img {
+            width: 64px;
+            height: 64px;
+        }
+
+        .texture-item .tiled {
+            width: 128px;
+            height: 128px;
+            margin-top: 0.5rem;
+        }
+
+        footer {
+            background: var(--bg-card);
+            padding: 2rem;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+
+        footer p {
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .code-example {
+            background: #0d1117;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+
+        .code-example code {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            color: #c9d1d9;
+        }
+
+        .code-example .keyword { color: #ff7b72; }
+        .code-example .string { color: #a5d6ff; }
+        .code-example .comment { color: #8b949e; }
+        .code-example .function { color: #d2a8ff; }
+
+        @media (max-width: 768px) {
+            header h1 { font-size: 2rem; }
+            .gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+            nav ul { gap: 0.25rem; }
+            nav a { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Bitsy</h1>
+        <p>A pure Python pixel art and sprite generation toolkit with zero dependencies</p>
+        <div class="features">
+            <span class="feature-badge">Zero Dependencies</span>
+            <span class="feature-badge">Procedural Generation</span>
+            <span class="feature-badge">Animation Support</span>
+            <span class="feature-badge">Style Presets</span>
+        </div>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#characters">Characters</a></li>
+            <li><a href="#creatures">Creatures</a></li>
+            <li><a href="#items">Items</a></li>
+            <li><a href="#props">Props</a></li>
+            <li><a href="#environments">Environments</a></li>
+            <li><a href="#structures">Structures</a></li>
+            <li><a href="#textures">Textures</a></li>
+            <li><a href="#vehicles">Vehicles</a></li>
+            <li><a href="#animations">Animations</a></li>
+            <li><a href="#scenes">Scenes</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section id="characters">
+            <h2>Characters</h2>
+            <p>Procedurally generated pixel art characters with customizable hair, eyes, outfits, and styles.</p>
+
+            <div class="code-example">
+                <code>
+<span class="keyword">from</span> generators <span class="keyword">import</span> CharacterGenerator<br><br>
+gen = CharacterGenerator(width=<span class="string">32</span>, height=<span class="string">32</span>)<br>
+gen.<span class="function">set_hair</span>(<span class="string">'fluffy'</span>, palette=<span class="string">'lavender'</span>)<br>
+gen.<span class="function">set_eyes</span>(<span class="string">'large'</span>, color=<span class="string">'blue'</span>)<br>
+sprite = gen.<span class="function">render</span>()
+                </code>
+            </div>
+
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="characters/char_01_default_4x.png" alt="Default Character">
+                    <div class="label">Default Chibi</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_02_blue_4x.png" alt="Blue Hair Character">
+                    <div class="label">Blue Hair</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_03_brown_purple_red_4x.png" alt="Brown Hair Character">
+                    <div class="label">Brown Hair</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_04_blonde_4x.png" alt="Blonde Character">
+                    <div class="label">Blonde</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_05_pink_sparkle_4x.png" alt="Pink Hair Character">
+                    <div class="label">Pink Hair</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_06_black_brown_green_4x.png" alt="Black Hair Character">
+                    <div class="label">Black Hair</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_07_red_4x.png" alt="Red Hair Character">
+                    <div class="label">Red Hair</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/char_08_random_4x.png" alt="Randomized Character">
+                    <div class="label">Randomized</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="creatures">
+            <h2>Creatures</h2>
+            <p>Monsters and enemies including slimes, undead, beasts, elementals, and insects.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Slime Variants</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="creatures/slime_basic_4x.png" alt="Basic Slime">
+                    <div class="label">Basic</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_blue_4x.png" alt="Blue Slime">
+                    <div class="label">Blue</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_red_4x.png" alt="Red Slime">
+                    <div class="label">Red</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_purple_4x.png" alt="Purple Slime">
+                    <div class="label">Purple</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_fire_4x.png" alt="Fire Slime">
+                    <div class="label">Fire</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_ice_4x.png" alt="Ice Slime">
+                    <div class="label">Ice</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_poison_4x.png" alt="Poison Slime">
+                    <div class="label">Poison</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/slime_metal_4x.png" alt="Metal Slime">
+                    <div class="label">Metal</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Other Creatures</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="creatures/creature_ghost_4x.png" alt="Ghost">
+                    <div class="label">Ghost</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_skeleton_4x.png" alt="Skeleton">
+                    <div class="label">Skeleton</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_zombie_4x.png" alt="Zombie">
+                    <div class="label">Zombie</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_wolf_4x.png" alt="Wolf">
+                    <div class="label">Wolf</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_bat_4x.png" alt="Bat">
+                    <div class="label">Bat</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_spider_4x.png" alt="Spider">
+                    <div class="label">Spider</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_fire_elemental_4x.png" alt="Fire Elemental">
+                    <div class="label">Fire Elemental</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="creatures/creature_ice_elemental_4x.png" alt="Ice Elemental">
+                    <div class="label">Ice Elemental</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="items">
+            <h2>Items</h2>
+            <p>Weapons, potions, materials, and other game items.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Weapons</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="items/weapon_sword_4x.png" alt="Sword">
+                    <div class="label">Sword</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_dagger_4x.png" alt="Dagger">
+                    <div class="label">Dagger</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_axe_4x.png" alt="Axe">
+                    <div class="label">Axe</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_spear_4x.png" alt="Spear">
+                    <div class="label">Spear</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_bow_4x.png" alt="Bow">
+                    <div class="label">Bow</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_staff_4x.png" alt="Staff">
+                    <div class="label">Staff</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_wand_4x.png" alt="Wand">
+                    <div class="label">Wand</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/weapon_hammer_4x.png" alt="Hammer">
+                    <div class="label">Hammer</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Consumables & Materials</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="items/consumable_health_potion_4x.png" alt="Health Potion">
+                    <div class="label">Health Potion</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/consumable_mana_potion_4x.png" alt="Mana Potion">
+                    <div class="label">Mana Potion</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/consumable_buff_potion_4x.png" alt="Buff Potion">
+                    <div class="label">Buff Potion</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/consumable_food_4x.png" alt="Food">
+                    <div class="label">Food</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/consumable_scroll_4x.png" alt="Scroll">
+                    <div class="label">Scroll</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/material_gem_4x.png" alt="Gem">
+                    <div class="label">Gem</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/material_ore_4x.png" alt="Ore">
+                    <div class="label">Ore</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="items/material_crystal_4x.png" alt="Crystal">
+                    <div class="label">Crystal</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="props">
+            <h2>Props</h2>
+            <p>Chests, containers, furniture, and vegetation for game environments.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Chests & Containers</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="props/chest_wooden_4x.png" alt="Wooden Chest">
+                    <div class="label">Wooden Chest</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/chest_iron_4x.png" alt="Iron Chest">
+                    <div class="label">Iron Chest</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/chest_gold_4x.png" alt="Gold Chest">
+                    <div class="label">Gold Chest</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/chest_treasure_4x.png" alt="Treasure Chest">
+                    <div class="label">Treasure</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/container_barrel_4x.png" alt="Barrel">
+                    <div class="label">Barrel</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/container_crate_4x.png" alt="Crate">
+                    <div class="label">Crate</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/container_pot_4x.png" alt="Pot">
+                    <div class="label">Pot</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/container_vase_4x.png" alt="Vase">
+                    <div class="label">Vase</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Furniture</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="props/furniture_table_4x.png" alt="Table">
+                    <div class="label">Table</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/furniture_chair_4x.png" alt="Chair">
+                    <div class="label">Chair</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/furniture_bed_4x.png" alt="Bed">
+                    <div class="label">Bed</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/furniture_bookshelf_4x.png" alt="Bookshelf">
+                    <div class="label">Bookshelf</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/furniture_throne_4x.png" alt="Throne">
+                    <div class="label">Throne</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Vegetation</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="props/vegetation_tree_4x.png" alt="Tree">
+                    <div class="label">Tree</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/vegetation_bush_4x.png" alt="Bush">
+                    <div class="label">Bush</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/vegetation_flower_4x.png" alt="Flower">
+                    <div class="label">Flower</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/vegetation_grass_4x.png" alt="Grass">
+                    <div class="label">Grass</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/vegetation_mushroom_4x.png" alt="Mushroom">
+                    <div class="label">Mushroom</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="props/vegetation_cactus_4x.png" alt="Cactus">
+                    <div class="label">Cactus</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="environments">
+            <h2>Environments</h2>
+            <p>Sky backdrops, terrain tiles, and room interiors for different times of day and biomes.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Sky (Time of Day)</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="environments/sky_dawn.png" alt="Dawn Sky">
+                    <div class="label">Dawn</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/sky_day.png" alt="Day Sky">
+                    <div class="label">Day</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/sky_dusk.png" alt="Dusk Sky">
+                    <div class="label">Dusk</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/sky_night.png" alt="Night Sky">
+                    <div class="label">Night</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/sky_midnight.png" alt="Midnight Sky">
+                    <div class="label">Midnight</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Terrain</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="environments/terrain_grass.png" alt="Grass">
+                    <div class="label">Grass</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/terrain_stone.png" alt="Stone">
+                    <div class="label">Stone</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/terrain_sand.png" alt="Sand">
+                    <div class="label">Sand</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/terrain_snow.png" alt="Snow">
+                    <div class="label">Snow</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/terrain_dirt.png" alt="Dirt">
+                    <div class="label">Dirt</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/terrain_water.png" alt="Water">
+                    <div class="label">Water</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/terrain_lava.png" alt="Lava">
+                    <div class="label">Lava</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Rooms</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="environments/room_dungeon.png" alt="Dungeon">
+                    <div class="label">Dungeon</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/room_house.png" alt="House">
+                    <div class="label">House</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/room_castle.png" alt="Castle">
+                    <div class="label">Castle</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/room_cave.png" alt="Cave">
+                    <div class="label">Cave</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/room_forest.png" alt="Forest">
+                    <div class="label">Forest</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="environments/room_temple.png" alt="Temple">
+                    <div class="label">Temple</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="structures">
+            <h2>Structures</h2>
+            <p>Buildings, castles, and dungeon tiles for world building.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Houses</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="structures/house_cottage.png" alt="Cottage">
+                    <div class="label">Cottage</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/house_medieval.png" alt="Medieval">
+                    <div class="label">Medieval</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/house_fantasy.png" alt="Fantasy">
+                    <div class="label">Fantasy</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/house_rustic.png" alt="Rustic">
+                    <div class="label">Rustic</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/house_stone.png" alt="Stone">
+                    <div class="label">Stone</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/house_castle.png" alt="Castle">
+                    <div class="label">Castle</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Fortifications</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="structures/castle_wall.png" alt="Castle Wall">
+                    <div class="label">Castle Wall</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/castle_tower.png" alt="Castle Tower">
+                    <div class="label">Castle Tower</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Dungeon Tiles</h3>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img src="structures/dungeon_floor.png" alt="Floor">
+                    <div class="label">Floor</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/dungeon_wall.png" alt="Wall">
+                    <div class="label">Wall</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/dungeon_door.png" alt="Door">
+                    <div class="label">Door</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/dungeon_stairs.png" alt="Stairs">
+                    <div class="label">Stairs</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/dungeon_torch.png" alt="Torch">
+                    <div class="label">Torch</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/dungeon_pillar.png" alt="Pillar">
+                    <div class="label">Pillar</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="structures/dungeon_tileset.png" alt="Tileset">
+                    <div class="label">Tileset</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="textures">
+            <h2>Textures</h2>
+            <p>Seamless tileable textures for surfaces and materials.</p>
+
+            <div class="gallery">
+                <div class="gallery-item texture-item">
+                    <img src="textures/texture_brick.png" alt="Brick">
+                    <img src="textures/texture_brick_tiled.png" alt="Brick Tiled" class="tiled">
+                    <div class="label">Brick</div>
+                </div>
+                <div class="gallery-item texture-item">
+                    <img src="textures/texture_stone.png" alt="Stone">
+                    <img src="textures/texture_stone_tiled.png" alt="Stone Tiled" class="tiled">
+                    <div class="label">Stone</div>
+                </div>
+                <div class="gallery-item texture-item">
+                    <img src="textures/texture_wood.png" alt="Wood">
+                    <img src="textures/texture_wood_tiled.png" alt="Wood Tiled" class="tiled">
+                    <div class="label">Wood</div>
+                </div>
+                <div class="gallery-item texture-item">
+                    <img src="textures/texture_grass.png" alt="Grass">
+                    <img src="textures/texture_grass_tiled.png" alt="Grass Tiled" class="tiled">
+                    <div class="label">Grass</div>
+                </div>
+                <div class="gallery-item texture-item">
+                    <img src="textures/texture_fabric.png" alt="Fabric">
+                    <img src="textures/texture_fabric_tiled.png" alt="Fabric Tiled" class="tiled">
+                    <div class="label">Fabric</div>
+                </div>
+                <div class="gallery-item texture-item">
+                    <img src="textures/texture_metal.png" alt="Metal">
+                    <img src="textures/texture_metal_tiled.png" alt="Metal Tiled" class="tiled">
+                    <div class="label">Metal</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="vehicles">
+            <h2>Vehicles</h2>
+            <p>Cars, ships, aircraft, and spaceships for various game genres.</p>
+
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="vehicles/car_red_4x.png" alt="Red Car">
+                    <div class="label">Red Car</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="vehicles/car_blue_4x.png" alt="Blue Car">
+                    <div class="label">Blue Car</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="vehicles/car_white_4x.png" alt="White Car">
+                    <div class="label">White Car</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="vehicles/ship_sailboat_4x.png" alt="Sailboat">
+                    <div class="label">Sailboat</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="vehicles/aircraft_plane_4x.png" alt="Plane">
+                    <div class="label">Plane</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="vehicles/spaceship_fighter_4x.png" alt="Spaceship">
+                    <div class="label">Spaceship</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="animations">
+            <h2>Animations</h2>
+            <p>Animated sprites exported as optimized GIFs.</p>
+
+            <div class="gallery animation-gallery">
+                <div class="gallery-item">
+                    <img src="animations/character_idle.gif" alt="Character Idle">
+                    <div class="label">Character Idle</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="animations/character_walk.gif" alt="Character Walk">
+                    <div class="label">Character Walk</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="animations/slime_bounce.gif" alt="Slime Bounce">
+                    <div class="label">Slime Bounce</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="animations/ghost_float.gif" alt="Ghost Float">
+                    <div class="label">Ghost Float</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="scenes">
+            <h2>Scene Compositions</h2>
+            <p>Complete scenes combining characters, environments, and props using the Scene compositing system.</p>
+
+            <div class="gallery scene-gallery">
+                <div class="gallery-item">
+                    <img src="scenes/scene_rpg_field.png" alt="RPG Field Scene">
+                    <div class="label">RPG Field</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="scenes/scene_dungeon.png" alt="Dungeon Scene">
+                    <div class="label">Dungeon</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="scenes/scene_village.png" alt="Village Scene">
+                    <div class="label">Village</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>
+            <strong>Bitsy</strong> - Pure Python Pixel Art Toolkit<br>
+            <a href="https://github.com/yourusername/bitsy">GitHub Repository</a> | MIT License
+        </p>
+        <p style="margin-top: 1rem; font-size: 0.9rem;">
+            Generated with Bitsy v1.0.0 - Zero dependencies, pure Python
+        </p>
+    </footer>
+</body>
+</html>
