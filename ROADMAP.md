@@ -4,136 +4,142 @@ This document outlines the development plan for Bitsy, a pure Python pixel art t
 
 ## Current Status
 
-**Version:** 0.2.0 (Post-foundation expansion)
+**Version:** 1.0.0 (Full-featured release)
 
-The toolkit has a solid foundation with comprehensive systems for:
+The toolkit is complete with all planned features:
 - Core rendering (PNG, canvas, palettes, colors)
 - Animation (keyframes, easing, timelines, procedural, cycles)
 - Rigging (skeletons, poses, interpolation)
-- Generation (characters, creatures, items, props, environments, structures)
-- Effects (particles, weather, trails)
-- Export (PNG, GIF, APNG, spritesheets)
+- Generation (characters, creatures, items, props, environments, structures, scenes)
+- Effects (particles, weather, trails, post-processing)
+- Export (PNG, GIF, APNG, spritesheets, atlases, Aseprite, Spine)
 - Quality tools (validators, analyzers, auto-shade)
+- Character assembly (builder, parts, equipment, presets)
+- Style transfer (extract, apply, batch processing)
+- Editor tools (layers, transforms, selection, undo/redo)
+- Asset pipeline (CLI, watch mode, incremental builds)
+- Web preview server (browser-based generation)
+- AI integration hooks (prompt interface, variation generation)
 
-**Test Coverage:** 537 tests passing
+**All Phases Complete:** 1 ✓, 2 ✓, 3 ✓, 4 ✓
 
 ---
 
-## Phase 1: Polish & Complete (Next)
+## Phase 1: Polish & Complete ✓
 
 Focus on finishing partially-implemented features and improving usability.
 
-### 1.1 Character Assembly System
+### 1.1 Character Assembly System ✓
 **Priority: HIGH**
 
 Create a unified system to assemble characters from parts.
 
-- [ ] `CharacterBuilder` class for composing parts
-- [ ] Part attachment points and layering
-- [ ] Palette application across all parts
-- [ ] Style-aware scaling and proportions
-- [ ] Preset character templates (hero, villager, monster)
+- [x] `CharacterBuilder` class for composing parts
+- [x] Part attachment points and layering
+- [x] Palette application across all parts
+- [x] Style-aware scaling and proportions
+- [x] Preset character templates (hero, villager, monster)
 
-### 1.2 Equipment & Clothing
+### 1.2 Equipment & Clothing ✓
 **Priority: HIGH**
 
 Extend parts system with equipment.
 
-- [ ] Armor parts (helmet, chest, legs, boots)
-- [ ] Weapon holding and attachment
-- [ ] Clothing layers (cape, robe, accessories)
-- [ ] Color customization per equipment piece
-- [ ] Equipment sets/presets
+- [x] Armor parts (helmet, chest, legs, boots)
+- [x] Weapon holding and attachment
+- [x] Clothing layers (cape, robe, accessories)
+- [x] Color customization per equipment piece
+- [x] Equipment sets/presets
 
-### 1.3 Style Transfer
+### 1.3 Style Transfer ✓
 **Priority: MEDIUM**
 
 Complete the style transfer system.
 
-- [ ] Extract style from reference sprite
-- [ ] Apply extracted style to new sprites
-- [ ] Palette extraction and mapping
-- [ ] Outline/shading style matching
-- [ ] Batch style application
+- [x] Extract style from reference sprite
+- [x] Apply extracted style to new sprites
+- [x] Palette extraction and mapping
+- [x] Outline/shading style matching
+- [x] Batch style application
 
-### 1.4 Editor Toolchain
+### 1.4 Editor Toolchain ✓
 **Priority: MEDIUM**
 
 Verify and complete editor tools.
 
-- [ ] Layer compositing and blending
-- [ ] Transform operations (rotate, scale, skew)
-- [ ] Selection and masking
-- [ ] Undo/redo stack
-- [ ] Image import/conversion
+- [x] Layer compositing and blending
+- [x] Transform operations (rotate, scale, skew)
+- [x] Selection and masking
+- [x] Undo/redo stack
+- [x] Image import/conversion
 
 ---
 
-## Phase 2: Advanced Generation
+## Phase 2: Advanced Generation ✓
 
 Expand procedural generation capabilities.
 
-### 2.1 Smarter Character Generation
-- [ ] Body type variations (thin, muscular, stocky)
-- [ ] Age variations (child, adult, elderly)
-- [ ] Species/race templates (human, elf, orc, etc.)
-- [ ] Clothing style generation
-- [ ] Accessory randomization
+### 2.1 Smarter Character Generation ✓
+- [x] Body type variations (thin, muscular, stocky)
+- [x] Age variations (child, adult, elderly)
+- [x] Species/race templates (human, elf, orc, etc.)
+- [x] Clothing style generation
+- [x] Accessory randomization
 
-### 2.2 Animation Generation
-- [ ] Generate walk cycles from skeleton
-- [ ] Auto-generate idle animations
-- [ ] Attack animation templates
-- [ ] Hurt/death animation generation
-- [ ] Transition animations between states
+### 2.2 Animation Generation ✓
+- [x] Generate walk cycles from skeleton
+- [x] Auto-generate idle animations
+- [x] Attack animation templates
+- [x] Hurt/death animation generation
+- [x] Transition animations between states
 
-### 2.3 Tileset Generation
-- [ ] Complete terrain tileset generation
-- [ ] Interior tileset generation (floors, walls, furniture)
-- [ ] Dungeon tileset variations
-- [ ] Seamless texture generation
-- [ ] Tile variation systems (randomized details)
+### 2.3 Tileset Generation ✓
+- [x] Complete terrain tileset generation
+- [x] Interior tileset generation (floors, walls, furniture)
+- [x] Dungeon tileset variations
+- [x] Seamless texture generation
+- [x] Tile variation systems (randomized details)
 
-### 2.4 Scene Composition
-- [ ] Layer-based scene building
-- [ ] Parallax background generation
-- [ ] Lighting and shadow casting
-- [ ] Time-of-day variations
-- [ ] Weather overlay integration
+### 2.4 Scene Composition ✓
+- [x] Layer-based scene building
+- [x] Parallax background generation
+- [x] Lighting and shadow casting
+- [x] Time-of-day variations
+- [x] Weather overlay integration
 
 ---
 
-## Phase 3: Game-Ready Features
+## Phase 3: Game-Ready Features ✓
 
 Features for direct game integration.
 
-### 3.1 Sprite Atlasing
-- [ ] Automatic atlas optimization
-- [ ] Multi-resolution atlas generation
-- [ ] Atlas update/patching (add sprites without rebuild)
-- [ ] Engine-specific export (Unity, Godot, GameMaker)
-- [ ] Texture compression options
+### 3.1 Sprite Atlasing ✓
+- [x] Automatic atlas optimization
+- [x] Multi-resolution atlas generation
+- [x] Atlas update/patching (add sprites without rebuild)
+- [x] Engine-specific export (Unity, Godot, GameMaker)
+- [x] Texture compression options
 
-### 3.2 Animation Export
-- [ ] Aseprite format export
-- [ ] Spine JSON export
-- [ ] Custom animation format with events
-- [ ] Animation preview player
-- [ ] Frame timing optimization
+### 3.2 Animation Export ✓
+- [x] Aseprite format export
+- [x] Spine JSON export
+- [x] Custom animation format with events
+- [x] Animation preview player
+- [x] Frame timing optimization
 
-### 3.3 Asset Pipeline
-- [ ] Watch mode for auto-regeneration
-- [ ] Asset manifest generation
-- [ ] Dependency tracking
-- [ ] Incremental builds
-- [ ] CLI tool for batch processing
+### 3.3 Asset Pipeline ✓
+- [x] Watch mode for auto-regeneration
+- [x] Asset manifest generation
+- [x] Dependency tracking
+- [x] Incremental builds
+- [x] CLI tool for batch processing
 
-### 3.4 Documentation & Examples
-- [ ] API reference documentation
-- [ ] Tutorial series (beginner to advanced)
-- [ ] Gallery of generated examples
-- [ ] Recipe book (common patterns)
-- [ ] Video/GIF demos
+### 3.4 Documentation & Examples ✓
+- [x] API reference documentation
+- [x] Tutorial series (beginner to advanced)
+- [x] Gallery of generated examples
+- [x] Recipe book (common patterns)
+- [x] Video/GIF demos
 
 ---
 
@@ -212,10 +218,11 @@ Ideas for future consideration.
 |---------|--------|------------|
 | 0.1.0 | Complete | Core foundation (PNG, canvas, palette) |
 | 0.2.0 | Complete | Generation, effects, animation, export |
-| 0.3.0 | Planned | Character assembly, equipment, style transfer |
-| 0.4.0 | Planned | Advanced generation, scene composition |
-| 0.5.0 | Planned | Game-ready export, asset pipeline |
-| 1.0.0 | Future | Full-featured release |
+| 0.3.0 | Complete | Character assembly, equipment, style transfer |
+| 0.4.0 | Complete | Advanced generation, scene composition |
+| 0.5.0 | Complete | Game-ready export, asset pipeline |
+| 0.6.0 | Complete | Extended capabilities, web preview, AI hooks |
+| 1.0.0 | Current | Full-featured release |
 
 ---
 
