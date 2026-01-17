@@ -148,12 +148,12 @@ Nice-to-have features for completeness.
 - [x] Displacement effects
 - [x] Palette cycling animations
 
-### 4.2 Import Capabilities
-- [ ] Import existing sprites for editing
-- [ ] Aseprite file reading
-- [ ] Palette extraction from images
-- [ ] Sprite splitting and detection
-- [ ] Reference image tracing
+### 4.2 Import Capabilities ✓
+- [x] Import existing sprites for editing
+- [x] Aseprite file reading
+- [x] Palette extraction from images
+- [x] Sprite splitting and detection
+- [x] Reference image tracing
 
 ### 4.3 AI Integration Hooks ✓
 - [x] Prompt-to-sprite generation interface
