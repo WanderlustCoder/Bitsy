@@ -186,7 +186,7 @@ Ideas for future consideration.
 - **Procedural Sound** ✓: Generate 8-bit sound effects to match sprites
 - **Mod Support** ✓: Plugin system for custom generators
 - **Collaborative**: Multi-user generation sessions
-- **Machine Learning**: Train on generated sprites for style learning
+- **Machine Learning** ✓: Train on generated sprites for style learning
 
 ---
 
