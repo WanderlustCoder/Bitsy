@@ -65,6 +65,32 @@ from .spritesheet import (
     split_sheet,
 )
 
+# Advanced Atlas with engine-specific exports
+from .atlas import (
+    SpriteAtlas as AdvancedAtlas,
+    AtlasPage,
+    SpriteEntry,
+    PackingAlgorithm,
+    AtlasFormat,
+    create_atlas,
+    pack_animations,
+    list_packing_algorithms,
+    list_atlas_formats,
+)
+
+# Animation export formats
+from .animation_formats import (
+    AnimationExport,
+    AnimationEvent,
+    AnimationEventType,
+    export_aseprite,
+    export_spine_json,
+    export_bitsy_animation,
+    cycle_to_export,
+    export_animation_set,
+    list_animation_formats,
+)
+
 __all__ = [
     # GIF
     'save_gif',
@@ -91,4 +117,26 @@ __all__ = [
     'create_tileset_sheet',
     'create_character_sheet',
     'split_sheet',
+
+    # Advanced Atlas
+    'AdvancedAtlas',
+    'AtlasPage',
+    'SpriteEntry',
+    'PackingAlgorithm',
+    'AtlasFormat',
+    'create_atlas',
+    'pack_animations',
+    'list_packing_algorithms',
+    'list_atlas_formats',
+
+    # Animation Formats
+    'AnimationExport',
+    'AnimationEvent',
+    'AnimationEventType',
+    'export_aseprite',
+    'export_spine_json',
+    'export_bitsy_animation',
+    'cycle_to_export',
+    'export_animation_set',
+    'list_animation_formats',
 ]

@@ -117,6 +117,26 @@ from .cycles import (
     ANIMATION_CYCLES,
 )
 
+# Animation generator
+from .generator import (
+    # Types
+    AnimationType,
+    IdleStyle,
+    AnimationConfig,
+    AnimationSet,
+    # Idle generation
+    generate_idle,
+    generate_idle_blink,
+    # Transition generation
+    generate_transition,
+    # Complete set generation
+    generate_animation_set,
+    # Utilities
+    list_animation_types,
+    list_idle_styles,
+    get_animation,
+)
+
 # Animation polish and enhancement
 from .polish import (
     # Smear frames
@@ -209,6 +229,19 @@ __all__ = [
     'create_cycle',
     'list_cycles',
     'ANIMATION_CYCLES',
+
+    # Generator
+    'AnimationType',
+    'IdleStyle',
+    'AnimationConfig',
+    'AnimationSet',
+    'generate_idle',
+    'generate_idle_blink',
+    'generate_transition',
+    'generate_animation_set',
+    'list_animation_types',
+    'list_idle_styles',
+    'get_animation',
 
     # Polish
     'create_smear_frame',

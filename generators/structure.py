@@ -131,6 +131,66 @@ class StructurePalette:
         )
 
 
+@dataclass
+class TerrainPalette:
+    """Color palette for terrain tiles."""
+    base: Tuple[int, int, int, int]
+    light: Tuple[int, int, int, int]
+    dark: Tuple[int, int, int, int]
+    detail: Tuple[int, int, int, int]
+    accent: Tuple[int, int, int, int]
+
+    @classmethod
+    def grass(cls) -> 'TerrainPalette':
+        return cls(
+            base=(100, 150, 80, 255),
+            light=(130, 180, 100, 255),
+            dark=(70, 110, 60, 255),
+            detail=(90, 140, 70, 255),
+            accent=(120, 100, 60, 255),
+        )
+
+    @classmethod
+    def dirt(cls) -> 'TerrainPalette':
+        return cls(
+            base=(120, 90, 60, 255),
+            light=(150, 120, 80, 255),
+            dark=(80, 60, 40, 255),
+            detail=(100, 75, 50, 255),
+            accent=(110, 85, 55, 255),
+        )
+
+    @classmethod
+    def water(cls) -> 'TerrainPalette':
+        return cls(
+            base=(60, 120, 180, 255),
+            light=(100, 160, 220, 255),
+            dark=(40, 80, 140, 255),
+            detail=(70, 130, 190, 255),
+            accent=(110, 180, 235, 255),
+        )
+
+    @classmethod
+    def stone(cls) -> 'TerrainPalette':
+        return cls(
+            base=(120, 120, 130, 255),
+            light=(150, 150, 160, 255),
+            dark=(80, 80, 90, 255),
+            detail=(100, 100, 110, 255),
+            accent=(90, 90, 100, 255),
+        )
+
+    @classmethod
+    def sand(cls) -> 'TerrainPalette':
+        return cls(
+            base=(220, 200, 150, 255),
+            light=(240, 220, 170, 255),
+            dark=(180, 160, 120, 255),
+            detail=(200, 180, 140, 255),
+            accent=(190, 170, 130, 255),
+        )
+
+
 class StructureGenerator:
     """Generator for buildings, castles, and dungeon tiles."""
 
@@ -698,6 +758,126 @@ class StructureGenerator:
         # Capital
         canvas.fill_rect(pillar_x - 1, 0, pillar_width + 2, 3, palette.wall_shadow)
 
+    # ==================== Terrain Tile Generation ====================
+
+    def generate_terrain_tile(self, terrain: str = 'grass',
+                              size: int = 16) -> Canvas:
+        """Generate a seamless terrain tile."""
+        offsets = {
+            'grass': 400,
+            'dirt': 410,
+            'water': 420,
+            'stone': 430,
+            'sand': 440,
+        }
+        self._reset_seed(offsets.get(terrain, 400))
+
+        canvas = Canvas(size, size)
+        palette = self._get_terrain_palette(terrain)
+        self._draw_terrain_tile(canvas, size, terrain, palette)
+        self._enforce_tile_seams(canvas)
+        return canvas
+
+    def _get_terrain_palette(self, terrain: str) -> TerrainPalette:
+        """Select palette for terrain tile."""
+        palettes = {
+            'grass': TerrainPalette.grass(),
+            'dirt': TerrainPalette.dirt(),
+            'water': TerrainPalette.water(),
+            'stone': TerrainPalette.stone(),
+            'sand': TerrainPalette.sand(),
+        }
+        return palettes.get(terrain, TerrainPalette.grass())
+
+    def _tileable_noise(self, x: int, y: int, size: int,
+                        phase_x: float, phase_y: float, phase_xy: float) -> float:
+        """Generate periodic noise value for seamless edges."""
+        u = (x / size) * (2 * math.pi)
+        v = (y / size) * (2 * math.pi)
+        return (
+            math.sin(u + phase_x)
+            + math.sin(v + phase_y)
+            + math.sin(u + v + phase_xy)
+        ) / 3.0
+
+    def _draw_terrain_tile(self, canvas: Canvas, size: int, terrain: str,
+                           palette: TerrainPalette):
+        """Draw a seamless terrain tile."""
+        canvas.fill_rect(0, 0, size, size, palette.base)
+
+        phase_x = self.rng.random() * 2 * math.pi
+        phase_y = self.rng.random() * 2 * math.pi
+        phase_xy = self.rng.random() * 2 * math.pi
+
+        for y in range(size):
+            for x in range(size):
+                value = self._tileable_noise(x, y, size, phase_x, phase_y, phase_xy)
+
+                if terrain == 'water':
+                    wave = math.sin((y / size) * (2 * math.pi) * 3 + phase_x)
+                    ripple = math.sin((x / size) * (2 * math.pi) * 2 + phase_y)
+                    wave_value = (wave + ripple * 0.6 + value * 0.4) / 2.0
+                    if wave_value > 0.45:
+                        canvas.set_pixel_solid(x, y, palette.light)
+                    elif wave_value < -0.4:
+                        canvas.set_pixel_solid(x, y, palette.dark)
+                    elif wave_value > 0.25:
+                        canvas.set_pixel_solid(x, y, palette.detail)
+                elif terrain == 'sand':
+                    dune = math.sin((y / size) * (2 * math.pi) * 2 + phase_y)
+                    dune_value = (dune + value * 0.6) / 1.6
+                    if dune_value > 0.5:
+                        canvas.set_pixel_solid(x, y, palette.light)
+                    elif dune_value < -0.35:
+                        canvas.set_pixel_solid(x, y, palette.dark)
+                    elif dune_value > 0.2:
+                        canvas.set_pixel_solid(x, y, palette.detail)
+                elif terrain == 'stone':
+                    if value > 0.35:
+                        canvas.set_pixel_solid(x, y, palette.light)
+                    elif value < -0.35:
+                        canvas.set_pixel_solid(x, y, palette.dark)
+                    elif value > 0.15:
+                        canvas.set_pixel_solid(x, y, palette.detail)
+                elif terrain == 'dirt':
+                    if value > 0.3:
+                        canvas.set_pixel_solid(x, y, palette.light)
+                    elif value < -0.3:
+                        canvas.set_pixel_solid(x, y, palette.dark)
+                    elif value > 0.15:
+                        canvas.set_pixel_solid(x, y, palette.detail)
+                else:
+                    if value > 0.35:
+                        canvas.set_pixel_solid(x, y, palette.light)
+                    elif value < -0.3:
+                        canvas.set_pixel_solid(x, y, palette.dark)
+                    elif value > 0.2:
+                        canvas.set_pixel_solid(x, y, palette.detail)
+
+        if terrain in ('grass', 'dirt', 'sand', 'stone'):
+            accent_phase = self.rng.random() * 2 * math.pi
+            for y in range(size):
+                for x in range(size):
+                    sparkle = self._tileable_noise(x, y, size, accent_phase,
+                                                   phase_y, phase_xy)
+                    if sparkle > 0.62:
+                        canvas.set_pixel_solid(x, y, palette.accent)
+        if terrain == 'water':
+            for y in range(0, size, 3):
+                for x in range(size):
+                    shimmer = self._tileable_noise(x, y, size, phase_x,
+                                                   phase_y, phase_xy)
+                    if shimmer > 0.5:
+                        canvas.set_pixel_solid(x, y, palette.accent)
+
+    def _enforce_tile_seams(self, canvas: Canvas) -> None:
+        """Match opposing edges to ensure seamless tiling."""
+        size = min(canvas.width, canvas.height)
+        for y in range(size):
+            canvas.set_pixel_solid(size - 1, y, canvas.get_pixel(0, y))
+        for x in range(size):
+            canvas.set_pixel_solid(x, size - 1, canvas.get_pixel(x, 0))
+
 
 # ==================== Convenience Functions ====================
 
@@ -746,6 +926,19 @@ def generate_dungeon_tileset(size: int = 16, seed: int = 42,
         'stairs': gen.finalize(gen.generate_dungeon_tile('stairs', size)),
         'pit': gen.finalize(gen.generate_dungeon_tile('pit', size)),
         'pillar': gen.finalize(gen.generate_dungeon_tile('pillar', size)),
+    }
+
+
+def generate_terrain_tileset(size: int = 16, seed: int = 42,
+                             hd_mode: bool = False, style: Optional['Style'] = None) -> Dict[str, Canvas]:
+    """Generate a terrain tileset with seamless edges."""
+    gen = StructureGenerator(seed, style=style, hd_mode=hd_mode)
+    return {
+        'grass': gen.finalize(gen.generate_terrain_tile('grass', size)),
+        'dirt': gen.finalize(gen.generate_terrain_tile('dirt', size)),
+        'water': gen.finalize(gen.generate_terrain_tile('water', size)),
+        'stone': gen.finalize(gen.generate_terrain_tile('stone', size)),
+        'sand': gen.finalize(gen.generate_terrain_tile('sand', size)),
     }
 
 

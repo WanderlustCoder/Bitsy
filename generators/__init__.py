@@ -73,9 +73,23 @@ from .structure import (
     generate_castle_tower,
     generate_dungeon_tile,
     generate_dungeon_tileset,
+    generate_terrain_tileset,
     list_building_styles,
     list_roof_styles,
     list_dungeon_tile_types,
+)
+
+from .scene import (
+    Scene,
+    SceneLayer,
+    SceneConfig,
+    LightSource,
+    TimeOfDay,
+    WeatherType,
+    create_scene,
+    generate_parallax_background,
+    list_times_of_day,
+    list_weather_types,
 )
 
 __all__ = [
@@ -137,7 +151,19 @@ __all__ = [
     'generate_castle_tower',
     'generate_dungeon_tile',
     'generate_dungeon_tileset',
+    'generate_terrain_tileset',
     'list_building_styles',
     'list_roof_styles',
     'list_dungeon_tile_types',
+    # Scene composition
+    'Scene',
+    'SceneLayer',
+    'SceneConfig',
+    'LightSource',
+    'TimeOfDay',
+    'WeatherType',
+    'create_scene',
+    'generate_parallax_background',
+    'list_times_of_day',
+    'list_weather_types',
 ]

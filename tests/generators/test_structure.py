@@ -35,6 +35,7 @@ try:
         generate_castle_tower,
         generate_dungeon_tile,
         generate_dungeon_tileset,
+        generate_terrain_tileset,
         list_building_styles,
         list_roof_styles,
         list_dungeon_tile_types,
@@ -542,6 +543,60 @@ class TestGenerateDungeonTileset(TestCase):
 
         tileset1 = generate_dungeon_tileset(16, seed=42)
         tileset2 = generate_dungeon_tileset(16, seed=42)
+
+        for name in tileset1:
+            self.assertCanvasEqual(tileset1[name], tileset2[name])
+
+
+class TestGenerateTerrainTileset(TestCase):
+    """Tests for generate_terrain_tileset function."""
+
+    def test_tileset_basic(self):
+        """generate_terrain_tileset creates terrain tiles."""
+        self.skipUnless(STRUCTURE_AVAILABLE, "Structure module not available")
+
+        tileset = generate_terrain_tileset(seed=42)
+
+        self.assertIsInstance(tileset, dict)
+        self.assertIn('grass', tileset)
+        self.assertIn('dirt', tileset)
+        self.assertIn('water', tileset)
+        self.assertIn('stone', tileset)
+        self.assertIn('sand', tileset)
+
+    def test_tileset_tile_size(self):
+        """generate_terrain_tileset tiles are 16x16."""
+        self.skipUnless(STRUCTURE_AVAILABLE, "Structure module not available")
+
+        tileset = generate_terrain_tileset(seed=42)
+
+        for tile in tileset.values():
+            self.assertCanvasSize(tile, 16, 16)
+            self.assertCanvasNotEmpty(tile)
+
+    def test_tileset_seamless_edges(self):
+        """generate_terrain_tileset tiles are seamless."""
+        self.skipUnless(STRUCTURE_AVAILABLE, "Structure module not available")
+
+        tileset = generate_terrain_tileset(seed=42)
+
+        for tile in tileset.values():
+            size = tile.width
+            for y in range(size):
+                left = tile.get_pixel(0, y)
+                right = tile.get_pixel(size - 1, y)
+                self.assertEqual(left, right)
+            for x in range(size):
+                top = tile.get_pixel(x, 0)
+                bottom = tile.get_pixel(x, size - 1)
+                self.assertEqual(top, bottom)
+
+    def test_tileset_deterministic(self):
+        """generate_terrain_tileset is deterministic."""
+        self.skipUnless(STRUCTURE_AVAILABLE, "Structure module not available")
+
+        tileset1 = generate_terrain_tileset(seed=42)
+        tileset2 = generate_terrain_tileset(seed=42)
 
         for name in tileset1:
             self.assertCanvasEqual(tileset1[name], tileset2[name])

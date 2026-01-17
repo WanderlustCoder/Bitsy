@@ -36,6 +36,15 @@ from characters.character import (
     CharacterLayout,
 )
 
+from characters.species import (
+    Species,
+    ProportionAdjustments,
+    PaletteAdjustments,
+    SpeciesModifiers,
+    get_species_modifiers,
+    SPECIES_MODIFIERS,
+)
+
 from characters.builder import (
     CharacterBuilder,
     build_character,
@@ -72,6 +81,14 @@ __all__ = [
     'CharacterParts',
     'CharacterPalettes',
     'CharacterLayout',
+
+    # Species system
+    'Species',
+    'ProportionAdjustments',
+    'PaletteAdjustments',
+    'SpeciesModifiers',
+    'get_species_modifiers',
+    'SPECIES_MODIFIERS',
 
     # Builder
     'CharacterBuilder',
