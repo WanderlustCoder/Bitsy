@@ -1,0 +1,167 @@
+# Color Palettes
+# Learned from various image recreations
+
+# Each palette provides coordinated colors for:
+# - frame: border/frame colors (dark to light)
+# - accent: highlight/decoration color
+# - background: main background
+# - skin: skin tones (if character)
+# - hair: hair colors (if character)
+# - clothing: outfit colors (if character)
+
+princess:
+  # Learned from: portrait_princess.png
+  # Aesthetic: Royal, warm, cute
+  description: "Purple and gold royalty theme with blonde hair"
+  frame:
+    - [50, 30, 65]      # Outer - darkest purple
+    - [85, 50, 100]     # Mid-dark
+    - [130, 75, 150]    # Mid-light
+    - [165, 105, 180]   # Inner - lightest purple
+  accent:
+    main: [230, 195, 65]      # Gold
+    highlight: [255, 235, 120] # Light gold
+  background: [235, 200, 75]   # Golden/warm yellow
+  skin:
+    base: [255, 220, 190]
+    blush: [255, 150, 170]
+  hair:
+    shadow: [180, 145, 60]
+    base: [235, 195, 90]
+    light: [255, 220, 130]
+    highlight: [255, 235, 150]
+  clothing:
+    light: [165, 105, 180]
+    mid: [130, 80, 155]
+    dark: [95, 55, 115]
+  eyes: [30, 30, 40]
+  mouth: [190, 120, 120]
+
+forest:
+  description: "Natural greens and earth tones"
+  frame:
+    - [30, 40, 25]
+    - [50, 65, 40]
+    - [75, 95, 60]
+    - [100, 125, 80]
+  accent:
+    main: [180, 140, 80]
+    highlight: [220, 190, 130]
+  background: [85, 110, 70]
+  skin:
+    base: [235, 200, 170]
+    blush: [220, 160, 150]
+  hair:
+    shadow: [50, 35, 30]
+    base: [85, 60, 45]
+    light: [120, 90, 65]
+    highlight: [160, 125, 95]
+  clothing:
+    light: [90, 120, 75]
+    mid: [60, 85, 50]
+    dark: [40, 60, 35]
+
+ocean:
+  description: "Cool blues and teals"
+  frame:
+    - [20, 40, 60]
+    - [40, 70, 100]
+    - [70, 110, 145]
+    - [110, 150, 180]
+  accent:
+    main: [255, 220, 180]   # Sandy/coral
+    highlight: [255, 240, 220]
+  background: [60, 130, 160]
+  skin:
+    base: [255, 225, 200]
+    blush: [255, 180, 175]
+  hair:
+    shadow: [20, 50, 70]
+    base: [40, 90, 120]
+    light: [80, 140, 170]
+    highlight: [140, 190, 210]
+  clothing:
+    light: [100, 180, 200]
+    mid: [60, 140, 165]
+    dark: [35, 100, 130]
+
+fire:
+  description: "Warm reds and oranges"
+  frame:
+    - [60, 20, 20]
+    - [100, 40, 35]
+    - [150, 70, 50]
+    - [190, 110, 80]
+  accent:
+    main: [255, 200, 80]   # Flame yellow
+    highlight: [255, 240, 150]
+  background: [80, 35, 30]
+  skin:
+    base: [255, 210, 180]
+    blush: [255, 160, 140]
+  hair:
+    shadow: [100, 30, 20]
+    base: [180, 60, 40]
+    light: [220, 100, 60]
+    highlight: [255, 160, 100]
+  clothing:
+    light: [220, 120, 80]
+    mid: [180, 80, 50]
+    dark: [130, 50, 35]
+
+night:
+  description: "Dark blues and purples, mysterious"
+  frame:
+    - [15, 15, 30]
+    - [30, 30, 55]
+    - [50, 45, 80]
+    - [75, 65, 110]
+  accent:
+    main: [180, 180, 220]   # Moonlight
+    highlight: [220, 220, 255]
+  background: [25, 25, 50]
+  skin:
+    base: [230, 210, 220]   # Pale
+    blush: [210, 170, 190]
+  hair:
+    shadow: [20, 20, 40]
+    base: [45, 40, 70]
+    light: [80, 70, 110]
+    highlight: [130, 115, 160]
+  clothing:
+    light: [80, 70, 120]
+    mid: [55, 45, 90]
+    dark: [35, 30, 65]
+
+pastel:
+  description: "Soft, light colors for cute aesthetic"
+  frame:
+    - [180, 160, 180]
+    - [200, 185, 200]
+    - [220, 210, 220]
+    - [240, 235, 240]
+  accent:
+    main: [255, 200, 200]   # Pink
+    highlight: [255, 230, 230]
+  background: [255, 245, 235]
+  skin:
+    base: [255, 235, 225]
+    blush: [255, 200, 200]
+  hair:
+    shadow: [200, 170, 180]
+    base: [230, 200, 210]
+    light: [250, 225, 235]
+    highlight: [255, 245, 250]
+  clothing:
+    light: [200, 220, 255]
+    mid: [170, 195, 240]
+    dark: [140, 165, 220]
+
+# How to use palettes:
+#
+# from recipes.palettes import load_palette
+#
+# palette = load_palette('princess')
+# frame_colors = palette['frame']
+# hair_colors = [palette['hair']['shadow'], palette['hair']['base'],
+#                palette['hair']['light'], palette['hair']['highlight']]

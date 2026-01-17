@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.canvas import Canvas
 from core.color import Color, hex_to_rgba
-from core.style import Style
+from core.style import Style, PROFESSIONAL_HD
 from core.palette import Palette
 from core.animation import Animation
 
@@ -81,18 +81,23 @@ class CharacterGenerator:
     """
 
     def __init__(self, width: int = 32, height: int = 32,
-                 style: Optional[Style] = None, seed: Optional[int] = None):
+                 style: Optional[Style] = None, seed: Optional[int] = None,
+                 hd_mode: bool = False):
         """Initialize character generator.
 
         Args:
             width, height: Output sprite size
             style: Art style to use (or None for default)
             seed: Random seed for deterministic generation
+            hd_mode: Enable HD quality features (selout, AA)
         """
+        self.hd_mode = hd_mode
         self.config = CharacterConfig(width=width, height=height, seed=seed)
 
         if style:
             self.config.style = style
+        elif hd_mode:
+            self.config.style = PROFESSIONAL_HD
         else:
             self.config.style = Style.chibi()
 
@@ -302,6 +307,25 @@ class CharacterGenerator:
                     self.skeleton.apply_pose(pose.rotations)
         return self
 
+    def finalize(self, canvas: Canvas) -> Canvas:
+        """Apply HD post-processing effects.
+
+        Args:
+            canvas: Raw canvas to process
+
+        Returns:
+            Processed canvas with selout applied if HD mode
+        """
+        style = self.config.style
+        if self.hd_mode and style and style.outline.selout_enabled:
+            from quality.selout import apply_selout
+            return apply_selout(
+                canvas,
+                darken_factor=style.outline.selout_darken,
+                saturation_factor=style.outline.selout_saturation
+            )
+        return canvas
+
     def render(self) -> Canvas:
         """Render the character to a canvas.
 
@@ -368,7 +392,7 @@ class CharacterGenerator:
         if self.hair and self.hair.has_bangs:
             self.hair.draw_front(canvas, cx, head_cy - head_h//6, head_w, head_h//2)
 
-        return canvas
+        return self.finalize(canvas)
 
     def render_animation(self, animation_name: str, fps: int = 8) -> Animation:
         """Render an animation sequence.
@@ -483,18 +507,20 @@ class CharacterGenerator:
 
 
 def generate_character(width: int = 32, height: int = 32,
-                       seed: Optional[int] = None, **kwargs) -> Canvas:
+                       seed: Optional[int] = None,
+                       hd_mode: bool = False, **kwargs) -> Canvas:
     """Quick function to generate a character sprite.
 
     Args:
         width, height: Sprite size
         seed: Random seed
+        hd_mode: Enable HD quality features (selout, AA)
         **kwargs: Additional configuration (hair, eyes, etc.)
 
     Returns:
         Canvas with rendered character
     """
-    gen = CharacterGenerator(width=width, height=height, seed=seed)
+    gen = CharacterGenerator(width=width, height=height, seed=seed, hd_mode=hd_mode)
 
     if 'style' in kwargs:
         gen.set_style(kwargs['style'])

@@ -124,6 +124,30 @@ from .transforms import (
     split_animation_strip,
 )
 
+# History
+from .history import UndoStack
+
+# Selection
+from .selection import (
+    # Core classes
+    Selection,
+    Mask,
+    SelectionMode,
+    # Selection tools
+    select_rect,
+    select_ellipse,
+    select_polygon,
+    select_by_color,
+    select_all,
+    # Mask operations
+    create_mask_from_selection,
+    create_mask_from_alpha,
+    apply_mask,
+    copy_selection,
+    fill_selection,
+    clear_selection,
+)
+
 __all__ = [
     # Loader
     'load_png',
@@ -185,6 +209,9 @@ __all__ = [
     'create_animation_strip',
     'split_animation_strip',
 
+    # History
+    'UndoStack',
+
     # Palette Tools
     'extract_palette_advanced',
     'extract_palette_kmeans',
@@ -199,4 +226,20 @@ __all__ = [
     'blend_palettes',
     'ColorInfo',
     'PaletteAnalysis',
+
+    # Selection
+    'Selection',
+    'Mask',
+    'SelectionMode',
+    'select_rect',
+    'select_ellipse',
+    'select_polygon',
+    'select_by_color',
+    'select_all',
+    'create_mask_from_selection',
+    'create_mask_from_alpha',
+    'apply_mask',
+    'copy_selection',
+    'fill_selection',
+    'clear_selection',
 ]

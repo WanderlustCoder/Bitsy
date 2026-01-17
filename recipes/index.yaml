@@ -1,0 +1,139 @@
+# Recipe Index
+# Catalog of all available recipes and what they cover
+
+foundations:
+  pixel_art_principles:
+    path: foundations/pixel_art_principles.md
+    covers:
+      - light_direction
+      - color_ramps
+      - hue_shifting
+      - layering_order
+      - anti_aliasing
+      - size_appropriate_detail
+      - outline_techniques
+      - primitive_selection
+
+  character_proportions:
+    path: foundations/character_proportions.md
+    covers:
+      - head_positioning
+      - feature_placement
+      - eye_spacing
+      - hair_boundaries
+      - layer_depth_order
+      - coordinate_system
+
+features:
+  hair:
+    path: features/hair.md
+    covers:
+      - hair_mass_shapes
+      - gradient_shading
+      - strand_suggestions
+      - hair_flow_directions
+      - highlight_placement
+    styles:
+      - bun
+      - long
+      - bob  # Added from princess portrait recreation
+    bangs:
+      - zigzag
+      - straight
+      - side_swept
+    colors:
+      - brown
+      - dark_brown
+      - black
+      - blonde
+      - auburn
+      - princess_blonde  # Added from portrait_princess.png
+
+  eyes:
+    path: features/eyes.md
+    covers:
+      - eye_anatomy
+      - size_guidelines
+      - iris_detail
+      - highlights
+      - expressions
+    expressions:
+      - neutral
+      - happy
+      - sad
+      - surprised
+      - angry
+    colors:
+      - brown
+      - blue
+      - green
+      - vivid
+
+  face_details:
+    path: features/face_details.md
+    covers:
+      - nose_styles
+      - mouth_expressions
+      - blush
+      - ears
+    nose_styles:
+      - minimal
+      - small
+      - side_view
+    mouth_expressions:
+      - neutral
+      - happy
+      - cat_smile
+      - open
+      - sad
+
+  glasses:
+    path: features/glasses.md
+    covers:
+      - frame_placement
+      - lens_effects
+      - frame_colors
+    styles:
+      - round
+      - rectangular
+      - cateye
+    effects:
+      - clear
+      - tinted
+      - glare
+
+frames:
+  portrait:
+    path: frames/portrait.md
+    covers:
+      - layered_bands
+      - corner_triangles
+      - inner_borders
+    styles:
+      - princess
+      - noble
+      - rustic
+      - royal
+    learned_from:
+      - portrait_princess.png
+
+palettes:
+  path: palettes.yaml
+  themes:
+    - princess   # purple/gold/blonde (from portrait_princess.png)
+    - forest     # greens/browns
+    - ocean      # blues/teals
+    - fire       # reds/oranges
+    - night      # dark blues/purples
+    - pastel     # soft colors
+
+compositions:
+  portrait:
+    path: compositions/portrait.md
+    covers:
+      - vertical_positioning
+      - layer_order
+      - eye_placement
+      - dress_styles
+    learned_from:
+      - portrait_princess.png

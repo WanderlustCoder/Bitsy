@@ -19,7 +19,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core import Canvas, Style
+from core import Canvas, Style, PROFESSIONAL_HD
 
 
 class ItemCategory(Enum):
@@ -135,19 +135,42 @@ class ItemPalette:
 class ItemGenerator:
     """Generates pixel art items."""
 
-    def __init__(self, width: int = 16, height: int = 16, seed: int = 42):
+    def __init__(self, width: int = 16, height: int = 16, seed: int = 42,
+                 style: Optional[Style] = None, hd_mode: bool = False):
         """Initialize item generator.
 
         Args:
             width: Item width in pixels
             height: Item height in pixels
             seed: Random seed for reproducibility
+            style: Art style (default: PROFESSIONAL_HD if hd_mode, else None)
+            hd_mode: Enable HD quality features (selout, etc.)
         """
         self.width = width
         self.height = height
         self.seed = seed
         self.rng = random.Random(seed)
         self.palette = ItemPalette.iron()
+        self.hd_mode = hd_mode
+        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+
+    def finalize(self, canvas: Canvas) -> Canvas:
+        """Apply HD post-processing to a canvas.
+
+        Args:
+            canvas: Source canvas
+
+        Returns:
+            Processed canvas (with selout if HD mode enabled)
+        """
+        if self.hd_mode and self.style and self.style.outline.selout_enabled:
+            from quality.selout import apply_selout
+            return apply_selout(
+                canvas,
+                darken_factor=self.style.outline.selout_darken,
+                saturation_factor=self.style.outline.selout_saturation
+            )
+        return canvas
 
     def set_palette(self, palette: ItemPalette) -> 'ItemGenerator':
         """Set the color palette."""
@@ -689,7 +712,8 @@ ITEM_GENERATORS = {
 
 
 def generate_item(item_type: str, width: int = 16, height: int = 16,
-                  seed: int = 42, palette: Optional[ItemPalette] = None) -> Canvas:
+                  seed: int = 42, palette: Optional[ItemPalette] = None,
+                  hd_mode: bool = False, style: Optional[Style] = None) -> Canvas:
     """Generate an item by type name.
 
     Args:
@@ -698,6 +722,8 @@ def generate_item(item_type: str, width: int = 16, height: int = 16,
         height: Item height
         seed: Random seed
         palette: Optional color palette
+        hd_mode: Enable HD quality features (selout postprocessing)
+        style: Optional style for HD mode (default: PROFESSIONAL_HD)
 
     Returns:
         Canvas with generated item
@@ -706,11 +732,12 @@ def generate_item(item_type: str, width: int = 16, height: int = 16,
         available = ', '.join(sorted(ITEM_GENERATORS.keys()))
         raise ValueError(f"Unknown item type '{item_type}'. Available: {available}")
 
-    gen = ItemGenerator(width, height, seed)
+    gen = ItemGenerator(width, height, seed, style=style, hd_mode=hd_mode)
     if palette:
         gen.set_palette(palette)
 
-    return ITEM_GENERATORS[item_type](gen)
+    canvas = ITEM_GENERATORS[item_type](gen)
+    return gen.finalize(canvas)
 
 
 def list_item_types() -> List[str]:

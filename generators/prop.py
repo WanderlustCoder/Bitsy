@@ -20,7 +20,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core import Canvas
+from core import Canvas, Style, PROFESSIONAL_HD
 from core.color import darken, lighten
 
 
@@ -153,19 +153,42 @@ class PropPalette:
 class PropGenerator:
     """Generates pixel art props and objects."""
 
-    def __init__(self, width: int = 16, height: int = 16, seed: int = 42):
+    def __init__(self, width: int = 16, height: int = 16, seed: int = 42,
+                 style: Optional['Style'] = None, hd_mode: bool = False):
         """Initialize prop generator.
 
         Args:
             width: Prop width in pixels
             height: Prop height in pixels
             seed: Random seed for reproducibility
+            style: Style configuration for quality settings
+            hd_mode: Enable HD quality features (selout, AA)
         """
         self.width = width
         self.height = height
         self.seed = seed
         self.rng = random.Random(seed)
         self.palette = PropPalette.wood()
+        self.hd_mode = hd_mode
+        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+
+    def finalize(self, canvas: Canvas) -> Canvas:
+        """Apply HD post-processing effects.
+
+        Args:
+            canvas: Raw canvas to process
+
+        Returns:
+            Processed canvas with selout applied if HD mode
+        """
+        if self.hd_mode and self.style and self.style.outline.selout_enabled:
+            from quality.selout import apply_selout
+            return apply_selout(
+                canvas,
+                darken_factor=self.style.outline.selout_darken,
+                saturation_factor=self.style.outline.selout_saturation
+            )
+        return canvas
 
     def set_palette(self, palette: PropPalette) -> 'PropGenerator':
         """Set color palette."""
@@ -212,9 +235,11 @@ class PropGenerator:
         }
 
         if prop_type in generators:
-            return generators[prop_type](variant)
+            canvas = generators[prop_type](variant)
+            return self.finalize(canvas)
 
-        return self._generate_crate(variant)
+        canvas = self._generate_crate(variant)
+        return self.finalize(canvas)
 
     def _generate_chest(self, variant: str = None) -> Canvas:
         """Generate a chest."""
@@ -1039,7 +1064,8 @@ class PropGenerator:
 
 # Convenience functions
 def generate_prop(prop_type: str, variant: str = None,
-                  width: int = 16, height: int = 16, seed: int = 42) -> Canvas:
+                  width: int = 16, height: int = 16, seed: int = 42,
+                  hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate a prop of the specified type.
 
     Args:
@@ -1048,11 +1074,13 @@ def generate_prop(prop_type: str, variant: str = None,
         width: Canvas width
         height: Canvas height
         seed: Random seed
+        hd_mode: Enable HD quality features (selout, AA)
+        style: Style configuration for quality settings
 
     Returns:
         Canvas with generated prop
     """
-    gen = PropGenerator(width, height, seed)
+    gen = PropGenerator(width, height, seed, style=style, hd_mode=hd_mode)
     return gen.generate(prop_type, variant)
 
 

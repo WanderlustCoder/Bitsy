@@ -227,6 +227,242 @@ def demo_build_character_function():
     print("Saved: output/char_quick.png")
 
 
+def demo_equipment_sets():
+    """Demonstrate equipment sets."""
+    print("\n=== Equipment Sets ===")
+
+    # Create characters with different equipment sets
+    knight = (CharacterBuilder()
+        .head('round')
+        .body('chibi')
+        .hair('short', color='brown')
+        .eyes('round', color='blue')
+        .equip_set('knight')
+        .build())
+
+    wizard = (CharacterBuilder()
+        .head('round')
+        .body('slim')
+        .hair('long', color='white')
+        .eyes('large', color='purple')
+        .equip_set('wizard')
+        .build())
+
+    ranger = (CharacterBuilder()
+        .head('oval')
+        .body('slim')
+        .hair('ponytail', color='brown')
+        .eyes('round', color='green')
+        .equip_set('ranger')
+        .build())
+
+    warrior = (CharacterBuilder()
+        .head('square')
+        .body('muscular')
+        .hair('short', color='black')
+        .eyes('round', color='brown')
+        .equip_set('warrior')
+        .build())
+
+    rogue = (CharacterBuilder()
+        .head('round')
+        .body('slim')
+        .hair('spiky', color='black')
+        .eyes('round', color='brown')
+        .equip_set('rogue')
+        .build())
+
+    royal = (CharacterBuilder()
+        .head('heart')
+        .body('slim')
+        .hair('long', color='blonde')
+        .eyes('sparkle', color='blue')
+        .equip_set('royal')
+        .build())
+
+    sprites = [
+        knight.render(),
+        wizard.render(),
+        ranger.render(),
+        warrior.render(),
+        rogue.render(),
+        royal.render(),
+    ]
+
+    sheet = create_grid_sheet(sprites, columns=6, padding=2)
+    sheet.save('output/char_equipment_sets.png')
+    print("Saved: output/char_equipment_sets.png (knight, wizard, ranger, warrior, rogue, royal)")
+
+
+def demo_custom_equipment():
+    """Demonstrate individual equipment pieces."""
+    print("\n=== Custom Equipment ===")
+
+    # Mix and match equipment pieces
+    char1 = (CharacterBuilder()
+        .head('round')
+        .body('chibi')
+        .hair('spiky', color='red')
+        .eyes('large', color='blue')
+        .helmet('crown')
+        .weapon('sword')
+        .cape('royal')
+        .build())
+
+    char2 = (CharacterBuilder()
+        .head('oval')
+        .body('slim')
+        .hair('long', color='silver')
+        .eyes('angry', color='red')
+        .helmet('hood')
+        .armor('leather')
+        .weapon('dagger')
+        .build())
+
+    char3 = (CharacterBuilder()
+        .head('round')
+        .body('muscular')
+        .eyes('round', color='brown')
+        .helmet('knight')
+        .armor('breastplate')
+        .legs('greaves')
+        .boots('plate')
+        .weapon('longsword')
+        .shield('kite')
+        .build())
+
+    char4 = (CharacterBuilder()
+        .head('round')
+        .body('slim')
+        .hair('fluffy', color='purple')
+        .eyes('sparkle', color='purple')
+        .helmet('wizard_hat')
+        .armor('robe')
+        .weapon('magic_staff')
+        .build())
+
+    sprites = [
+        char1.render(),
+        char2.render(),
+        char3.render(),
+        char4.render(),
+    ]
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=2)
+    sheet.save('output/char_custom_equipment.png')
+    print("Saved: output/char_custom_equipment.png (4 custom equipment builds)")
+
+
+def demo_weapons():
+    """Demonstrate different weapon types."""
+    print("\n=== Weapon Types ===")
+
+    weapons = ['sword', 'longsword', 'dagger', 'axe', 'hammer', 'spear',
+               'staff', 'magic_staff', 'wand', 'bow', 'crossbow']
+
+    sprites = []
+    for weapon_type in weapons:
+        char = (CharacterBuilder()
+            .head('round')
+            .body('chibi')
+            .eyes('round', color='brown')
+            .weapon(weapon_type)
+            .build())
+        sprites.append(char.render())
+
+    # Add one more to make a 4x3 grid
+    char = (CharacterBuilder()
+        .head('round')
+        .body('chibi')
+        .eyes('round', color='brown')
+        .weapon('double_axe')
+        .build())
+    sprites.append(char.render())
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=2)
+    sheet.save('output/char_weapons.png')
+    print("Saved: output/char_weapons.png (12 weapon types)")
+
+
+def demo_armor_types():
+    """Demonstrate different armor types."""
+    print("\n=== Armor Types ===")
+
+    armor_combos = [
+        ('simple', 'leather', 'pants', 'leather'),     # Light
+        ('knight', 'breastplate', 'greaves', 'plate'), # Heavy
+        ('wizard_hat', 'robe', 'pants', 'sandals'),    # Mage
+        ('hood', 'chainmail', 'pants', 'leather'),     # Mixed
+    ]
+
+    sprites = []
+    for helmet, chest, legs, boots in armor_combos:
+        char = (CharacterBuilder()
+            .head('round')
+            .body('chibi')
+            .eyes('round', color='brown')
+            .helmet(helmet)
+            .armor(chest)
+            .legs(legs)
+            .boots(boots)
+            .build())
+        sprites.append(char.render())
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=2)
+    sheet.save('output/char_armor.png')
+    print("Saved: output/char_armor.png (light, heavy, mage, mixed armor)")
+
+
+def demo_accessories():
+    """Demonstrate accessory equipment."""
+    print("\n=== Accessories ===")
+
+    # Characters with different accessories
+    chars = []
+
+    # Character with cape
+    chars.append((CharacterBuilder()
+        .head('round')
+        .body('chibi')
+        .hair('long', color='blonde')
+        .eyes('large', color='blue')
+        .cape('royal')
+        .build()))
+
+    # Character with tattered cape
+    chars.append((CharacterBuilder()
+        .head('round')
+        .body('muscular')
+        .hair('short', color='black')
+        .eyes('angry', color='red')
+        .cape('tattered')
+        .build()))
+
+    # Character with shield only
+    chars.append((CharacterBuilder()
+        .head('round')
+        .body('chibi')
+        .hair('spiky', color='brown')
+        .eyes('round', color='green')
+        .shield('tower')
+        .build()))
+
+    # Character with belt
+    chars.append((CharacterBuilder()
+        .head('round')
+        .body('slim')
+        .hair('ponytail', color='red')
+        .eyes('round', color='brown')
+        .belt('utility')
+        .weapon('dagger')
+        .build()))
+
+    sprites = [char.render() for char in chars]
+    sheet = create_grid_sheet(sprites, columns=4, padding=2)
+    sheet.save('output/char_accessories.png')
+    print("Saved: output/char_accessories.png (cape, tattered cape, shield, belt)")
+
+
 def main():
     """Run all demos."""
     print("=" * 60)
@@ -246,6 +482,13 @@ def main():
     demo_party()
     demo_npc_crowd()
     demo_build_character_function()
+
+    # Equipment demos
+    demo_equipment_sets()
+    demo_custom_equipment()
+    demo_weapons()
+    demo_armor_types()
+    demo_accessories()
 
     print("\n" + "=" * 60)
     print("All demos complete! Check the output/ directory for results.")

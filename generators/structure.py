@@ -32,7 +32,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core import Canvas, Palette
+from core import Canvas, Palette, Style, PROFESSIONAL_HD
 from core.color import darken, lighten
 
 
@@ -134,14 +134,37 @@ class StructurePalette:
 class StructureGenerator:
     """Generator for buildings, castles, and dungeon tiles."""
 
-    def __init__(self, seed: int = 42):
+    def __init__(self, seed: int = 42,
+                 style: Optional['Style'] = None, hd_mode: bool = False):
         """Initialize structure generator.
 
         Args:
             seed: Random seed for deterministic generation
+            style: Style configuration for quality settings
+            hd_mode: Enable HD quality features (selout, AA)
         """
         self.seed = seed
         self.rng = random.Random(seed)
+        self.hd_mode = hd_mode
+        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+
+    def finalize(self, canvas: Canvas) -> Canvas:
+        """Apply HD post-processing effects.
+
+        Args:
+            canvas: Raw canvas to process
+
+        Returns:
+            Processed canvas with selout applied if HD mode
+        """
+        if self.hd_mode and self.style and self.style.outline.selout_enabled:
+            from quality.selout import apply_selout
+            return apply_selout(
+                canvas,
+                darken_factor=self.style.outline.selout_darken,
+                saturation_factor=self.style.outline.selout_saturation
+            )
+        return canvas
 
     def _reset_seed(self, offset: int = 0):
         """Reset RNG with offset for variation."""
@@ -679,41 +702,50 @@ class StructureGenerator:
 # ==================== Convenience Functions ====================
 
 def generate_house(width: int = 48, height: int = 48, style: str = 'cottage',
-                  seed: int = 42) -> Canvas:
+                  seed: int = 42,
+                  hd_mode: bool = False, art_style: Optional['Style'] = None) -> Canvas:
     """Generate a house sprite."""
-    gen = StructureGenerator(seed)
-    return gen.generate_house(width, height, style=style)
+    gen = StructureGenerator(seed, style=art_style, hd_mode=hd_mode)
+    canvas = gen.generate_house(width, height, style=style)
+    return gen.finalize(canvas)
 
 
-def generate_castle_wall(width: int = 64, height: int = 32, seed: int = 42) -> Canvas:
+def generate_castle_wall(width: int = 64, height: int = 32, seed: int = 42,
+                         hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate a castle wall segment."""
-    gen = StructureGenerator(seed)
-    return gen.generate_castle_wall(width, height)
+    gen = StructureGenerator(seed, style=style, hd_mode=hd_mode)
+    canvas = gen.generate_castle_wall(width, height)
+    return gen.finalize(canvas)
 
 
-def generate_castle_tower(width: int = 32, height: int = 64, seed: int = 42) -> Canvas:
+def generate_castle_tower(width: int = 32, height: int = 64, seed: int = 42,
+                          hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate a castle tower."""
-    gen = StructureGenerator(seed)
-    return gen.generate_castle_tower(width, height)
+    gen = StructureGenerator(seed, style=style, hd_mode=hd_mode)
+    canvas = gen.generate_castle_tower(width, height)
+    return gen.finalize(canvas)
 
 
-def generate_dungeon_tile(tile_type: str = 'floor', size: int = 16, seed: int = 42) -> Canvas:
+def generate_dungeon_tile(tile_type: str = 'floor', size: int = 16, seed: int = 42,
+                          hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate a dungeon tile."""
-    gen = StructureGenerator(seed)
-    return gen.generate_dungeon_tile(tile_type, size)
+    gen = StructureGenerator(seed, style=style, hd_mode=hd_mode)
+    canvas = gen.generate_dungeon_tile(tile_type, size)
+    return gen.finalize(canvas)
 
 
-def generate_dungeon_tileset(size: int = 16, seed: int = 42) -> Dict[str, Canvas]:
+def generate_dungeon_tileset(size: int = 16, seed: int = 42,
+                             hd_mode: bool = False, style: Optional['Style'] = None) -> Dict[str, Canvas]:
     """Generate a complete dungeon tileset."""
-    gen = StructureGenerator(seed)
+    gen = StructureGenerator(seed, style=style, hd_mode=hd_mode)
     return {
-        'floor': gen.generate_dungeon_tile('floor', size),
-        'wall': gen.generate_dungeon_tile('wall', size),
-        'corner': gen.generate_dungeon_tile('corner', size),
-        'door': gen.generate_dungeon_tile('door', size),
-        'stairs': gen.generate_dungeon_tile('stairs', size),
-        'pit': gen.generate_dungeon_tile('pit', size),
-        'pillar': gen.generate_dungeon_tile('pillar', size),
+        'floor': gen.finalize(gen.generate_dungeon_tile('floor', size)),
+        'wall': gen.finalize(gen.generate_dungeon_tile('wall', size)),
+        'corner': gen.finalize(gen.generate_dungeon_tile('corner', size)),
+        'door': gen.finalize(gen.generate_dungeon_tile('door', size)),
+        'stairs': gen.finalize(gen.generate_dungeon_tile('stairs', size)),
+        'pit': gen.finalize(gen.generate_dungeon_tile('pit', size)),
+        'pillar': gen.finalize(gen.generate_dungeon_tile('pillar', size)),
     }
 
 

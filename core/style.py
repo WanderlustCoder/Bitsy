@@ -16,9 +16,14 @@ class OutlineConfig:
 
     enabled: bool = True
     color: Optional[Color] = None  # None = derive from fill color
-    mode: str = 'external'  # 'all', 'external', 'internal', 'none'
+    mode: str = 'external'  # 'all', 'external', 'internal', 'none', 'selout'
     thickness: int = 1
     darken_factor: float = 0.4  # How much to darken fill for auto-outline
+
+    # Selective outline (selout) - outline color matches adjacent fill
+    selout_enabled: bool = False  # Use selective outline based on neighbor colors
+    selout_darken: float = 0.30  # How much to darken neighbor color for selout
+    selout_saturation: float = 0.85  # Saturation adjustment for selout
 
 
 @dataclass
@@ -117,11 +122,12 @@ class Style:
         color = darken(color, 1.0 - self.shading.shadow_value)
         return color
 
-    def get_outline_color(self, fill_color: Color) -> Color:
+    def get_outline_color(self, fill_color: Color, neighbor_color: Optional[Color] = None) -> Color:
         """Get outline color for a given fill color.
 
         Args:
             fill_color: The fill color to outline
+            neighbor_color: Adjacent interior color for selout mode
 
         Returns:
             Outline color
@@ -130,6 +136,12 @@ class Style:
             return (0, 0, 0, 0)
         if self.outline.color is not None:
             return self.outline.color
+
+        # Selout mode: derive outline from neighbor (interior) color
+        if self.outline.selout_enabled and neighbor_color is not None:
+            color = adjust_saturation(neighbor_color, self.outline.selout_saturation)
+            return darken(color, self.outline.selout_darken)
+
         return darken(fill_color, self.outline.darken_factor)
 
     def get_shading_colors(self, base: Color, num_levels: Optional[int] = None) -> List[Color]:
@@ -175,7 +187,10 @@ class Style:
                 color=self.outline.color,
                 mode=self.outline.mode,
                 thickness=self.outline.thickness,
-                darken_factor=self.outline.darken_factor
+                darken_factor=self.outline.darken_factor,
+                selout_enabled=self.outline.selout_enabled,
+                selout_darken=self.outline.selout_darken,
+                selout_saturation=self.outline.selout_saturation
             ),
             shading=ShadingConfig(
                 mode=self.shading.mode,
@@ -567,6 +582,56 @@ class Style:
         )
 
     @classmethod
+    def professional_hd(cls) -> 'Style':
+        """Professional high-detail pixel art style.
+
+        Characteristics:
+        - 6 shading levels for smooth gradients
+        - Selective outline (selout) for color-aware edges
+        - Anti-aliasing enabled for smooth curves
+        - Strong hue shifts (+20° highlights, -25° shadows)
+        - Designed for 64x64+ resolution artwork
+        - Suitable for high-quality character portraits
+        """
+        return cls(
+            name='professional_hd',
+            outline=OutlineConfig(
+                enabled=True,
+                color=None,
+                mode='selout',  # Selective outline mode
+                thickness=1,
+                darken_factor=0.30,
+                selout_enabled=True,  # Color-aware outlines
+                selout_darken=0.30,
+                selout_saturation=0.85
+            ),
+            shading=ShadingConfig(
+                mode='gradient',
+                levels=6,  # More shading levels for smooth gradients
+                light_direction=(1.0, -1.0),
+                highlight_hue_shift=20.0,  # Strong warm highlights
+                shadow_hue_shift=-25.0,  # Strong cool shadows
+                highlight_saturation=0.85,
+                shadow_saturation=0.80,
+                highlight_value=1.40,  # Brighter highlights
+                shadow_value=0.45,  # Deeper shadows
+                dither_pattern='bayer4x4'
+            ),
+            palette=PaletteConfig(
+                max_colors=None,  # Unlimited
+                per_sprite_colors=None
+            ),
+            pixel_perfect=True,
+            anti_alias=True,  # Enable anti-aliasing
+            subpixel=False,
+            head_ratio=0.28,
+            eye_size='medium',
+            limb_style='detailed',
+            squash_stretch=0.2,
+            follow_through=0.15
+        )
+
+    @classmethod
     def minimalist(cls) -> 'Style':
         """Clean minimalist style with limited colors.
 
@@ -648,6 +713,7 @@ RETRO_NES = Style.retro_nes()
 RETRO_SNES = Style.retro_snes()
 RETRO_GAMEBOY = Style.retro_gameboy()
 MODERN_HD = Style.modern_hd()
+PROFESSIONAL_HD = Style.professional_hd()
 MINIMALIST = Style.minimalist()
 SILHOUETTE = Style.silhouette()
 
@@ -658,6 +724,7 @@ STYLES = {
     'retro_snes': Style.retro_snes,
     'retro_gameboy': Style.retro_gameboy,
     'modern_hd': Style.modern_hd,
+    'professional_hd': Style.professional_hd,
     'minimalist': Style.minimalist,
     'silhouette': Style.silhouette,
 }

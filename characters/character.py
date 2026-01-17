@@ -27,6 +27,21 @@ from parts.heads import Head, create_head
 from parts.bodies import Body, create_body
 from parts.hair import Hair, create_hair
 from parts.eyes import Eyes, create_eyes, get_eye_colors
+from parts.equipment import Equipment, DrawLayer
+
+
+@dataclass
+class CharacterEquipment:
+    """Container for character equipment."""
+    helmet: Optional[Equipment] = None
+    chest: Optional[Equipment] = None
+    legs: Optional[Equipment] = None
+    boots: Optional[Equipment] = None
+    weapon: Optional[Equipment] = None
+    shield: Optional[Equipment] = None
+    cape: Optional[Equipment] = None
+    belt: Optional[Equipment] = None
+    accessory: Optional[Equipment] = None
 
 
 @dataclass
@@ -36,7 +51,7 @@ class CharacterParts:
     body: Optional[Body] = None
     hair: Optional[Hair] = None
     eyes: Optional[Eyes] = None
-    # Future: arms, legs, equipment, accessories
+    equipment: Optional[CharacterEquipment] = None
 
 
 @dataclass
@@ -195,12 +210,24 @@ class Character:
         body_cx, body_cy, body_w, body_h = self._layout.get_body_rect()
         hair_cx, hair_cy, hair_w, hair_h = self._layout.get_hair_rect()
 
+        equip = self._parts.equipment
+
         # Draw order (back to front):
+        # 0. Back-far equipment (capes, wings)
         # 1. Hair back layer
-        # 2. Body
-        # 3. Head
-        # 4. Eyes
-        # 5. Hair front (bangs)
+        # 2. Back equipment
+        # 3. Body
+        # 4. Body equipment (armor)
+        # 5. Head
+        # 6. Eyes
+        # 7. Hair front (bangs)
+        # 8. Front equipment (helmet, weapons, shield)
+
+        # 0. Back-far equipment (capes, wings)
+        if equip and equip.cape:
+            cape_x, cape_y, cape_w, cape_h = equip.cape.get_attachment(
+                body_cx, body_cy, body_w, body_h)
+            equip.cape.draw(canvas, cape_x, cape_y - body_h // 4, cape_w, int(cape_h * 1.5))
 
         # 1. Hair back layer
         if self._parts.hair and self._parts.hair.has_back:
@@ -210,11 +237,35 @@ class Character:
         if self._parts.body:
             self._parts.body.draw(canvas, body_cx, body_cy, body_w, body_h)
 
-        # 3. Head
+        # 3. Body equipment (chest armor)
+        if equip and equip.chest:
+            chest_x, chest_y, chest_w, chest_h = equip.chest.get_attachment(
+                body_cx, body_cy, body_w, body_h)
+            equip.chest.draw(canvas, chest_x, chest_y, chest_w, chest_h)
+
+        # 4. Leg equipment
+        if equip and equip.legs:
+            leg_y = body_cy + body_h // 3
+            leg_h = body_h // 2
+            equip.legs.draw(canvas, body_cx, leg_y, body_w, leg_h)
+
+        # 5. Boots
+        if equip and equip.boots:
+            boot_y = body_cy + body_h * 2 // 3
+            boot_h = body_h // 3
+            equip.boots.draw(canvas, body_cx, boot_y, body_w, boot_h)
+
+        # 6. Belt
+        if equip and equip.belt:
+            belt_y = body_cy + body_h // 6
+            belt_h = body_h // 4
+            equip.belt.draw(canvas, body_cx, belt_y, body_w, belt_h)
+
+        # 7. Head
         if self._parts.head:
             self._parts.head.draw(canvas, head_cx, head_cy, head_w, head_h)
 
-        # 4. Eyes
+        # 8. Eyes
         if self._parts.eyes and self._parts.head:
             face_layout = self._parts.head.get_face_layout(head_cx, head_cy, head_w, head_h)
             eye_w, eye_h = self._parts.head.get_eye_size(head_w, head_h)
@@ -229,11 +280,34 @@ class Character:
                 eye_w, eye_h
             )
 
-        # 5. Hair front (bangs)
+        # 9. Hair front (bangs) - only if no helmet
         if self._parts.hair and self._parts.hair.has_bangs:
-            bangs_y = head_cy - head_h // 6
-            bangs_h = head_h // 2
-            self._parts.hair.draw_front(canvas, head_cx, bangs_y, head_w, bangs_h)
+            if not (equip and equip.helmet):
+                bangs_y = head_cy - head_h // 6
+                bangs_h = head_h // 2
+                self._parts.hair.draw_front(canvas, head_cx, bangs_y, head_w, bangs_h)
+
+        # 10. Helmet (covers hair)
+        if equip and equip.helmet:
+            helm_x, helm_y, helm_w, helm_h = equip.helmet.get_attachment(
+                head_cx, head_cy, head_w, head_h)
+            equip.helmet.draw(canvas, helm_x, helm_y, helm_w, helm_h)
+
+        # 11. Weapon (right hand)
+        if equip and equip.weapon:
+            weap_x = body_cx + body_w // 2 + 2
+            weap_y = body_cy
+            weap_w = body_w // 2
+            weap_h = int(body_h * 1.2)
+            equip.weapon.draw(canvas, weap_x, weap_y, weap_w, weap_h)
+
+        # 12. Shield (left hand)
+        if equip and equip.shield:
+            shield_x = body_cx - body_w // 2 - 4
+            shield_y = body_cy
+            shield_w = body_w // 2
+            shield_h = body_h
+            equip.shield.draw(canvas, shield_x, shield_y, shield_w, shield_h)
 
         return canvas
 

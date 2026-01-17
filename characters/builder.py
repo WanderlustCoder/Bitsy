@@ -26,7 +26,18 @@ from parts.hair import create_hair, list_hair_types
 from parts.eyes import create_eyes, get_eye_colors, list_eye_types
 
 from characters.character import (
-    Character, CharacterParts, CharacterPalettes, CharacterLayout
+    Character, CharacterParts, CharacterPalettes, CharacterLayout, CharacterEquipment
+)
+
+from parts.equipment import EquipmentConfig, get_material_palette
+from parts.armor import (
+    create_helmet, create_chest_armor, create_leg_armor, create_boots,
+    list_helmet_types, list_chest_armor_types, list_leg_armor_types, list_boot_types
+)
+from parts.weapons import create_weapon, list_weapon_types
+from parts.accessories import (
+    create_cape, create_shield, create_belt,
+    list_cape_types, list_shield_types, list_belt_types
 )
 
 
@@ -140,6 +151,21 @@ class CharacterBuilder:
 
         # Skeleton
         self._skeleton_type: str = 'chibi'
+
+        # Equipment (None = not equipped)
+        self._helmet_type: Optional[str] = None
+        self._chest_type: Optional[str] = None
+        self._legs_type: Optional[str] = None
+        self._boots_type: Optional[str] = None
+        self._weapon_type: Optional[str] = None
+        self._shield_type: Optional[str] = None
+        self._cape_type: Optional[str] = None
+        self._belt_type: Optional[str] = None
+
+        # Equipment materials/palettes
+        self._armor_material: str = 'iron'
+        self._weapon_material: str = 'iron'
+        self._cape_palette: Palette = Palette.cloth_blue()
 
     def style(self, style: Union[str, Style]) -> 'CharacterBuilder':
         """Set the art style.
@@ -330,6 +356,191 @@ class CharacterBuilder:
         self._skeleton_type = skeleton_type
         return self
 
+    # ==================== Equipment Methods ====================
+
+    def helmet(self, helmet_type: str, material: Optional[str] = None) -> 'CharacterBuilder':
+        """Equip a helmet.
+
+        Args:
+            helmet_type: Helmet type name
+            material: Material/palette name (optional)
+
+        Available helmet types:
+            simple, knight, wizard_hat, crown, hood
+        """
+        self._helmet_type = helmet_type
+        if material:
+            self._armor_material = material
+        return self
+
+    def armor(self, chest_type: str, material: Optional[str] = None) -> 'CharacterBuilder':
+        """Equip chest armor.
+
+        Args:
+            chest_type: Armor type name
+            material: Material/palette name (optional)
+
+        Available armor types:
+            breastplate, chainmail, robe, leather
+        """
+        self._chest_type = chest_type
+        if material:
+            self._armor_material = material
+        return self
+
+    def legs(self, leg_type: str) -> 'CharacterBuilder':
+        """Equip leg armor.
+
+        Args:
+            leg_type: Leg armor type name
+
+        Available types:
+            greaves, pants
+        """
+        self._legs_type = leg_type
+        return self
+
+    def boots(self, boot_type: str) -> 'CharacterBuilder':
+        """Equip boots.
+
+        Args:
+            boot_type: Boot type name
+
+        Available types:
+            plate, leather, sandals
+        """
+        self._boots_type = boot_type
+        return self
+
+    def weapon(self, weapon_type: str, material: Optional[str] = None) -> 'CharacterBuilder':
+        """Equip a weapon (right hand).
+
+        Args:
+            weapon_type: Weapon type name
+            material: Material/palette name (optional)
+
+        Available weapon types:
+            sword, longsword, dagger, staff, magic_staff, wand,
+            bow, crossbow, axe, double_axe, hammer, spear
+        """
+        self._weapon_type = weapon_type
+        if material:
+            self._weapon_material = material
+        return self
+
+    def shield(self, shield_type: str, material: Optional[str] = None) -> 'CharacterBuilder':
+        """Equip a shield (left hand).
+
+        Args:
+            shield_type: Shield type name
+            material: Material/palette name (optional)
+
+        Available shield types:
+            round, kite, tower, buckler
+        """
+        self._shield_type = shield_type
+        if material:
+            self._armor_material = material
+        return self
+
+    def cape(self, cape_type: str, color: Optional[str] = None) -> 'CharacterBuilder':
+        """Equip a cape/cloak.
+
+        Args:
+            cape_type: Cape type name
+            color: Cape color (optional)
+
+        Available cape types:
+            simple, royal, tattered
+        """
+        self._cape_type = cape_type
+        if color and color in OUTFIT_PALETTES:
+            self._cape_palette = OUTFIT_PALETTES[color]()
+        return self
+
+    def belt(self, belt_type: str) -> 'CharacterBuilder':
+        """Equip a belt.
+
+        Args:
+            belt_type: Belt type name
+
+        Available belt types:
+            simple, utility
+        """
+        self._belt_type = belt_type
+        return self
+
+    def equip_set(self, set_name: str) -> 'CharacterBuilder':
+        """Equip a predefined equipment set.
+
+        Args:
+            set_name: Equipment set name
+
+        Available sets:
+            knight: Full plate armor with sword and shield
+            wizard: Wizard hat, robe, and magic staff
+            ranger: Leather armor, hood, and bow
+            warrior: Breastplate, greaves, and longsword
+            rogue: Leather armor and daggers
+        """
+        sets = {
+            'knight': {
+                'helmet': 'knight', 'chest': 'breastplate', 'legs': 'greaves',
+                'boots': 'plate', 'weapon': 'sword', 'shield': 'kite',
+                'material': 'iron'
+            },
+            'wizard': {
+                'helmet': 'wizard_hat', 'chest': 'robe',
+                'boots': 'sandals', 'weapon': 'magic_staff',
+                'material': 'cloth'
+            },
+            'ranger': {
+                'helmet': 'hood', 'chest': 'leather', 'legs': 'pants',
+                'boots': 'leather', 'weapon': 'bow', 'cape': 'simple',
+                'material': 'leather'
+            },
+            'warrior': {
+                'chest': 'breastplate', 'legs': 'greaves',
+                'boots': 'plate', 'weapon': 'longsword',
+                'material': 'iron'
+            },
+            'rogue': {
+                'helmet': 'hood', 'chest': 'leather', 'legs': 'pants',
+                'boots': 'leather', 'weapon': 'dagger', 'belt': 'utility',
+                'material': 'leather_black'
+            },
+            'royal': {
+                'helmet': 'crown', 'chest': 'robe', 'cape': 'royal',
+                'boots': 'leather', 'material': 'gold'
+            },
+        }
+
+        if set_name not in sets:
+            return self
+
+        eq = sets[set_name]
+        if 'helmet' in eq:
+            self._helmet_type = eq['helmet']
+        if 'chest' in eq:
+            self._chest_type = eq['chest']
+        if 'legs' in eq:
+            self._legs_type = eq['legs']
+        if 'boots' in eq:
+            self._boots_type = eq['boots']
+        if 'weapon' in eq:
+            self._weapon_type = eq['weapon']
+        if 'shield' in eq:
+            self._shield_type = eq['shield']
+        if 'cape' in eq:
+            self._cape_type = eq['cape']
+        if 'belt' in eq:
+            self._belt_type = eq['belt']
+        if 'material' in eq:
+            self._armor_material = eq['material']
+            self._weapon_material = eq['material']
+
+        return self
+
     def randomize(
         self,
         hair: bool = True,
@@ -360,6 +571,68 @@ class CharacterBuilder:
             self._skin_palette = SKIN_PALETTES[self._rng.choice(list(SKIN_PALETTES.keys()))]()
 
         return self
+
+    def _build_equipment(self) -> Optional[CharacterEquipment]:
+        """Build equipment from current configuration."""
+        # Check if any equipment is set
+        has_equipment = any([
+            self._helmet_type, self._chest_type, self._legs_type,
+            self._boots_type, self._weapon_type, self._shield_type,
+            self._cape_type, self._belt_type
+        ])
+
+        if not has_equipment:
+            return None
+
+        # Get material palettes
+        armor_palette = get_material_palette(self._armor_material)
+        weapon_palette = get_material_palette(self._weapon_material)
+
+        # Create equipment config
+        armor_config = EquipmentConfig(
+            base_color=armor_palette.get(1),
+            palette=armor_palette,
+            style=self._style,
+            metallic=self._armor_material in ['iron', 'steel', 'gold', 'silver', 'bronze'],
+            seed=self._rng.randint(0, 2**31)
+        )
+
+        weapon_config = EquipmentConfig(
+            base_color=weapon_palette.get(1),
+            palette=weapon_palette,
+            style=self._style,
+            metallic=self._weapon_material in ['iron', 'steel', 'gold', 'silver', 'bronze'],
+            seed=self._rng.randint(0, 2**31)
+        )
+
+        cape_config = EquipmentConfig(
+            base_color=self._cape_palette.get(1),
+            palette=self._cape_palette,
+            style=self._style,
+            metallic=False,
+            seed=self._rng.randint(0, 2**31)
+        )
+
+        # Create equipment pieces
+        helmet = create_helmet(self._helmet_type, armor_config) if self._helmet_type else None
+        chest = create_chest_armor(self._chest_type, armor_config) if self._chest_type else None
+        legs = create_leg_armor(self._legs_type, armor_config) if self._legs_type else None
+        boots = create_boots(self._boots_type, armor_config) if self._boots_type else None
+        weapon = create_weapon(self._weapon_type, weapon_config) if self._weapon_type else None
+        shield = create_shield(self._shield_type, armor_config) if self._shield_type else None
+        cape = create_cape(self._cape_type, cape_config) if self._cape_type else None
+        belt = create_belt(self._belt_type, armor_config) if self._belt_type else None
+
+        return CharacterEquipment(
+            helmet=helmet,
+            chest=chest,
+            legs=legs,
+            boots=boots,
+            weapon=weapon,
+            shield=shield,
+            cape=cape,
+            belt=belt
+        )
 
     def build(self) -> Character:
         """Build the final Character object.
@@ -405,11 +678,15 @@ class CharacterBuilder:
         eyes.eye_colors = get_eye_colors(self._eye_color)
         eyes.set_expression(self._expression)
 
+        # Create equipment
+        equipment = self._build_equipment()
+
         parts = CharacterParts(
             head=head,
             body=body,
             hair=hair,
-            eyes=eyes
+            eyes=eyes,
+            equipment=equipment
         )
 
         palettes = CharacterPalettes(

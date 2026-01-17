@@ -1,0 +1,15 @@
+# Frame Recipes Index
+
+portrait:
+  path: portrait.md
+  covers:
+    - layered_bands
+    - corner_triangles
+    - inner_borders
+  styles:
+    - princess  # purple + gold corners + golden bg
+    - noble     # dark + silver corners
+    - rustic    # wood, no corners
+    - royal     # gold + red gems
+  learned_from:
+    - portrait_princess.png

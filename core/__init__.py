@@ -117,9 +117,16 @@ from .style import (
     RETRO_SNES,
     RETRO_GAMEBOY,
     MODERN_HD,
+    PROFESSIONAL_HD,
     MINIMALIST,
     SILHOUETTE,
     STYLES,
+)
+
+# HD Canvas
+from .hd_canvas import (
+    HDCanvas,
+    create_hd_canvas,
 )
 
 # Spec loader
@@ -225,9 +232,14 @@ __all__ = [
     'RETRO_SNES',
     'RETRO_GAMEBOY',
     'MODERN_HD',
+    'PROFESSIONAL_HD',
     'MINIMALIST',
     'SILHOUETTE',
     'STYLES',
+
+    # HD Canvas
+    'HDCanvas',
+    'create_hd_canvas',
 
     # Spec loader
     'BaseSpec',

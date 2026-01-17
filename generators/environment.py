@@ -19,7 +19,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core import Canvas
+from core import Canvas, Style, PROFESSIONAL_HD
 from core.color import darken, lighten, blend_normal
 
 
@@ -215,18 +215,41 @@ class GroundPalette:
 class EnvironmentGenerator:
     """Generates pixel art environments and backgrounds."""
 
-    def __init__(self, width: int = 64, height: int = 64, seed: int = 42):
+    def __init__(self, width: int = 64, height: int = 64, seed: int = 42,
+                 style: Optional['Style'] = None, hd_mode: bool = False):
         """Initialize environment generator.
 
         Args:
             width: Canvas width in pixels
             height: Canvas height in pixels
             seed: Random seed for reproducibility
+            style: Style configuration for quality settings
+            hd_mode: Enable HD quality features (selout, AA)
         """
         self.width = width
         self.height = height
         self.seed = seed
         self.rng = random.Random(seed)
+        self.hd_mode = hd_mode
+        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+
+    def finalize(self, canvas: Canvas) -> Canvas:
+        """Apply HD post-processing effects.
+
+        Args:
+            canvas: Raw canvas to process
+
+        Returns:
+            Processed canvas with selout applied if HD mode
+        """
+        if self.hd_mode and self.style and self.style.outline.selout_enabled:
+            from quality.selout import apply_selout
+            return apply_selout(
+                canvas,
+                darken_factor=self.style.outline.selout_darken,
+                saturation_factor=self.style.outline.selout_saturation
+            )
+        return canvas
 
     def set_seed(self, seed: int) -> 'EnvironmentGenerator':
         """Set random seed."""
@@ -859,7 +882,8 @@ class EnvironmentGenerator:
 
 # Convenience functions
 def generate_sky(width: int = 64, height: int = 64, time_of_day: str = 'day',
-                 weather: str = 'clear', seed: int = 42) -> Canvas:
+                 weather: str = 'clear', seed: int = 42,
+                 hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate a sky background.
 
     Args:
@@ -868,16 +892,20 @@ def generate_sky(width: int = 64, height: int = 64, time_of_day: str = 'day',
         time_of_day: Time preset
         weather: Weather condition
         seed: Random seed
+        hd_mode: Enable HD quality features (selout, AA)
+        style: Style configuration for quality settings
 
     Returns:
         Canvas with generated sky
     """
-    gen = EnvironmentGenerator(width, height, seed)
-    return gen.generate_sky(time_of_day, weather)
+    gen = EnvironmentGenerator(width, height, seed, style=style, hd_mode=hd_mode)
+    canvas = gen.generate_sky(time_of_day, weather)
+    return gen.finalize(canvas)
 
 
 def generate_ground(width: int = 64, height: int = 64, terrain: str = 'grass',
-                    seed: int = 42) -> Canvas:
+                    seed: int = 42,
+                    hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate ground/terrain.
 
     Args:
@@ -885,16 +913,20 @@ def generate_ground(width: int = 64, height: int = 64, terrain: str = 'grass',
         height: Canvas height
         terrain: Terrain type
         seed: Random seed
+        hd_mode: Enable HD quality features (selout, AA)
+        style: Style configuration for quality settings
 
     Returns:
         Canvas with generated ground
     """
-    gen = EnvironmentGenerator(width, height, seed)
-    return gen.generate_ground(terrain)
+    gen = EnvironmentGenerator(width, height, seed, style=style, hd_mode=hd_mode)
+    canvas = gen.generate_ground(terrain)
+    return gen.finalize(canvas)
 
 
 def generate_parallax(width: int = 64, height: int = 64, theme: str = 'forest',
-                      num_layers: int = 3, seed: int = 42) -> List[Canvas]:
+                      num_layers: int = 3, seed: int = 42,
+                      hd_mode: bool = False, style: Optional['Style'] = None) -> List[Canvas]:
     """Generate parallax background layers.
 
     Args:
@@ -903,16 +935,20 @@ def generate_parallax(width: int = 64, height: int = 64, theme: str = 'forest',
         theme: Visual theme
         num_layers: Number of layers
         seed: Random seed
+        hd_mode: Enable HD quality features (selout, AA)
+        style: Style configuration for quality settings
 
     Returns:
         List of Canvas layers
     """
-    gen = EnvironmentGenerator(width, height, seed)
-    return gen.generate_parallax_layers(theme, num_layers)
+    gen = EnvironmentGenerator(width, height, seed, style=style, hd_mode=hd_mode)
+    layers = gen.generate_parallax_layers(theme, num_layers)
+    return [gen.finalize(layer) for layer in layers]
 
 
 def generate_room(width: int = 64, height: int = 64, room_type: str = 'dungeon',
-                  seed: int = 42) -> Canvas:
+                  seed: int = 42,
+                  hd_mode: bool = False, style: Optional['Style'] = None) -> Canvas:
     """Generate interior room.
 
     Args:
@@ -920,12 +956,15 @@ def generate_room(width: int = 64, height: int = 64, room_type: str = 'dungeon',
         height: Canvas height
         room_type: Type of room
         seed: Random seed
+        hd_mode: Enable HD quality features (selout, AA)
+        style: Style configuration for quality settings
 
     Returns:
         Canvas with generated room
     """
-    gen = EnvironmentGenerator(width, height, seed)
-    return gen.generate_room_interior(room_type)
+    gen = EnvironmentGenerator(width, height, seed, style=style, hd_mode=hd_mode)
+    canvas = gen.generate_room_interior(room_type)
+    return gen.finalize(canvas)
 
 
 def list_time_of_day() -> List[str]:

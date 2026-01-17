@@ -68,6 +68,15 @@ from .auto_shade import (
     EdgeMap,
 )
 
+from .selout import (
+    apply_selout,
+    apply_selout_to_region,
+    create_selout_outline,
+    derive_selout_color,
+    is_edge_pixel,
+    get_interior_neighbor_color,
+)
+
 __all__ = [
     # Analyzer
     'analyze_canvas',
@@ -107,4 +116,12 @@ __all__ = [
     'add_highlights',
     'add_shadows',
     'EdgeMap',
+
+    # Selout
+    'apply_selout',
+    'apply_selout_to_region',
+    'create_selout_outline',
+    'derive_selout_color',
+    'is_edge_pixel',
+    'get_interior_neighbor_color',
 ]
