@@ -135,10 +135,14 @@ See the `examples/` directory for:
 
 See [ROADMAP.md](ROADMAP.md) for detailed development plan.
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the dual-agent development workflow.
+
 ## License
 
 MIT License - See LICENSE file
 
 ## Credits
 
-Created with assistance from Claude (Anthropic).
+Developed by AI agents under human direction:
+- **Claude** (Anthropic) - Orchestration and development
+- **Codex** (OpenAI) - Parallel development via delegation
