@@ -5,6 +5,7 @@ Connects to a server to participate in collaborative editing.
 """
 
 import asyncio
+import logging
 import socket
 import threading
 import time
@@ -23,6 +24,8 @@ from .protocol import (
     create_undo_message, create_redo_message,
     create_clear_message,
 )
+
+logger = logging.getLogger(__name__)
 
 
 Color = Tuple[int, int, int, int]
@@ -121,6 +124,7 @@ class CollabClient:
             return True
         
         except Exception as e:
+            logger.warning("Failed to connect to %s:%s", self.host, self.port, exc_info=True)
             self._connected = False
             if self.on_error:
                 self.on_error(str(e))
@@ -134,7 +138,7 @@ class CollabClient:
             try:
                 self._socket.close()
             except Exception:
-                pass
+                logger.debug("Error closing client socket", exc_info=True)
             self._socket = None
         
         if self._thread:
@@ -171,6 +175,7 @@ class CollabClient:
                         self._process_message(msg)
             
             except Exception:
+                logger.debug("Receive loop error; closing connection", exc_info=True)
                 break
         
         self._connected = False
@@ -257,6 +262,7 @@ class CollabClient:
             self._socket.sendall(data)
             return True
         except Exception:
+            logger.debug("Failed to send message to server", exc_info=True)
             return False
     
     # Canvas operations

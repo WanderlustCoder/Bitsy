@@ -24,6 +24,14 @@ from core.style import (
     MODERN_HD,
     CHIBI
 )
+from style.transfer import OutlineType, ShadingType
+from styles import (
+    CHIBI as CHIBI_PRESET,
+    RETRO as RETRO_PRESET,
+    MODERN as MODERN_PRESET,
+    STYLE_PRESETS,
+    get_preset
+)
 
 
 class TestStylePresets(TestCase):
@@ -213,3 +221,40 @@ class TestConvenienceAliases(TestCase):
         self.assertIsInstance(PROFESSIONAL_HD, Style)
         self.assertIsInstance(MODERN_HD, Style)
         self.assertIsInstance(CHIBI, Style)
+
+
+class TestTransferStylePresets(TestCase):
+    """Tests for style transfer preset definitions."""
+
+    def test_style_presets_registered(self):
+        """Style presets are registered by name."""
+        for name in ('chibi', 'retro', 'modern'):
+            self.assertIn(name, STYLE_PRESETS)
+
+    def test_get_preset_chibi(self):
+        """get_preset returns chibi preset."""
+        preset = get_preset('chibi')
+        self.assertEqual(preset.name, 'chibi')
+
+    def test_chibi_proportions_and_outlines(self):
+        """Chibi preset exaggerates head and uses bold outlines."""
+        preset = CHIBI_PRESET
+        self.assertGreaterEqual(preset.proportion_modifiers.head_scale, 1.5)
+        self.assertLess(preset.proportion_modifiers.body_scale, 1.0)
+        self.assertGreaterEqual(preset.outline_style.thickness, 2)
+        self.assertEqual(preset.outline_style.type, OutlineType.FULL)
+
+    def test_retro_palette_and_shading(self):
+        """Retro preset limits palette and uses dithering."""
+        preset = RETRO_PRESET
+        self.assertGreaterEqual(preset.palette_constraints.color_count, 8)
+        self.assertLessEqual(preset.palette_constraints.color_count, 16)
+        self.assertIn(preset.outline_style.thickness, (1, 2))
+        self.assertEqual(preset.shading_style.type, ShadingType.DITHER)
+
+    def test_modern_smooth_shading_and_proportions(self):
+        """Modern preset uses soft shading and natural proportions."""
+        preset = MODERN_PRESET
+        self.assertEqual(preset.shading_style.type, ShadingType.SOFT)
+        self.assertEqual(preset.outline_style.type, OutlineType.SELECTIVE)
+        self.assertEqual(preset.proportion_modifiers.head_scale, 1.0)

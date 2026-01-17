@@ -4,8 +4,12 @@ Hook system for Bitsy plugins.
 Allows plugins to extend behavior at specific points.
 """
 
+import logging
+import warnings
 from typing import Any, Callable, Dict, List, Optional
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -171,7 +175,12 @@ class HookRegistry:
                     result = callback_result
             except Exception as e:
                 # Log but don't crash on hook errors
-                import warnings
+                logger.debug(
+                    "Hook callback %s failed: %s",
+                    hook.name,
+                    e,
+                    exc_info=True,
+                )
                 warnings.warn(
                     f"Hook callback {hook.name} failed: {e}",
                     RuntimeWarning
@@ -208,7 +217,12 @@ class HookRegistry:
                 result = hook.callback(data, **kwargs)
                 results.append(result)
             except Exception as e:
-                import warnings
+                logger.debug(
+                    "Hook callback %s failed: %s",
+                    hook.name,
+                    e,
+                    exc_info=True,
+                )
                 warnings.warn(
                     f"Hook callback {hook.name} failed: {e}",
                     RuntimeWarning

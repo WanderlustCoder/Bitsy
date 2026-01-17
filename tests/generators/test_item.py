@@ -199,6 +199,57 @@ class TestGenerateItemFunction(TestCase):
         self.assertCanvasEqual(result1, result2)
 
 
+class TestItemEdgeCases(TestCase):
+    """Edge case tests for item generation."""
+
+    def _assert_size_edge_case(self, size: int) -> None:
+        """Validate size edge cases either succeed or raise ValueError."""
+        try:
+            result = generate_item('sword', width=size, height=size)
+        except ValueError:
+            return
+        except Exception as exc:
+            self.assertTrue(False, f"Unexpected exception for size {size}: {exc}")
+            return
+
+        self.assertIsInstance(result, Canvas)
+        self.assertEqual(result.width, size)
+        self.assertEqual(result.height, size)
+
+    def test_zero_size(self):
+        """Size 0 handles gracefully."""
+        self._assert_size_edge_case(0)
+
+    def test_negative_size(self):
+        """Negative size handles gracefully."""
+        self._assert_size_edge_case(-1)
+
+    def test_large_size(self):
+        """Large size generates successfully."""
+        result = generate_item('sword', width=100, height=100)
+        self.assertIsInstance(result, Canvas)
+        self.assertEqual(result.width, 100)
+        self.assertEqual(result.height, 100)
+        self.assertCanvasNotEmpty(result)
+
+    def test_extreme_seed_zero(self):
+        """Seed 0 remains deterministic."""
+        result1 = generate_item('sword', seed=0)
+        result2 = generate_item('sword', seed=0)
+        self.assertCanvasEqual(result1, result2)
+
+    def test_extreme_seed_max(self):
+        """Max 32-bit seed works."""
+        seed_max = 2 ** 31 - 1
+        result = generate_item('sword', seed=seed_max)
+        self.assertIsInstance(result, Canvas)
+        self.assertCanvasNotEmpty(result)
+
+    def test_invalid_item_type(self):
+        """Invalid item type raises error."""
+        self.assertRaises(ValueError, generate_item, 'not_a_real_item')
+
+
 class TestListItemTypes(TestCase):
     """Tests for list_item_types function."""
 

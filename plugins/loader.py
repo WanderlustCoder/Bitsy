@@ -5,14 +5,16 @@ Discovers and loads plugins from standard locations.
 """
 
 import importlib.util
+import logging
 import sys
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type
-import warnings
 
 from .base import Plugin, PLUGIN_TYPES
 from .registry import PluginRegistry, get_registry
+
+logger = logging.getLogger(__name__)
 
 
 # Default plugin search paths
@@ -135,7 +137,13 @@ class PluginLoader:
                 "from bitsy.plugins import",
             ]
             return any(ind in content for ind in indicators)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "Failed to read plugin file %s: %s",
+                path,
+                e,
+                exc_info=True,
+            )
             return False
 
     def load_plugin(self, module_name: str, path: Path) -> List[Plugin]:
@@ -154,6 +162,10 @@ class PluginLoader:
             # Load the module
             spec = importlib.util.spec_from_file_location(module_name, path)
             if spec is None or spec.loader is None:
+                logger.warning(
+                    "Cannot load plugin from %s: invalid spec",
+                    path,
+                )
                 self._errors.append(f"Cannot load {path}: invalid spec")
                 return plugins
 
@@ -180,11 +192,24 @@ class PluginLoader:
                         self.registry.register(instance)
                         plugins.append(instance)
                     except Exception as e:
+                        logger.debug(
+                            "Failed to instantiate plugin %s from %s: %s",
+                            attr_name,
+                            path,
+                            e,
+                            exc_info=True,
+                        )
                         self._errors.append(
                             f"Failed to instantiate {attr_name}: {e}"
                         )
 
         except Exception as e:
+            logger.warning(
+                "Failed to load plugin from %s: %s",
+                path,
+                e,
+                exc_info=True,
+            )
             self._errors.append(f"Failed to load {path}: {e}")
 
         return plugins

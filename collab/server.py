@@ -6,6 +6,7 @@ Uses asyncio for non-blocking networking.
 """
 
 import asyncio
+import logging
 import socket
 import threading
 import time
@@ -20,6 +21,8 @@ from .protocol import (
     create_error_message,
 )
 from .session import CollabSession
+
+logger = logging.getLogger(__name__)
 
 
 class ClientHandler:
@@ -66,7 +69,12 @@ class ClientHandler:
                         await self._process_message(msg)
         
         except Exception as e:
-            pass
+            logger.debug(
+                "Client handler loop error for %s: %s",
+                self.username or "unknown",
+                e,
+                exc_info=True,
+            )
         
         finally:
             await self._cleanup()
@@ -219,7 +227,11 @@ class ClientHandler:
             self.writer.write(data)
             await self.writer.drain()
         except Exception:
-            pass
+            logger.debug(
+                "Failed to send message to %s",
+                self.username or "unknown",
+                exc_info=True,
+            )
     
     async def _cleanup(self) -> None:
         """Clean up on disconnect."""
@@ -239,7 +251,11 @@ class ClientHandler:
             self.writer.close()
             await self.writer.wait_closed()
         except Exception:
-            pass
+            logger.debug(
+                "Error closing client writer for %s",
+                self.username or "unknown",
+                exc_info=True,
+            )
     
     def disconnect(self) -> None:
         """Disconnect this client."""
@@ -303,7 +319,7 @@ class CollabServer:
         try:
             self._loop.run_until_complete(self._serve())
         except Exception:
-            pass
+            logger.warning("Server event loop error", exc_info=True)
         finally:
             self._loop.close()
     
