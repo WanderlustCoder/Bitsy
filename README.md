@@ -101,7 +101,7 @@ See the `examples/` directory for:
 - [x] Skeleton/rig system with bone hierarchies
 - [x] Pose library with interpolation
 - [x] Body part templates (heads, bodies, hair, eyes)
-- [ ] Equipment/armor parts system
+- [x] Equipment/armor parts system
 
 ### Generation
 - [x] Character generator
@@ -110,7 +110,7 @@ See the `examples/` directory for:
 - [x] Prop generator (furniture, vegetation, chests)
 - [x] Environment generator (sky, terrain, weather)
 - [x] Structure generator (houses, castles, dungeons)
-- [ ] Character assembly from parts
+- [x] Character assembly from parts
 
 ### Effects & Visual
 - [x] Particle system with presets
@@ -130,8 +130,8 @@ See the `examples/` directory for:
 - [x] Tile system with autotiling
 - [x] Quality validators and analyzers
 - [x] Auto-shading and color harmony
-- [ ] Style transfer between sprites
-- [ ] Full editor toolchain
+- [x] Style transfer between sprites
+- [x] Full editor toolchain
 
 See [ROADMAP.md](ROADMAP.md) for detailed development plan.
 
