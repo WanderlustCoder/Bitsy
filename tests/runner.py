@@ -91,7 +91,7 @@ def find_test_modules(category: str = None) -> List[str]:
         categories = [
             'core', 'generators', 'effects', 'ui',
             'editor', 'export', 'integration', 'visual', 'quality', 'preview',
-            'characters', 'animation', 'style'
+            'characters', 'animation', 'style', 'convert3d'
         ]
 
     for cat in categories:
@@ -421,6 +421,7 @@ Categories:
   visual      - Visual regression tests
   quality     - Quality analysis tests (Analyzer, Validators, Color Harmony)
   preview     - Preview tools tests (HTML Preview, Comparison, Contact Sheets)
+  convert3d   - 3D conversion tests (OBJ parsing, projection, rendering)
 
 Examples:
   python -m tests.runner                    # Run all tests
@@ -439,7 +440,7 @@ Examples:
 
     parser.add_argument(
         '-c', '--category',
-        choices=['core', 'generators', 'effects', 'ui', 'editor', 'export', 'integration', 'visual', 'quality', 'preview', 'characters', 'animation', 'style'],
+        choices=['core', 'generators', 'effects', 'ui', 'editor', 'export', 'integration', 'visual', 'quality', 'preview', 'characters', 'animation', 'style', 'convert3d'],
         help='Run tests from specific category'
     )
 
