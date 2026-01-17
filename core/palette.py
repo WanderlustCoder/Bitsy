@@ -5,10 +5,12 @@ Provides palette creation, hue shifting, and color quantization.
 """
 
 import math
+from functools import lru_cache
 from typing import List, Tuple, Optional
 from .png_writer import Color
 
 
+@lru_cache(maxsize=256)
 def hex_to_rgba(hex_color: str, alpha: int = 255) -> Color:
     """Convert hex color string to RGBA tuple."""
     hex_color = hex_color.lstrip('#')
@@ -34,6 +36,7 @@ def lerp_color(c1: Color, c2: Color, t: float) -> Color:
     )
 
 
+@lru_cache(maxsize=1024)
 def rgb_to_hsv(r: int, g: int, b: int) -> Tuple[float, float, float]:
     """Convert RGB to HSV."""
     r, g, b = r / 255.0, g / 255.0, b / 255.0

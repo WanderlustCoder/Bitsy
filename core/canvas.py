@@ -79,9 +79,16 @@ class Canvas:
 
     def fill_circle(self, cx: int, cy: int, r: int, color: Color) -> None:
         """Fill a circle."""
-        for py in range(max(0, cy - r), min(self.height, cy + r + 1)):
-            for px in range(max(0, cx - r), min(self.width, cx + r + 1)):
-                if (px - cx) ** 2 + (py - cy) ** 2 <= r * r:
+        r_sq = r * r
+        y_start = max(0, cy - r)
+        y_end = min(self.height, cy + r + 1)
+        x_start = max(0, cx - r)
+        x_end = min(self.width, cx + r + 1)
+
+        for py in range(y_start, y_end):
+            dy_sq = (py - cy) ** 2
+            for px in range(x_start, x_end):
+                if (px - cx) ** 2 + dy_sq <= r_sq:
                     self.set_pixel(px, py, color)
 
     def draw_circle(self, cx: int, cy: int, r: int, color: Color) -> None:
@@ -107,12 +114,29 @@ class Canvas:
                 err += 2 * (y - x + 1)
 
     def fill_ellipse(self, cx: int, cy: int, rx: int, ry: int, color: Color) -> None:
-        """Fill an ellipse."""
-        for py in range(max(0, cy - ry), min(self.height, cy + ry + 1)):
-            for px in range(max(0, cx - rx), min(self.width, cx + rx + 1)):
-                dx = (px - cx) / max(rx, 0.1)
-                dy = (py - cy) / max(ry, 0.1)
-                if dx * dx + dy * dy <= 1.0:
+        """Fill an ellipse.
+
+        Uses integer math for performance: compares (dx*ry)^2 + (dy*rx)^2 <= (rx*ry)^2
+        """
+        if rx <= 0 or ry <= 0:
+            return
+
+        # Precompute squared values for integer comparison
+        rx_sq = rx * rx
+        ry_sq = ry * ry
+        threshold = rx_sq * ry_sq
+
+        y_start = max(0, cy - ry)
+        y_end = min(self.height, cy + ry + 1)
+        x_start = max(0, cx - rx)
+        x_end = min(self.width, cx + rx + 1)
+
+        for py in range(y_start, y_end):
+            dy = py - cy
+            dy_term = dy * dy * rx_sq
+            for px in range(x_start, x_end):
+                dx = px - cx
+                if dx * dx * ry_sq + dy_term <= threshold:
                     self.set_pixel(px, py, color)
 
     # === Anti-Aliased Shapes ===

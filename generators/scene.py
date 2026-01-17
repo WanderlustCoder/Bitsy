@@ -417,8 +417,9 @@ def _generate_sky(width: int, height: int, palette: Palette,
         r = int(top_color[0] * (1 - t) + bottom_color[0] * t)
         g = int(top_color[1] * (1 - t) + bottom_color[1] * t)
         b = int(top_color[2] * (1 - t) + bottom_color[2] * t)
+        row_color = (r, g, b, 255)  # Create tuple once per row
         for x in range(width):
-            canvas.set_pixel_solid(x, y, (r, g, b, 255))
+            canvas.set_pixel_solid(x, y, row_color)
 
     return canvas
 

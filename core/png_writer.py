@@ -68,7 +68,10 @@ def create_blank_canvas(width: int, height: int, color: Color = (0, 0, 0, 0)) ->
 
 
 def blend_colors(base: Color, overlay: Color) -> Color:
-    """Alpha blend overlay color onto base color."""
+    """Alpha blend overlay color onto base color.
+
+    Uses integer math for performance (called 60k+ times per character).
+    """
     br, bg, bb, ba = base
     or_, og, ob, oa = overlay
 
@@ -77,14 +80,13 @@ def blend_colors(base: Color, overlay: Color) -> Color:
     if oa == 255:
         return overlay
 
-    # Alpha blending
-    alpha = oa / 255.0
-    inv_alpha = 1.0 - alpha
-
-    nr = int(or_ * alpha + br * inv_alpha)
-    ng = int(og * alpha + bg * inv_alpha)
-    nb = int(ob * alpha + bb * inv_alpha)
-    na = max(ba, oa)
+    # Integer alpha blending: (overlay * alpha + base * (255 - alpha)) / 255
+    # Use (x + 127) // 255 for proper rounding
+    inv_alpha = 255 - oa
+    nr = (or_ * oa + br * inv_alpha + 127) // 255
+    ng = (og * oa + bg * inv_alpha + 127) // 255
+    nb = (ob * oa + bb * inv_alpha + 127) // 255
+    na = ba if ba > oa else oa
 
     return (nr, ng, nb, na)
 
