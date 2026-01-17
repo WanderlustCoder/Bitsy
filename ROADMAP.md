@@ -162,12 +162,12 @@ Nice-to-have features for completeness.
 - [x] Quality scoring and selection
 - [x] Iterative refinement loops
 
-### 4.4 Web/Interactive
-- [ ] Browser-based preview server
-- [ ] Interactive parameter tuning
-- [ ] Real-time generation preview
-- [ ] Shareable generation configs
-- [ ] Gallery/showcase system
+### 4.4 Web/Interactive ✓
+- [x] Browser-based preview server
+- [x] Interactive parameter tuning
+- [x] Real-time generation preview
+- [x] Shareable generation configs
+- [x] Gallery/showcase system
 
 ---
 
