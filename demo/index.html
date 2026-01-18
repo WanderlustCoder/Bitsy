@@ -258,56 +258,135 @@
             <li><a href="#vehicles">Vehicles</a></li>
             <li><a href="#animations">Animations</a></li>
             <li><a href="#scenes">Scenes</a></li>
+            <li><a href="#hd-features">HD Features</a></li>
         </ul>
     </nav>
 
     <main>
         <section id="characters">
             <h2>Characters</h2>
-            <p>Procedurally generated pixel art characters with customizable hair, eyes, outfits, and styles.</p>
+            <p>Professional-quality pixel art characters with CharacterBuilder API, presets, equipment, and species variants.</p>
 
             <div class="code-example">
                 <code>
-<span class="keyword">from</span> generators <span class="keyword">import</span> CharacterGenerator<br><br>
-gen = CharacterGenerator(width=<span class="string">32</span>, height=<span class="string">32</span>)<br>
-gen.<span class="function">set_hair</span>(<span class="string">'fluffy'</span>, palette=<span class="string">'lavender'</span>)<br>
-gen.<span class="function">set_eyes</span>(<span class="string">'large'</span>, color=<span class="string">'blue'</span>)<br>
-sprite = gen.<span class="function">render</span>()
+<span class="keyword">from</span> characters <span class="keyword">import</span> CharacterBuilder, presets<br><br>
+<span class="comment"># Using presets</span><br>
+hero = presets.<span class="function">hero</span>(hair_color=<span class="string">'brown'</span>, width=<span class="string">48</span>)<br><br>
+<span class="comment"># Using fluent builder with equipment</span><br>
+knight = (CharacterBuilder(width=<span class="string">48</span>, height=<span class="string">48</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.<span class="function">head</span>(<span class="string">'square'</span>).<span class="function">body</span>(<span class="string">'muscular'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.<span class="function">hair</span>(<span class="string">'short'</span>, color=<span class="string">'blonde'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.<span class="function">eyes</span>(<span class="string">'round'</span>, color=<span class="string">'blue'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.<span class="function">equip_set</span>(<span class="string">'knight'</span>)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;.<span class="function">build</span>())
                 </code>
             </div>
 
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">RPG Party (with Equipment)</h3>
             <div class="gallery gallery-large">
                 <div class="gallery-item">
-                    <img src="characters/char_01_default_4x.png" alt="Default Character">
-                    <div class="label">Default Chibi</div>
+                    <img src="characters/rpg_party_knight_4x.png" alt="Knight">
+                    <div class="label">Knight</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_02_blue_4x.png" alt="Blue Hair Character">
-                    <div class="label">Blue Hair</div>
+                    <img src="characters/rpg_party_wizard_4x.png" alt="Wizard">
+                    <div class="label">Wizard</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_03_brown_purple_red_4x.png" alt="Brown Hair Character">
-                    <div class="label">Brown Hair</div>
+                    <img src="characters/rpg_party_rogue_4x.png" alt="Rogue">
+                    <div class="label">Rogue</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_04_blonde_4x.png" alt="Blonde Character">
-                    <div class="label">Blonde</div>
+                    <img src="characters/rpg_party_princess_4x.png" alt="Princess">
+                    <div class="label">Princess</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">NPC Variety</h3>
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="characters/npc_villager_4x.png" alt="Villager">
+                    <div class="label">Villager</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_05_pink_sparkle_4x.png" alt="Pink Hair Character">
-                    <div class="label">Pink Hair</div>
+                    <img src="characters/npc_elder_4x.png" alt="Elder">
+                    <div class="label">Elder</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_06_black_brown_green_4x.png" alt="Black Hair Character">
-                    <div class="label">Black Hair</div>
+                    <img src="characters/npc_child_4x.png" alt="Child">
+                    <div class="label">Child</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_07_red_4x.png" alt="Red Hair Character">
-                    <div class="label">Red Hair</div>
+                    <img src="characters/npc_merchant_4x.png" alt="Merchant">
+                    <div class="label">Merchant</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Fantasy Species</h3>
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="characters/species_human_hero_4x.png" alt="Human">
+                    <div class="label">Human</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="characters/char_08_random_4x.png" alt="Randomized Character">
-                    <div class="label">Randomized</div>
+                    <img src="characters/species_elf_4x.png" alt="Elf">
+                    <div class="label">Elf</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/species_dwarf_4x.png" alt="Dwarf">
+                    <div class="label">Dwarf</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/species_orc_4x.png" alt="Orc">
+                    <div class="label">Orc</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Expressions</h3>
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="characters/expression_neutral_4x.png" alt="Neutral">
+                    <div class="label">Neutral</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/expression_happy_4x.png" alt="Happy">
+                    <div class="label">Happy</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/expression_sad_4x.png" alt="Sad">
+                    <div class="label">Sad</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/expression_angry_4x.png" alt="Angry">
+                    <div class="label">Angry</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Equipment Sets</h3>
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="characters/equip_knight_4x.png" alt="Knight Set">
+                    <div class="label">Knight</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/equip_wizard_4x.png" alt="Wizard Set">
+                    <div class="label">Wizard</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/equip_ranger_4x.png" alt="Ranger Set">
+                    <div class="label">Ranger</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/equip_warrior_4x.png" alt="Warrior Set">
+                    <div class="label">Warrior</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/equip_rogue_4x.png" alt="Rogue Set">
+                    <div class="label">Rogue</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="characters/equip_royal_4x.png" alt="Royal Set">
+                    <div class="label">Royal</div>
                 </div>
             </div>
         </section>
@@ -797,17 +876,47 @@ sprite = gen.<span class="function">render</span>()
 
         <section id="animations">
             <h2>Animations</h2>
-            <p>Animated sprites exported as optimized GIFs.</p>
+            <p>Animated sprites using Character.animate() with idle, walk, and expression transitions.</p>
 
+            <div class="code-example">
+                <code>
+<span class="comment"># Built-in character animations</span><br>
+hero = presets.<span class="function">hero</span>(width=<span class="string">48</span>)<br>
+idle_anim = hero.<span class="function">animate</span>(<span class="string">'idle'</span>, fps=<span class="string">8</span>)<br>
+walk_anim = hero.<span class="function">animate</span>(<span class="string">'walk'</span>, fps=<span class="string">8</span>)
+                </code>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Character Animations</h3>
             <div class="gallery animation-gallery">
                 <div class="gallery-item">
-                    <img src="animations/character_idle.gif" alt="Character Idle">
-                    <div class="label">Character Idle</div>
+                    <img src="animations/hero_idle.gif" alt="Hero Idle">
+                    <div class="label">Hero Idle</div>
                 </div>
                 <div class="gallery-item">
-                    <img src="animations/character_walk.gif" alt="Character Walk">
-                    <div class="label">Character Walk</div>
+                    <img src="animations/hero_walk.gif" alt="Hero Walk">
+                    <div class="label">Hero Walk</div>
                 </div>
+                <div class="gallery-item">
+                    <img src="animations/knight_idle.gif" alt="Knight Idle">
+                    <div class="label">Knight Idle</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="animations/knight_walk.gif" alt="Knight Walk">
+                    <div class="label">Knight Walk</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="animations/wizard_idle.gif" alt="Wizard Idle">
+                    <div class="label">Wizard Idle</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="animations/expression_transitions.gif" alt="Expression Transitions">
+                    <div class="label">Expressions</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Creature Animations</h3>
+            <div class="gallery animation-gallery">
                 <div class="gallery-item">
                     <img src="animations/slime_bounce.gif" alt="Slime Bounce">
                     <div class="label">Slime Bounce</div>
@@ -835,6 +944,49 @@ sprite = gen.<span class="function">render</span>()
                 <div class="gallery-item">
                     <img src="scenes/scene_village.png" alt="Village Scene">
                     <div class="label">Village</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="hd-features">
+            <h2>HD Features</h2>
+            <p>Professional-quality pixel art with anti-aliasing, selective outline (selout), and multi-level shading.</p>
+
+            <div class="code-example">
+                <code>
+<span class="keyword">from</span> core.style <span class="keyword">import</span> PROFESSIONAL_HD<br>
+<span class="keyword">from</span> quality.selout <span class="keyword">import</span> apply_selout<br><br>
+<span class="comment"># HD style with 6-level shading</span><br>
+char = CharacterBuilder(width=<span class="string">64</span>).<span class="function">style</span>(PROFESSIONAL_HD).<span class="function">build</span>()<br>
+sprite = <span class="function">apply_selout</span>(char.<span class="function">render</span>())  <span class="comment"># Color-aware outlines</span>
+                </code>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Style Comparison</h3>
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="hd_showcase/hd_style_comparison.png" alt="Style Comparison">
+                    <div class="label">Chibi → Modern HD → Professional HD</div>
+                </div>
+            </div>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--accent-light);">Quality Features</h3>
+            <div class="gallery gallery-large">
+                <div class="gallery-item">
+                    <img src="hd_showcase/hd_selout_demo.png" alt="Selective Outline">
+                    <div class="label">Selout (Before/After)</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="hd_showcase/hd_aa_comparison.png" alt="Anti-aliasing">
+                    <div class="label">Anti-Aliasing (Regular/AA)</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="hd_showcase/hd_hair_styles.png" alt="HD Hair Styles">
+                    <div class="label">HD Hair Styles</div>
+                </div>
+                <div class="gallery-item">
+                    <img src="hd_showcase/hd_portrait.png" alt="HD Portrait">
+                    <div class="label">Professional Portrait</div>
                 </div>
             </div>
         </section>
