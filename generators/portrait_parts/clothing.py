@@ -106,7 +106,7 @@ def render_neckline(canvas: Canvas, params: ClothingParams,
 def _render_crew_neck(canvas: Canvas, params: ClothingParams,
                       base: Color, dark: Color, light: Color,
                       light_x: float) -> None:
-    """Render crew neck style."""
+    """Render crew neck style with fabric folds."""
     cx = params.center_x
     ny = params.neckline_y
     width = params.shoulder_right_x - params.shoulder_left_x
@@ -115,37 +115,82 @@ def _render_crew_neck(canvas: Canvas, params: ClothingParams,
     neck_width = width // 4
     neck_height = 6
 
-    # Fill body area
+    # Get full ramp if available for better gradients
+    ramp = params.color_ramp or [dark, base, light]
+    ramp_len = len(ramp)
+    mid_idx = ramp_len // 2
+
+    # Pre-calculate fold positions for fabric detail
+    fold_positions = [
+        cx - width // 5,
+        cx + width // 6,
+        cx - width // 8,
+    ]
+
+    # Fill body area with gradient shading
     for y in range(ny, params.canvas_bottom):
-        # Narrower at top, wider at bottom
         progress = (y - ny) / max(1, params.canvas_bottom - ny)
         row_width = int(width * 0.4 + width * 0.6 * min(1, progress * 2))
+        half_width = row_width // 2
 
-        for x in range(cx - row_width // 2, cx + row_width // 2 + 1):
+        for x in range(cx - half_width, cx + half_width + 1):
             # Check if in neckline opening
             if y < ny + neck_height:
-                dx = abs(x - cx)
-                dy = y - ny
-                # Ellipse check
-                if (dx / neck_width) ** 2 + (dy / neck_height) ** 2 < 1:
-                    continue
+                dx_neck = abs(x - cx)
+                dy_neck = y - ny
+                if neck_width > 0 and neck_height > 0:
+                    if (dx_neck / neck_width) ** 2 + (dy_neck / neck_height) ** 2 < 1:
+                        continue
 
-            # Basic shading
-            if x < cx - row_width // 4:
-                color = dark if light_x > 0 else light
-            elif x > cx + row_width // 4:
-                color = light if light_x > 0 else dark
+            # Calculate horizontal position factor (-1 to 1)
+            rel_x = (x - cx) / half_width if half_width > 0 else 0
+
+            # Base shading from light direction
+            if light_x > 0:
+                shade_factor = 0.5 + rel_x * 0.4  # Light from right
             else:
-                color = base
+                shade_factor = 0.5 - rel_x * 0.4  # Light from left
+
+            # Add fabric fold detail (vertical darker lines)
+            for fold_x in fold_positions:
+                fold_dist = abs(x - fold_x)
+                if fold_dist < 3:
+                    # Darken near folds
+                    fold_factor = 1 - fold_dist / 3
+                    shade_factor -= fold_factor * 0.15
+
+            # Add slight vertical gradient (darker at bottom)
+            shade_factor -= progress * 0.1
+
+            # Clamp and convert to ramp index
+            shade_factor = max(0.0, min(1.0, shade_factor))
+            ramp_idx = int(shade_factor * (ramp_len - 1))
+            ramp_idx = max(0, min(ramp_len - 1, ramp_idx))
+            color = ramp[ramp_idx]
 
             canvas.set_pixel(x, y, color)
 
-    # Neckline edge
-    edge_color = (*dark[:3], 200)
+    # Neckline edge with subtle rim lighting
     for dx in range(-neck_width, neck_width + 1):
         t = dx / neck_width if neck_width > 0 else 0
-        dy = int((1 - t ** 2) ** 0.5 * neck_height)
-        canvas.set_pixel(cx + dx, ny + neck_height - dy, edge_color)
+        if abs(t) < 1:
+            dy = int((1 - t ** 2) ** 0.5 * neck_height)
+            # Rim light on light side
+            if (light_x > 0 and t > 0) or (light_x < 0 and t < 0):
+                edge_color = (*light[:3], 220)
+            else:
+                edge_color = (*dark[:3], 200)
+            canvas.set_pixel(cx + dx, ny + neck_height - dy, edge_color)
+
+    # Add fold highlights/shadows as accent lines
+    for fold_x in fold_positions:
+        if cx - width // 3 < fold_x < cx + width // 3:
+            for y in range(ny + neck_height + 2, min(ny + 25, params.canvas_bottom)):
+                # Alternate dark/light for fold effect
+                if y % 3 != 0:
+                    shadow_color = (*dark[:3], 60)
+                    canvas.set_pixel(fold_x, y, shadow_color)
+                    canvas.set_pixel(fold_x + 1, y, (*light[:3], 30))
 
 
 def _render_v_neck(canvas: Canvas, params: ClothingParams,

@@ -137,38 +137,68 @@ def _render_lens(canvas: Canvas, cx: int, cy: int, w: int, h: int,
         _draw_ellipse_frame(canvas, cx, cy, w // 2, h // 2,
                             frame_color, frame_dark, frame_light)
 
-    # Reflection highlight
+    # Reflection highlight (improved with gradient)
     if has_reflection:
         lx, _ = light_direction
         if lx > 0:
-            # Reflection on right side
             ref_x = cx + w // 4
         else:
             ref_x = cx - w // 4
 
-        reflection_color = (255, 255, 255, 80)
+        # Main reflection stripe
         for dy in range(-h // 3, h // 3):
-            canvas.set_pixel(ref_x, cy + dy, reflection_color)
-            canvas.set_pixel(ref_x + 1, cy + dy, (255, 255, 255, 40))
+            # Gradient from bright to dim
+            dist_from_center = abs(dy) / max(1, h // 3)
+            base_alpha = int(100 * (1 - dist_from_center * 0.5))
+
+            canvas.set_pixel(ref_x - 1, cy + dy, (255, 255, 255, base_alpha // 3))
+            canvas.set_pixel(ref_x, cy + dy, (255, 255, 255, base_alpha))
+            canvas.set_pixel(ref_x + 1, cy + dy, (255, 255, 255, base_alpha // 2))
+
+        # Small secondary reflection
+        ref_x2 = cx - w // 5 if lx > 0 else cx + w // 5
+        for dy in range(-h // 5, h // 6):
+            canvas.set_pixel(ref_x2, cy + dy + h // 8, (255, 255, 255, 30))
 
 
 def _draw_ellipse_frame(canvas: Canvas, cx: int, cy: int, rx: int, ry: int,
                         color: Color, dark: Color, light: Color) -> None:
-    """Draw elliptical frame with shading."""
-    # Simple ellipse outline
-    steps = max(rx, ry) * 4
-    for i in range(steps):
-        angle = 2 * math.pi * i / steps
-        x = int(cx + rx * math.cos(angle))
-        y = int(cy + ry * math.sin(angle))
+    """Draw elliptical frame with thick shading (2-3 pixel rim)."""
+    steps = max(rx, ry) * 6
 
-        # Top gets highlight, bottom gets shadow
-        if angle < math.pi:
-            c = light if angle < math.pi / 2 else color
-        else:
-            c = dark if angle < 3 * math.pi / 2 else color
+    # Draw multiple rings for thickness
+    for ring in range(3):
+        ring_rx = rx + ring
+        ring_ry = ry + ring
 
-        canvas.set_pixel(x, y, c)
+        for i in range(steps):
+            angle = 2 * math.pi * i / steps
+            x = int(cx + ring_rx * math.cos(angle))
+            y = int(cy + ring_ry * math.sin(angle))
+
+            # Determine color based on angle and ring
+            if ring == 0:
+                # Inner ring: darker
+                if angle < math.pi:
+                    c = color
+                else:
+                    c = dark
+            elif ring == 1:
+                # Middle ring: base color
+                if angle < math.pi / 2:
+                    c = light
+                elif angle < math.pi:
+                    c = color
+                else:
+                    c = dark
+            else:
+                # Outer ring: highlight on top, dark on bottom
+                if angle < math.pi / 2 or angle > 3 * math.pi / 2:
+                    c = light
+                else:
+                    c = dark
+
+            canvas.set_pixel(x, y, c)
 
 
 def _draw_rect_frame(canvas: Canvas, x: int, y: int, w: int, h: int,

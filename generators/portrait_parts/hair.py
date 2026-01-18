@@ -459,25 +459,24 @@ def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
 def render_cluster(canvas: Canvas, cluster: HairCluster,
                    color_ramp: List[Color],
                    light_direction: Tuple[float, float] = (1.0, -1.0)) -> None:
-    """Render a single hair cluster to the canvas."""
+    """Render a single hair cluster with gradient shading and anti-aliasing."""
     if len(cluster.control_points) < 3:
         return
 
-    # Determine base color index from ramp
-    mid_idx = len(color_ramp) // 2
+    ramp_len = len(color_ramp)
+    mid_idx = ramp_len // 2
+
+    # Base color from ramp
     color_idx = mid_idx + int(cluster.color_offset * 2)
-    color_idx = max(0, min(len(color_ramp) - 1, color_idx))
-    base_color = color_ramp[color_idx]
+    color_idx = max(0, min(ramp_len - 1, color_idx))
 
-    # Highlight color if applicable
-    if cluster.is_highlight:
-        highlight_idx = min(len(color_ramp) - 1, color_idx + 2)
-        highlight_color = color_ramp[highlight_idx]
-    else:
-        highlight_color = base_color
+    # Shadow and highlight indices
+    shadow_idx = max(0, color_idx - 2)
+    highlight_idx = min(ramp_len - 1, color_idx + 2)
+    specular_idx = min(ramp_len - 1, color_idx + 3)
 
-    # Sample points along the bezier curve
-    steps = 30
+    # Sample points along the bezier curve (more steps for smoother curves)
+    steps = 45
     points = cluster.control_points
 
     for i in range(steps):
@@ -496,7 +495,6 @@ def render_cluster(canvas: Canvas, cluster: HairCluster,
         if len(points) == 4:
             tangent = bezier_tangent_cubic(points[0], points[1], points[2], points[3], t)
         else:
-            # Approximate tangent for quadratic
             if t < 0.99:
                 next_pos = bezier_quadratic(points[0], points[1], points[2], min(1.0, t + 0.05))
                 tangent = (next_pos[0] - pos[0], next_pos[1] - pos[1])
@@ -510,29 +508,60 @@ def render_cluster(canvas: Canvas, cluster: HairCluster,
         else:
             perp = (1, 0)
 
-        # Draw thick line segment perpendicular to curve
-        half_width = width / 2
-        x1 = int(pos[0] - perp[0] * half_width)
-        y1 = int(pos[1] - perp[1] * half_width)
-        x2 = int(pos[0] + perp[0] * half_width)
-        y2 = int(pos[1] + perp[1] * half_width)
-
-        # Choose color (highlight on light side)
+        # Light dot product for this segment
         dot_product = perp[0] * light_direction[0] + perp[1] * light_direction[1]
-        if cluster.is_highlight and dot_product > 0.3:
-            color = highlight_color
-        else:
-            color = base_color
 
-        # Draw line from (x1, y1) to (x2, y2)
+        # Draw thick line with gradient across width
+        half_width = width / 2
+        x1 = pos[0] - perp[0] * half_width
+        y1 = pos[1] - perp[1] * half_width
+        x2 = pos[0] + perp[0] * half_width
+        y2 = pos[1] + perp[1] * half_width
+
         dx = x2 - x1
         dy = y2 - y1
-        line_steps = max(abs(dx), abs(dy), 1)
+        line_length = math.sqrt(dx * dx + dy * dy)
+        line_steps = max(int(line_length * 1.5), 1)
+
         for j in range(line_steps + 1):
-            lt = j / line_steps if line_steps > 0 else 0
-            px = int(x1 + dx * lt)
-            py = int(y1 + dy * lt)
-            if 0 <= px < canvas.width and 0 <= py < canvas.height:
+            lt = j / line_steps if line_steps > 0 else 0.5
+            px_f = x1 + dx * lt
+            py_f = y1 + dy * lt
+            px = int(px_f)
+            py = int(py_f)
+
+            if not (0 <= px < canvas.width and 0 <= py < canvas.height):
+                continue
+
+            # Cross-strand gradient: edges darker, center lighter
+            edge_dist = abs(lt - 0.5) * 2  # 0 at center, 1 at edges
+            center_factor = 1 - edge_dist
+
+            # Combine with light direction
+            if cluster.is_highlight and dot_product > 0.2:
+                # Specular highlight in center of lit strands
+                if center_factor > 0.7 and dot_product > 0.5:
+                    color = color_ramp[specular_idx]
+                else:
+                    color = color_ramp[highlight_idx]
+            elif dot_product < -0.2:
+                # Shadow side
+                color = color_ramp[shadow_idx]
+            else:
+                # Base color with center brightening
+                adj_idx = color_idx + int(center_factor * 1.5)
+                adj_idx = min(ramp_len - 1, adj_idx)
+                color = color_ramp[adj_idx]
+
+            # Anti-aliasing at strand edges
+            alpha = 255
+            if edge_dist > 0.7:
+                alpha = int(255 * (1.0 - edge_dist) / 0.3)
+                alpha = max(0, min(255, alpha))
+
+            if alpha > 0:
+                if alpha < 255:
+                    color = (*color[:3], alpha)
                 canvas.set_pixel(px, py, color)
 
 

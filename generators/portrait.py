@@ -529,45 +529,135 @@ class PortraitGenerator:
         return fw, fh
 
     def _render_face_base(self, canvas: Canvas) -> None:
-        """Render the base face shape with shading."""
+        """Render the base face shape with gradient shading."""
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        # Light direction
+        lx, ly = self.config.light_direction
+        light_len = (lx * lx + ly * ly) ** 0.5
+        if light_len > 0:
+            lx, ly = lx / light_len, ly / light_len
+
+        # Skin ramp indices
+        ramp_len = len(self._skin_ramp)
+        mid_idx = ramp_len // 2
+
+        # Per-pixel gradient shading
+        for y in range(cy - ry - 1, cy + ry + 2):
+            for x in range(cx - rx - 1, cx + rx + 2):
+                # Check if inside ellipse
+                dx = (x - cx) / rx if rx > 0 else 0
+                dy = (y - cy) / ry if ry > 0 else 0
+                dist_sq = dx * dx + dy * dy
+
+                if dist_sq > 1.0:
+                    continue
+
+                # Calculate shading based on surface normal approximation
+                # Normal points outward from ellipse center
+                nx = dx
+                ny = dy
+                nlen = (nx * nx + ny * ny) ** 0.5
+                if nlen > 0:
+                    nx, ny = nx / nlen, ny / nlen
+                else:
+                    nx, ny = 0, -1  # Top faces light
+
+                # Dot product with light direction (inverted for surface facing)
+                # Light comes FROM lx,ly direction, surface faces -normal
+                dot = -(nx * lx + ny * ly)
+
+                # Map dot product to ramp index
+                # dot ranges from -1 (facing away) to 1 (facing light)
+                # Add vertical bias (top is lighter)
+                vertical_bias = -dy * 0.3
+                shading = (dot + vertical_bias + 1.0) / 2.0  # Map to 0-1
+                shading = max(0.0, min(1.0, shading))
+
+                # Select color from ramp
+                ramp_idx = int(shading * (ramp_len - 1))
+                ramp_idx = max(0, min(ramp_len - 1, ramp_idx))
+                color = self._skin_ramp[ramp_idx]
+
+                # Apply warm/cool temperature shift
+                r, g, b = color[0], color[1], color[2]
+                if shading > 0.6:
+                    # Highlights: warm shift (more orange/yellow)
+                    warmth = (shading - 0.6) / 0.4
+                    r = min(255, int(r + warmth * 8))
+                    g = min(255, int(g + warmth * 4))
+                elif shading < 0.4:
+                    # Shadows: cool shift (more blue/purple)
+                    coolness = (0.4 - shading) / 0.4
+                    r = max(0, int(r - coolness * 5))
+                    b = min(255, int(b + coolness * 8))
+
+                # Anti-aliasing at edges
+                alpha = 255
+                if dist_sq > 0.85:
+                    edge_factor = (1.0 - dist_sq) / 0.15
+                    alpha = int(255 * max(0, min(1, edge_factor)))
+
+                if alpha > 0:
+                    final_color = (r, g, b, alpha)
+                    canvas.set_pixel(x, y, final_color)
+
+        # Add subtle nose shadow
+        self._render_nose_shadow(canvas)
+
+        # Add optional cheek blush
+        self._render_cheek_blush(canvas)
+
+    def _render_nose_shadow(self, canvas: Canvas) -> None:
+        """Render subtle nose shadow for depth."""
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        # Base skin color (middle of ramp)
-        mid_idx = len(self._skin_ramp) // 2
-        base_color = self._skin_ramp[mid_idx]
+        # Nose position
+        nose_y = cy + fh // 10
+        lx, _ = self.config.light_direction
 
-        # Draw oval face shape
-        canvas.fill_ellipse_aa(cx, cy, fw // 2, fh // 2, base_color)
+        # Shadow on opposite side of light
+        shadow_x = cx + (3 if lx < 0 else -3)
+        shadow_color = self._skin_ramp[1]  # Dark shade
 
-        # Apply basic shading based on light direction
-        lx, ly = self.config.light_direction
+        # Small shadow stroke
+        for dy in range(-2, 4):
+            alpha = 60 - abs(dy) * 10
+            if alpha > 0:
+                canvas.set_pixel(shadow_x, nose_y + dy, (*shadow_color[:3], alpha))
 
-        # Shadow side
-        shadow_color = self._skin_ramp[mid_idx - 2]
-        if lx > 0:
-            # Light from right, shadow on left
-            shadow_cx = cx - fw // 6
-        else:
-            shadow_cx = cx + fw // 6
+    def _render_cheek_blush(self, canvas: Canvas) -> None:
+        """Render subtle cheek blush for liveliness."""
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
 
-        # Subtle shadow on opposite side of light
-        shadow_rx = fw // 4
-        shadow_ry = fh // 3
-        # Draw with reduced alpha for subtle effect
-        shadow_with_alpha = (*shadow_color[:3], 80)
-        canvas.fill_ellipse_aa(shadow_cx, cy, shadow_rx, shadow_ry, shadow_with_alpha)
+        # Blush positions on both cheeks
+        cheek_y = cy + fh // 8
+        cheek_offset = fw // 4
 
-        # Highlight on light side
-        highlight_color = self._skin_ramp[mid_idx + 2]
-        if lx > 0:
-            highlight_cx = cx + fw // 5
-        else:
-            highlight_cx = cx - fw // 5
-        highlight_cy = cy - fh // 6
+        # Subtle pink/peach blush color
+        base_skin = self._skin_ramp[len(self._skin_ramp) // 2]
+        blush_color = (
+            min(255, base_skin[0] + 15),
+            max(0, base_skin[1] - 10),
+            max(0, base_skin[2] - 5),
+        )
 
-        highlight_with_alpha = (*highlight_color[:3], 60)
-        canvas.fill_ellipse_aa(highlight_cx, highlight_cy, fw // 6, fh // 6, highlight_with_alpha)
+        blush_radius = fw // 8
+        for side in [-1, 1]:
+            blush_cx = cx + side * cheek_offset
+            for dy in range(-blush_radius, blush_radius + 1):
+                for dx in range(-blush_radius, blush_radius + 1):
+                    dist = (dx * dx + dy * dy) ** 0.5
+                    if dist < blush_radius:
+                        # Fade out toward edges
+                        alpha = int(25 * (1 - dist / blush_radius))
+                        if alpha > 0:
+                            px, py = blush_cx + dx, cheek_y + dy
+                            canvas.set_pixel(px, py, (*blush_color, alpha))
 
     def _render_eyes(self, canvas: Canvas) -> None:
         """Render detailed eyes with multiple layers."""
