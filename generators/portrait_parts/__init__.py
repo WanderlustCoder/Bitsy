@@ -17,6 +17,8 @@ from .hair import (
     generate_wavy_clusters,
     generate_straight_clusters,
     generate_curly_clusters,
+    generate_bangs_clusters,
+    generate_stray_strands,
 )
 
 from .face import (
@@ -55,6 +57,8 @@ __all__ = [
     'generate_wavy_clusters',
     'generate_straight_clusters',
     'generate_curly_clusters',
+    'generate_bangs_clusters',
+    'generate_stray_strands',
     # Face
     'render_nose',
     'render_lips',

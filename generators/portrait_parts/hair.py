@@ -422,3 +422,163 @@ def render_hair_clusters(canvas: Canvas, clusters: List[HairCluster],
     # Clusters should already be sorted by z_depth
     for cluster in clusters:
         render_cluster(canvas, cluster, color_ramp, light_direction)
+
+
+def generate_bangs_clusters(center_x: float, forehead_y: float,
+                            width: float, length: float,
+                            count: int = 8,
+                            style: HairStyle = HairStyle.WAVY,
+                            rng: Optional[random.Random] = None) -> List[HairCluster]:
+    """
+    Generate bangs/fringe clusters that fall over the forehead.
+
+    These are rendered after the face to create the layered look
+    of hair falling in front.
+
+    Args:
+        center_x: Horizontal center of the bangs
+        forehead_y: Y position of the forehead (top of face)
+        width: Total width of the bangs area
+        length: How far down the bangs extend
+        count: Number of bang clusters
+        style: Hair style affects curve amount
+        rng: Random number generator
+
+    Returns:
+        List of HairCluster objects for bangs
+    """
+    if rng is None:
+        rng = random.Random()
+
+    clusters = []
+
+    # Style-specific parameters
+    if style == HairStyle.STRAIGHT:
+        wave_amount = 0.02
+        curve_amount = 0.1
+    elif style == HairStyle.CURLY:
+        wave_amount = 0.15
+        curve_amount = 0.3
+    else:  # WAVY and others
+        wave_amount = 0.08
+        curve_amount = 0.2
+
+    for i in range(count):
+        # Distribute across forehead width
+        t = (i + 0.5) / count
+        start_x = center_x - width / 2 + t * width
+        start_x += rng.uniform(-width * 0.03, width * 0.03)
+
+        # Start slightly above forehead
+        start_y = forehead_y - length * 0.1
+
+        # Side bias - bangs on edges curve outward slightly
+        side_bias = (t - 0.5) * 2  # -1 to 1
+
+        # Wave variation
+        wave_offset = rng.uniform(-1, 1) * wave_amount * width
+        phase = rng.uniform(0, math.pi)
+
+        # Bangs curve downward and slightly outward
+        cluster_length = length * rng.uniform(0.7, 1.0)
+
+        p0 = (start_x, start_y)
+        p1 = (
+            start_x + side_bias * width * 0.05 + wave_offset,
+            start_y + cluster_length * 0.4
+        )
+        p2 = (
+            start_x + side_bias * width * curve_amount + wave_offset * math.cos(phase),
+            start_y + cluster_length * 0.7
+        )
+        p3 = (
+            start_x + side_bias * width * curve_amount * 1.2,
+            start_y + cluster_length
+        )
+
+        # Thinner strands for bangs
+        base_width = rng.uniform(1.5, 3.0)
+        width_profile = [
+            (0.0, base_width * 0.7),
+            (0.3, base_width),
+            (0.6, base_width * 0.8),
+            (0.9, base_width * 0.4),
+            (1.0, base_width * 0.15),
+        ]
+
+        # Bangs are always in front (high z_depth)
+        z_depth = 0.8 + rng.uniform(0, 0.2)
+
+        cluster = HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=z_depth,
+            color_offset=rng.uniform(-0.2, 0.2),
+            is_highlight=rng.random() > 0.5,  # More highlights on bangs
+        )
+        clusters.append(cluster)
+
+    # Sort by z_depth
+    clusters.sort(key=lambda c: c.z_depth)
+    return clusters
+
+
+def generate_stray_strands(center_x: float, top_y: float,
+                           width: float, length: float,
+                           count: int = 5,
+                           rng: Optional[random.Random] = None) -> List[HairCluster]:
+    """
+    Generate individual stray strands for added realism.
+
+    These are thin, slightly wild strands that break up the
+    uniformity of the main hair mass.
+
+    Args:
+        center_x: Horizontal center
+        top_y: Top of hair area
+        width: Hair width
+        length: Hair length
+        count: Number of stray strands
+        rng: Random number generator
+
+    Returns:
+        List of thin HairCluster objects
+    """
+    if rng is None:
+        rng = random.Random()
+
+    clusters = []
+
+    for i in range(count):
+        # Random position along hair edge
+        side = rng.choice([-1, 1])
+        start_x = center_x + side * width * rng.uniform(0.3, 0.5)
+        start_y = top_y + length * rng.uniform(0.1, 0.4)
+
+        # Random curve direction
+        curve_x = rng.uniform(-width * 0.15, width * 0.15)
+        strand_length = length * rng.uniform(0.3, 0.6)
+
+        p0 = (start_x, start_y)
+        p1 = (start_x + curve_x * 0.3, start_y + strand_length * 0.33)
+        p2 = (start_x + curve_x * 0.7, start_y + strand_length * 0.66)
+        p3 = (start_x + curve_x, start_y + strand_length)
+
+        # Very thin strands
+        base_width = rng.uniform(0.8, 1.5)
+        width_profile = [
+            (0.0, base_width),
+            (0.5, base_width * 0.7),
+            (1.0, base_width * 0.2),
+        ]
+
+        cluster = HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=rng.uniform(0.3, 0.9),
+            color_offset=rng.uniform(-0.3, 0.3),
+            is_highlight=rng.random() > 0.7,
+        )
+        clusters.append(cluster)
+
+    return clusters

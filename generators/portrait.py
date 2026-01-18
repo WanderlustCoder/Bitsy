@@ -664,9 +664,10 @@ class PortraitGenerator:
                 canvas.set_pixel(px, py + 1, brow_color)  # 2px thick
 
     def _render_hair(self, canvas: Canvas) -> None:
-        """Render hair using bezier-based cluster system."""
+        """Render back hair using bezier-based cluster system."""
         from generators.portrait_parts.hair import (
             generate_hair_clusters, render_hair_clusters,
+            generate_stray_strands,
             HairStyle as HairStyleParts
         )
 
@@ -675,8 +676,8 @@ class PortraitGenerator:
 
         # Hair parameters
         hair_top = cy - fh // 2 - fh // 4
-        hair_width = int(fw * 0.8)
-        hair_length = int(fh * 0.8 * self.config.hair_length)
+        hair_width = int(fw * 0.85)
+        hair_length = int(fh * 0.85 * self.config.hair_length)
 
         # Map HairStyle enum to parts module enum
         style_map = {
@@ -684,15 +685,15 @@ class PortraitGenerator:
             HairStyle.STRAIGHT: HairStyleParts.STRAIGHT,
             HairStyle.CURLY: HairStyleParts.CURLY,
             HairStyle.SHORT: HairStyleParts.SHORT,
-            HairStyle.PONYTAIL: HairStyleParts.WAVY,  # Use wavy for now
-            HairStyle.BRAIDED: HairStyleParts.STRAIGHT,  # Use straight for now
+            HairStyle.PONYTAIL: HairStyleParts.WAVY,
+            HairStyle.BRAIDED: HairStyleParts.STRAIGHT,
         }
         hair_style = style_map.get(self.config.hair_style, HairStyleParts.WAVY)
 
-        # Determine cluster count based on size
-        cluster_count = max(10, self.config.width // 6)
+        # Increased cluster count for fuller hair
+        cluster_count = max(15, self.config.width // 4)
 
-        # Generate hair clusters
+        # Generate main hair clusters
         clusters = generate_hair_clusters(
             style=hair_style,
             center_x=float(cx),
@@ -703,10 +704,81 @@ class PortraitGenerator:
             seed=self.config.seed
         )
 
+        # Add stray strands for detail
+        stray_count = max(3, self.config.width // 20)
+        stray_rng = self.rng if self.config.seed else None
+        strays = generate_stray_strands(
+            center_x=float(cx),
+            top_y=float(hair_top),
+            width=float(hair_width),
+            length=float(hair_length),
+            count=stray_count,
+            rng=stray_rng
+        )
+        clusters.extend(strays)
+
+        # Sort all clusters by z_depth
+        clusters.sort(key=lambda c: c.z_depth)
+
         # Render clusters
         render_hair_clusters(
             canvas=canvas,
             clusters=clusters,
+            color_ramp=self._hair_ramp,
+            light_direction=self.config.light_direction
+        )
+
+    def _render_bangs(self, canvas: Canvas) -> None:
+        """Render front bangs/fringe over the forehead."""
+        from generators.portrait_parts.hair import (
+            generate_bangs_clusters, render_hair_clusters,
+            HairStyle as HairStyleParts
+        )
+
+        # Skip bangs for short hair
+        if self.config.hair_style == HairStyle.SHORT:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Bangs start at top of forehead
+        forehead_y = cy - fh // 3
+        bangs_width = int(fw * 0.6)
+        bangs_length = int(fh * 0.25)  # Bangs extend down over forehead
+
+        # Map style
+        style_map = {
+            HairStyle.WAVY: HairStyleParts.WAVY,
+            HairStyle.STRAIGHT: HairStyleParts.STRAIGHT,
+            HairStyle.CURLY: HairStyleParts.CURLY,
+            HairStyle.SHORT: HairStyleParts.SHORT,
+            HairStyle.PONYTAIL: HairStyleParts.WAVY,
+            HairStyle.BRAIDED: HairStyleParts.STRAIGHT,
+        }
+        hair_style = style_map.get(self.config.hair_style, HairStyleParts.WAVY)
+
+        # Bangs cluster count based on size
+        bangs_count = max(5, self.config.width // 12)
+
+        # Use different seed for bangs variation
+        bangs_seed = (self.config.seed + 1000) if self.config.seed else None
+        bangs_rng = random.Random(bangs_seed)
+
+        bangs = generate_bangs_clusters(
+            center_x=float(cx),
+            forehead_y=float(forehead_y),
+            width=float(bangs_width),
+            length=float(bangs_length),
+            count=bangs_count,
+            style=hair_style,
+            rng=bangs_rng
+        )
+
+        # Render bangs
+        render_hair_clusters(
+            canvas=canvas,
+            clusters=bangs,
             color_ramp=self._hair_ramp,
             light_direction=self.config.light_direction
         )
@@ -731,8 +803,8 @@ class PortraitGenerator:
         self._render_lips(canvas)
         self._render_eyes(canvas)
         self._render_eyebrows(canvas)
+        self._render_bangs(canvas)  # Front hair over forehead
 
-        # TODO: Front hair strands (bangs overlay)
         # TODO: Accessories (glasses, earrings)
         # TODO: Clothing neckline
 
