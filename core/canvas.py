@@ -113,6 +113,125 @@ class Canvas:
                 x -= 1
                 err += 2 * (y - x + 1)
 
+    def fill_circle_aa(self, cx: int, cy: int, r: int, color: Color) -> None:
+        """Fill anti-aliased circle using sub-pixel coverage.
+
+        Uses coverage-based AA where edge pixels get partial alpha
+        based on how much of the pixel is covered by the ideal circle.
+
+        Args:
+            cx, cy: Center position
+            r: Radius
+            color: Fill color (RGBA)
+        """
+        # Process pixels in bounding box with 1px padding for AA
+        y_start = max(0, cy - r - 1)
+        y_end = min(self.height, cy + r + 2)
+        x_start = max(0, cx - r - 1)
+        x_end = min(self.width, cx + r + 2)
+
+        for py in range(y_start, y_end):
+            for px in range(x_start, x_end):
+                # Distance from center
+                dx = px - cx
+                dy = py - cy
+                dist = math.sqrt(dx * dx + dy * dy)
+
+                if dist <= r - 0.5:
+                    # Fully inside - full color
+                    self.set_pixel(px, py, color)
+                elif dist <= r + 0.5:
+                    # Edge zone - calculate coverage
+                    # Linear falloff over 1 pixel transition
+                    coverage = (r + 0.5 - dist)
+                    coverage = max(0.0, min(1.0, coverage))
+
+                    # Blend color with existing using coverage as alpha multiplier
+                    aa_color = (color[0], color[1], color[2], int(color[3] * coverage))
+                    self.set_pixel(px, py, aa_color)
+
+    def draw_circle_aa(self, cx: int, cy: int, r: int, color: Color,
+                       thickness: float = 1.0) -> None:
+        """Draw anti-aliased circle outline using sub-pixel coverage.
+
+        Args:
+            cx, cy: Center position
+            r: Radius
+            color: Outline color (RGBA)
+            thickness: Line thickness in pixels
+        """
+        # Inner and outer radius for the ring
+        r_inner = r - thickness / 2
+        r_outer = r + thickness / 2
+
+        y_start = max(0, cy - r - 2)
+        y_end = min(self.height, cy + r + 3)
+        x_start = max(0, cx - r - 2)
+        x_end = min(self.width, cx + r + 3)
+
+        for py in range(y_start, y_end):
+            for px in range(x_start, x_end):
+                dx = px - cx
+                dy = py - cy
+                dist = math.sqrt(dx * dx + dy * dy)
+
+                # Calculate coverage for ring shape
+                if dist < r_inner - 0.5 or dist > r_outer + 0.5:
+                    # Outside the ring entirely
+                    continue
+
+                # Coverage calculation
+                if r_inner - 0.5 <= dist <= r_inner + 0.5:
+                    # Inner edge - fade in
+                    coverage = dist - (r_inner - 0.5)
+                elif r_outer - 0.5 <= dist <= r_outer + 0.5:
+                    # Outer edge - fade out
+                    coverage = (r_outer + 0.5) - dist
+                else:
+                    # Fully inside ring
+                    coverage = 1.0
+
+                coverage = max(0.0, min(1.0, coverage))
+                if coverage > 0:
+                    aa_color = (color[0], color[1], color[2], int(color[3] * coverage))
+                    self.set_pixel(px, py, aa_color)
+
+    def fill_ellipse_aa(self, cx: int, cy: int, rx: int, ry: int, color: Color) -> None:
+        """Fill anti-aliased ellipse using sub-pixel coverage.
+
+        Args:
+            cx, cy: Center position
+            rx, ry: X and Y radii
+            color: Fill color (RGBA)
+        """
+        y_start = max(0, cy - ry - 1)
+        y_end = min(self.height, cy + ry + 2)
+        x_start = max(0, cx - rx - 1)
+        x_end = min(self.width, cx + rx + 2)
+
+        for py in range(y_start, y_end):
+            for px in range(x_start, x_end):
+                # Normalized distance (1.0 = on ellipse edge)
+                if rx == 0 or ry == 0:
+                    continue
+                nx = (px - cx) / rx
+                ny = (py - cy) / ry
+                dist = math.sqrt(nx * nx + ny * ny)
+
+                # Transition zone in normalized space
+                # Approximate 0.5 pixel in normalized space
+                transition = 0.5 / min(rx, ry)
+
+                if dist <= 1.0 - transition:
+                    # Fully inside
+                    self.set_pixel(px, py, color)
+                elif dist <= 1.0 + transition:
+                    # Edge zone
+                    coverage = (1.0 + transition - dist) / (2 * transition)
+                    coverage = max(0.0, min(1.0, coverage))
+                    aa_color = (color[0], color[1], color[2], int(color[3] * coverage))
+                    self.set_pixel(px, py, aa_color)
+
     def fill_ellipse(self, cx: int, cy: int, rx: int, ry: int, color: Color) -> None:
         """Fill an ellipse.
 
@@ -576,6 +695,89 @@ class Canvas:
                         self.set_pixel(px, py, color1)
                     else:
                         self.set_pixel(px, py, color2)
+
+    def dither_floyd_steinberg(self, palette: List[Color]) -> 'Canvas':
+        """Apply Floyd-Steinberg error-diffusion dithering.
+
+        Reduces the canvas to the given palette using error diffusion,
+        which produces smoother gradients than ordered dithering.
+
+        Args:
+            palette: List of RGBA colors to quantize to
+
+        Returns:
+            New dithered Canvas
+        """
+        if not palette:
+            return self.copy()
+
+        result = Canvas(self.width, self.height)
+        # Work with float errors for precision
+        errors = [[[0.0, 0.0, 0.0] for _ in range(self.width)] for _ in range(self.height)]
+
+        def find_nearest_color(r: float, g: float, b: float) -> Color:
+            """Find palette color with minimum Euclidean distance."""
+            best_color = palette[0]
+            best_dist = float('inf')
+            for color in palette:
+                dr = r - color[0]
+                dg = g - color[1]
+                db = b - color[2]
+                dist = dr * dr + dg * dg + db * db
+                if dist < best_dist:
+                    best_dist = dist
+                    best_color = color
+            return best_color
+
+        def distribute_error(x: int, y: int, er: float, eg: float, eb: float):
+            """Distribute quantization error to neighboring pixels."""
+            # Floyd-Steinberg diffusion coefficients
+            # Right: 7/16, Bottom-left: 3/16, Bottom: 5/16, Bottom-right: 1/16
+            if x + 1 < self.width:
+                errors[y][x + 1][0] += er * 7 / 16
+                errors[y][x + 1][1] += eg * 7 / 16
+                errors[y][x + 1][2] += eb * 7 / 16
+            if y + 1 < self.height:
+                if x > 0:
+                    errors[y + 1][x - 1][0] += er * 3 / 16
+                    errors[y + 1][x - 1][1] += eg * 3 / 16
+                    errors[y + 1][x - 1][2] += eb * 3 / 16
+                errors[y + 1][x][0] += er * 5 / 16
+                errors[y + 1][x][1] += eg * 5 / 16
+                errors[y + 1][x][2] += eb * 5 / 16
+                if x + 1 < self.width:
+                    errors[y + 1][x + 1][0] += er * 1 / 16
+                    errors[y + 1][x + 1][1] += eg * 1 / 16
+                    errors[y + 1][x + 1][2] += eb * 1 / 16
+
+        for y in range(self.height):
+            for x in range(self.width):
+                old_pixel = self.pixels[y][x]
+                if old_pixel[3] == 0:  # Transparent pixel
+                    result.set_pixel_solid(x, y, old_pixel)
+                    continue
+
+                # Add accumulated error to pixel
+                r = old_pixel[0] + errors[y][x][0]
+                g = old_pixel[1] + errors[y][x][1]
+                b = old_pixel[2] + errors[y][x][2]
+
+                # Clamp to valid range
+                r = max(0, min(255, r))
+                g = max(0, min(255, g))
+                b = max(0, min(255, b))
+
+                # Find nearest palette color
+                new_color = find_nearest_color(r, g, b)
+                result.set_pixel_solid(x, y, (new_color[0], new_color[1], new_color[2], old_pixel[3]))
+
+                # Calculate and distribute error
+                er = r - new_color[0]
+                eg = g - new_color[1]
+                eb = b - new_color[2]
+                distribute_error(x, y, er, eg, eb)
+
+        return result
 
     # === Sprite Operations ===
 

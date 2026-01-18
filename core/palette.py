@@ -110,6 +110,158 @@ def adjust_value(color: Color, factor: float) -> Color:
     return (r, g, b, color[3])
 
 
+# === CIE Lab Color Space ===
+# Lab provides perceptually uniform color distance
+
+# D65 illuminant reference values
+_LAB_REF_X = 95.047
+_LAB_REF_Y = 100.0
+_LAB_REF_Z = 108.883
+
+
+def _linear_rgb(c: int) -> float:
+    """Convert sRGB component to linear RGB."""
+    c_normalized = c / 255.0
+    if c_normalized <= 0.04045:
+        return c_normalized / 12.92
+    return ((c_normalized + 0.055) / 1.055) ** 2.4
+
+
+def _lab_f(t: float) -> float:
+    """Lab conversion helper function."""
+    delta = 6 / 29
+    if t > delta ** 3:
+        return t ** (1 / 3)
+    return t / (3 * delta ** 2) + 4 / 29
+
+
+@lru_cache(maxsize=4096)
+def rgb_to_lab(r: int, g: int, b: int) -> Tuple[float, float, float]:
+    """Convert RGB to CIE Lab color space.
+
+    Args:
+        r, g, b: RGB values (0-255)
+
+    Returns:
+        Tuple of (L, a, b) where:
+        - L: lightness (0-100)
+        - a: green-red axis (-128 to +128)
+        - b: blue-yellow axis (-128 to +128)
+    """
+    # RGB to linear RGB
+    lr = _linear_rgb(r)
+    lg = _linear_rgb(g)
+    lb = _linear_rgb(b)
+
+    # Linear RGB to XYZ (sRGB D65)
+    x = (lr * 0.4124564 + lg * 0.3575761 + lb * 0.1804375) * 100
+    y = (lr * 0.2126729 + lg * 0.7151522 + lb * 0.0721750) * 100
+    z = (lr * 0.0193339 + lg * 0.1191920 + lb * 0.9503041) * 100
+
+    # XYZ to Lab
+    fx = _lab_f(x / _LAB_REF_X)
+    fy = _lab_f(y / _LAB_REF_Y)
+    fz = _lab_f(z / _LAB_REF_Z)
+
+    L = 116 * fy - 16
+    a = 500 * (fx - fy)
+    b_val = 200 * (fy - fz)
+
+    return (L, a, b_val)
+
+
+def lab_to_rgb(L: float, a: float, b_val: float) -> Tuple[int, int, int]:
+    """Convert CIE Lab to RGB color space.
+
+    Args:
+        L: lightness (0-100)
+        a: green-red axis
+        b_val: blue-yellow axis
+
+    Returns:
+        Tuple of (r, g, b) values (0-255)
+    """
+    # Lab to XYZ
+    fy = (L + 16) / 116
+    fx = a / 500 + fy
+    fz = fy - b_val / 200
+
+    delta = 6 / 29
+    delta3 = delta ** 3
+
+    x = _LAB_REF_X * (fx ** 3 if fx ** 3 > delta3 else 3 * delta ** 2 * (fx - 4 / 29))
+    y = _LAB_REF_Y * (fy ** 3 if fy ** 3 > delta3 else 3 * delta ** 2 * (fy - 4 / 29))
+    z = _LAB_REF_Z * (fz ** 3 if fz ** 3 > delta3 else 3 * delta ** 2 * (fz - 4 / 29))
+
+    # XYZ to linear RGB
+    x, y, z = x / 100, y / 100, z / 100
+    lr = x * 3.2404542 + y * -1.5371385 + z * -0.4985314
+    lg = x * -0.9692660 + y * 1.8760108 + z * 0.0415560
+    lb = x * 0.0556434 + y * -0.2040259 + z * 1.0572252
+
+    def to_srgb(c: float) -> int:
+        if c <= 0.0031308:
+            c = 12.92 * c
+        else:
+            c = 1.055 * (c ** (1 / 2.4)) - 0.055
+        return max(0, min(255, int(c * 255 + 0.5)))
+
+    return (to_srgb(lr), to_srgb(lg), to_srgb(lb))
+
+
+def rgb_to_lch(r: int, g: int, b: int) -> Tuple[float, float, float]:
+    """Convert RGB to CIE LCh color space.
+
+    LCh is Lab in cylindrical coordinates, similar to HSV but perceptually uniform.
+
+    Returns:
+        Tuple of (L, C, h) where:
+        - L: lightness (0-100)
+        - C: chroma (saturation, 0-~180)
+        - h: hue angle (0-360)
+    """
+    L, a, b_val = rgb_to_lab(r, g, b)
+    C = math.sqrt(a * a + b_val * b_val)
+    h = math.degrees(math.atan2(b_val, a)) % 360
+    return (L, C, h)
+
+
+def lch_to_rgb(L: float, C: float, h: float) -> Tuple[int, int, int]:
+    """Convert CIE LCh to RGB."""
+    a = C * math.cos(math.radians(h))
+    b_val = C * math.sin(math.radians(h))
+    return lab_to_rgb(L, a, b_val)
+
+
+def color_distance_lab(c1: Color, c2: Color) -> float:
+    """Calculate perceptually uniform color distance using CIE Lab.
+
+    This distance metric matches human perception better than RGB Euclidean.
+
+    Args:
+        c1, c2: RGBA colors to compare
+
+    Returns:
+        Delta E distance (0 = identical, ~2.3 = JND, 100+ = very different)
+    """
+    L1, a1, b1 = rgb_to_lab(c1[0], c1[1], c1[2])
+    L2, a2, b2 = rgb_to_lab(c2[0], c2[1], c2[2])
+
+    dL = L1 - L2
+    da = a1 - a2
+    db = b1 - b2
+
+    return math.sqrt(dL * dL + da * da + db * db)
+
+
+def color_distance_rgb(c1: Color, c2: Color) -> float:
+    """Calculate RGB Euclidean color distance (fast but not perceptually accurate)."""
+    dr = c1[0] - c2[0]
+    dg = c1[1] - c2[1]
+    db = c1[2] - c2[2]
+    return math.sqrt(dr * dr + dg * dg + db * db)
+
+
 class Palette:
     """A color palette for pixel art."""
 
@@ -151,6 +303,23 @@ class Palette:
     def quantize(self, color: Color) -> Color:
         """Return the nearest palette color."""
         return self.colors[self.find_nearest(color)]
+
+    def find_nearest_lab(self, color: Color) -> int:
+        """Find the index of the nearest color using perceptually uniform Lab distance."""
+        min_dist = float('inf')
+        nearest_idx = 0
+
+        for i, pal_color in enumerate(self.colors):
+            dist = color_distance_lab(color, pal_color)
+            if dist < min_dist:
+                min_dist = dist
+                nearest_idx = i
+
+        return nearest_idx
+
+    def quantize_lab(self, color: Color) -> Color:
+        """Return the nearest palette color using perceptually uniform Lab distance."""
+        return self.colors[self.find_nearest_lab(color)]
 
     def create_ramp(self, start: Color, end: Color, steps: int) -> 'Palette':
         """Create a color ramp between two colors."""
