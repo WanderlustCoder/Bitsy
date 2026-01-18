@@ -149,15 +149,36 @@ def main():
     variety_grid.save(f"{output_dir}/showcase_variety.png")
     print(f"  Saved character variety grid")
 
-    # 6. High-resolution portrait
-    print("\n6. High Resolution Portrait (128x160)")
+    # 6. Expression showcase
+    print("\n6. Expression Showcase")
+    expr_portraits = []
+    expressions = ["neutral", "happy", "sad", "surprised", "angry", "sleepy"]
+    for i, expr in enumerate(expressions):
+        gen = PortraitGenerator(width=96, height=120, seed=500 + i)
+        gen.set_skin("light")
+        gen.set_hair(HairStyle.WAVY, "auburn")
+        gen.set_eyes(EyeShape.ROUND, "blue")
+        gen.set_expression(expr)
+        p = gen.render()
+        p.save(f"{output_dir}/expr_{expr}.png")
+        expr_portraits.append(p)
+        print(f"  - {expr}")
+
+    expr_grid = create_portrait_grid(expr_portraits, cols=3)
+    expr_grid.save(f"{output_dir}/showcase_expressions.png")
+    print(f"  Saved expression grid")
+
+    # 7. High-resolution portrait with all features
+    print("\n7. High Resolution Portrait (128x160)")
     gen_hd = PortraitGenerator(width=128, height=160, seed=42)
     gen_hd.set_skin("light")
-    gen_hd.set_hair(HairStyle.WAVY, "auburn")
+    gen_hd.set_hair(HairStyle.PONYTAIL, "auburn")  # Bun style
     gen_hd.set_eyes(EyeShape.ROUND, "blue")
+    gen_hd.set_glasses("round")
+    gen_hd.set_expression("happy")
     hd_portrait = gen_hd.render()
     hd_portrait.save(f"{output_dir}/portrait_hd.png")
-    print(f"  Saved HD portrait (128x160)")
+    print(f"  Saved HD portrait with bun and glasses (128x160)")
 
     print("\n" + "=" * 50)
     print(f"Portrait showcase complete! Files saved to {output_dir}/")
