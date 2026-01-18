@@ -454,6 +454,152 @@ def add_shadows(canvas: Canvas, light_direction: Tuple[float, float] = (1.0, -1.
     return result
 
 
+def calculate_highlight_position(shape_mask: Canvas,
+                                  light_dir: Tuple[float, float] = (1.0, -1.0),
+                                  margin: float = 0.2) -> Tuple[int, int]:
+    """
+    Find optimal highlight position based on shape and lighting.
+
+    Instead of centering highlights geometrically, this calculates where
+    a specular highlight would naturally appear based on:
+    1. The shape's bounding area
+    2. The light direction
+    3. Surface normal estimation
+
+    Args:
+        shape_mask: Canvas where opaque pixels define the shape
+        light_dir: Direction light is coming FROM (e.g., (1, -1) = upper-right)
+        margin: How far from edge to place highlight (0.0-0.5, as fraction of size)
+
+    Returns:
+        (x, y) position for highlight center
+    """
+    # Find bounding box of opaque pixels
+    min_x, min_y = shape_mask.width, shape_mask.height
+    max_x, max_y = 0, 0
+    opaque_pixels = []
+
+    for y in range(shape_mask.height):
+        for x in range(shape_mask.width):
+            pixel = shape_mask.get_pixel(x, y)
+            if pixel and pixel[3] > 128:
+                opaque_pixels.append((x, y))
+                min_x = min(min_x, x)
+                max_x = max(max_x, x)
+                min_y = min(min_y, y)
+                max_y = max(max_y, y)
+
+    if not opaque_pixels:
+        # Empty shape, return center
+        return (shape_mask.width // 2, shape_mask.height // 2)
+
+    # Normalize light direction
+    lx, ly = light_dir
+    length = math.sqrt(lx * lx + ly * ly)
+    if length > 0:
+        lx /= length
+        ly /= length
+
+    # Calculate shape center and size
+    cx = (min_x + max_x) / 2
+    cy = (min_y + max_y) / 2
+    width = max_x - min_x + 1
+    height = max_y - min_y + 1
+
+    # Highlight position: offset from center toward light source
+    # The highlight appears where light "hits" the surface
+    # For a convex shape, this is toward the light direction
+    offset_x = lx * width * (0.5 - margin)
+    offset_y = ly * height * (0.5 - margin)
+
+    highlight_x = int(cx + offset_x)
+    highlight_y = int(cy + offset_y)
+
+    # Ensure highlight is within the shape
+    # Find nearest opaque pixel if we're outside
+    if shape_mask.get_pixel(highlight_x, highlight_y) is None or \
+       shape_mask.get_pixel(highlight_x, highlight_y)[3] < 128:
+        # Find closest opaque pixel
+        best_dist = float('inf')
+        best_pos = (int(cx), int(cy))
+        for px, py in opaque_pixels:
+            dist = (px - highlight_x) ** 2 + (py - highlight_y) ** 2
+            if dist < best_dist:
+                best_dist = dist
+                best_pos = (px, py)
+        highlight_x, highlight_y = best_pos
+
+    return (highlight_x, highlight_y)
+
+
+def apply_specular_highlight(canvas: Canvas, cx: int, cy: int,
+                             radius: int = 2, intensity: float = 0.8) -> Canvas:
+    """
+    Apply a specular highlight at a specific position.
+
+    Creates a small bright spot that simulates light reflection,
+    commonly used on eyes, buttons, gems, and glossy surfaces.
+
+    Args:
+        canvas: Canvas to modify
+        cx, cy: Center position for highlight
+        radius: Highlight radius in pixels
+        intensity: Brightness (0-1, where 1 = full white)
+
+    Returns:
+        New canvas with highlight applied
+    """
+    result = canvas.copy()
+
+    for y in range(cy - radius, cy + radius + 1):
+        for x in range(cx - radius, cx + radius + 1):
+            if not (0 <= x < canvas.width and 0 <= y < canvas.height):
+                continue
+
+            pixel = canvas.get_pixel(x, y)
+            if not pixel or pixel[3] < 128:
+                continue
+
+            # Calculate distance from center
+            dist = math.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+            if dist > radius:
+                continue
+
+            # Falloff from center
+            falloff = 1.0 - (dist / radius)
+            strength = falloff * intensity
+
+            # Blend toward white
+            r = int(pixel[0] + (255 - pixel[0]) * strength)
+            g = int(pixel[1] + (255 - pixel[1]) * strength)
+            b = int(pixel[2] + (255 - pixel[2]) * strength)
+
+            result.pixels[y][x] = [r, g, b, pixel[3]]
+
+    return result
+
+
+def auto_highlight(canvas: Canvas, light_dir: Tuple[float, float] = (1.0, -1.0),
+                   radius: int = 2, intensity: float = 0.6) -> Canvas:
+    """
+    Automatically place and apply a specular highlight.
+
+    Combines calculate_highlight_position and apply_specular_highlight
+    for convenient single-function use.
+
+    Args:
+        canvas: Canvas to add highlight to
+        light_dir: Direction light is coming from
+        radius: Highlight radius
+        intensity: Highlight brightness
+
+    Returns:
+        New canvas with highlight applied
+    """
+    hx, hy = calculate_highlight_position(canvas, light_dir)
+    return apply_specular_highlight(canvas, hx, hy, radius, intensity)
+
+
 def auto_shade(canvas: Canvas, style: Optional[Style] = None,
                light_direction: Tuple[float, float] = (1.0, -1.0)) -> Canvas:
     """

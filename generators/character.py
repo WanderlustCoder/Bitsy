@@ -36,6 +36,51 @@ from parts.hair import Hair, create_hair, list_hair_types
 from parts.eyes import Eyes, create_eyes, get_eye_colors, list_eye_types
 
 
+def apply_contact_shadow(canvas: Canvas, top_layer: Canvas,
+                         offset_x: int, offset_y: int,
+                         shadow_offset: int = 1,
+                         shadow_alpha: int = 40) -> None:
+    """Add subtle shadow where a top layer overlaps the canvas.
+
+    Creates depth by darkening pixels just below/around where parts meet.
+    This simulates ambient occlusion at contact points.
+
+    Args:
+        canvas: The canvas to draw shadows on (already has base layer)
+        top_layer: The layer that will be drawn on top
+        offset_x: X position where top_layer will be blitted
+        offset_y: Y position where top_layer will be blitted
+        shadow_offset: Pixels to offset shadow (typically 1)
+        shadow_alpha: Shadow darkness (0-255, lower = more subtle)
+    """
+    shadow_color = (0, 0, 0, shadow_alpha)
+
+    # Find pixels where top_layer will be drawn
+    for y in range(top_layer.height):
+        for x in range(top_layer.width):
+            pixel = top_layer.get_pixel(x, y)
+            if pixel and pixel[3] > 128:  # Opaque pixel in top layer
+                # Draw shadow offset below/right in the base canvas
+                sx = offset_x + x + shadow_offset
+                sy = offset_y + y + shadow_offset
+
+                # Only add shadow if base canvas has an opaque pixel there
+                # (don't draw shadow into transparent areas)
+                base_pixel = canvas.get_pixel(sx, sy)
+                if base_pixel and base_pixel[3] > 128:
+                    canvas.set_pixel(sx, sy, shadow_color)
+
+
+def darken_color(color: Tuple[int, int, int, int], factor: float) -> Tuple[int, int, int, int]:
+    """Darken a color by a factor (0.0 = black, 1.0 = unchanged)."""
+    return (
+        int(color[0] * factor),
+        int(color[1] * factor),
+        int(color[2] * factor),
+        color[3]
+    )
+
+
 @dataclass
 class CharacterConfig:
     """Configuration for character generation."""
@@ -379,8 +424,19 @@ class CharacterGenerator:
         if self.body:
             self.body.draw(canvas, cx, body_cy, body_w, body_h)
 
-        # 3. Head
+        # 3. Head (with contact shadow at neck)
         if self.head:
+            # Apply contact shadow at neck before drawing head
+            # This creates depth where head meets body
+            if self.body and w >= 32:  # Only for larger sprites
+                neck_y = head_cy + head_h // 2
+                shadow_color = (0, 0, 0, 35)
+                for sx in range(cx - head_w // 3, cx + head_w // 3):
+                    for sy in range(neck_y, neck_y + 2):
+                        base = canvas.get_pixel(sx, sy)
+                        if base and base[3] > 128:
+                            canvas.set_pixel(sx, sy, shadow_color)
+
             self.head.draw(canvas, cx, head_cy, head_w, head_h)
 
         # 4. Eyes
@@ -398,8 +454,19 @@ class CharacterGenerator:
                 eye_w, eye_h
             )
 
-        # 5. Hair front (bangs)
+        # 5. Hair front (bangs) with contact shadow on forehead
         if self.hair and self.hair.has_bangs:
+            # Add subtle shadow under bangs (on forehead)
+            if w >= 32:  # Only for larger sprites
+                bangs_y = head_cy - head_h // 6
+                bangs_bottom = bangs_y + head_h // 4
+                shadow_color = (0, 0, 0, 30)
+                for sx in range(cx - head_w // 3, cx + head_w // 3):
+                    for sy in range(bangs_bottom, bangs_bottom + 2):
+                        base = canvas.get_pixel(sx, sy)
+                        if base and base[3] > 128:
+                            canvas.set_pixel(sx, sy, shadow_color)
+
             self.hair.draw_front(canvas, cx, head_cy - head_h//6, head_w, head_h//2)
 
         return self.finalize(canvas)
