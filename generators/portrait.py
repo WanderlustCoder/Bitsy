@@ -783,6 +783,113 @@ class PortraitGenerator:
             light_direction=self.config.light_direction
         )
 
+    def _render_glasses(self, canvas: Canvas) -> None:
+        """Render glasses if configured."""
+        if not self.config.has_glasses:
+            return
+
+        from generators.portrait_parts.accessories import (
+            render_glasses, GlassesParams, GlassesStyle
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positions (matching _render_eyes)
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+        eye_width = fw // 6
+
+        # Map style string to enum
+        style_map = {
+            "round": GlassesStyle.ROUND,
+            "rectangular": GlassesStyle.RECTANGULAR,
+            "cat_eye": GlassesStyle.CAT_EYE,
+            "aviator": GlassesStyle.AVIATOR,
+            "rimless": GlassesStyle.RIMLESS,
+        }
+        glasses_style = style_map.get(
+            self.config.glasses_style.lower(),
+            GlassesStyle.ROUND
+        )
+
+        # Lens dimensions slightly larger than eyes
+        lens_width = int(eye_width * 1.4)
+        lens_height = int(eye_width * 0.9)
+
+        # Frame color - dark brown/black
+        frame_color = (45, 35, 30, 255)
+
+        params = GlassesParams(
+            left_eye_x=cx - eye_spacing,
+            left_eye_y=eye_y,
+            right_eye_x=cx + eye_spacing,
+            right_eye_y=eye_y,
+            lens_width=lens_width,
+            lens_height=lens_height,
+            style=glasses_style,
+            frame_color=frame_color,
+            lens_tint=None,  # Clear lenses
+            has_reflection=True,
+        )
+
+        render_glasses(canvas, params, self.config.light_direction)
+
+    def _render_clothing(self, canvas: Canvas) -> None:
+        """Render clothing neckline at bottom of portrait."""
+        from generators.portrait_parts.clothing import (
+            render_neckline, ClothingParams, ClothingStyle,
+            create_clothing_ramp
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Clothing starts below the chin
+        neckline_y = cy + fh // 2 + fh // 8
+        shoulder_width = int(fw * 0.9)
+
+        # Map style
+        style_map = {
+            "casual": ClothingStyle.CREW_NECK,
+            "formal": ClothingStyle.COLLARED,
+            "v_neck": ClothingStyle.V_NECK,
+            "turtleneck": ClothingStyle.TURTLENECK,
+        }
+        clothing_style = style_map.get(
+            self.config.clothing_style.lower(),
+            ClothingStyle.CREW_NECK
+        )
+
+        # Get clothing color
+        clothing_colors = {
+            "blue": (70, 90, 140),
+            "red": (140, 60, 60),
+            "green": (60, 120, 80),
+            "white": (230, 230, 235),
+            "black": (35, 35, 40),
+            "gray": (120, 120, 125),
+            "purple": (100, 70, 130),
+            "brown": (100, 75, 55),
+        }
+        base_color = clothing_colors.get(
+            self.config.clothing_color.lower(),
+            (70, 90, 140)  # Default blue
+        )
+        color_ramp = create_clothing_ramp((*base_color, 255), levels=5)
+
+        params = ClothingParams(
+            neckline_y=neckline_y,
+            shoulder_left_x=cx - shoulder_width // 2,
+            shoulder_right_x=cx + shoulder_width // 2,
+            center_x=cx,
+            canvas_bottom=self.config.height,
+            style=clothing_style,
+            color_ramp=color_ramp,
+        )
+
+        render_neckline(canvas, params, self.config.light_direction)
+
     def render(self) -> Canvas:
         """
         Render the complete portrait.
@@ -797,16 +904,15 @@ class PortraitGenerator:
         canvas = Canvas(self.config.width, self.config.height)
 
         # Render layers from back to front
+        self._render_clothing(canvas)  # Clothing behind everything
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
         self._render_nose(canvas)
         self._render_lips(canvas)
         self._render_eyes(canvas)
+        self._render_glasses(canvas)  # Glasses over eyes
         self._render_eyebrows(canvas)
         self._render_bangs(canvas)  # Front hair over forehead
-
-        # TODO: Accessories (glasses, earrings)
-        # TODO: Clothing neckline
 
         return canvas
 
