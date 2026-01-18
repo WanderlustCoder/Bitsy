@@ -314,6 +314,124 @@ def generate_curly_clusters(center_x: float, top_y: float,
     return clusters
 
 
+def generate_bun_clusters(center_x: float, top_y: float,
+                          width: float, length: float,
+                          count: int = 25,
+                          rng: Optional[random.Random] = None) -> List[HairCluster]:
+    """
+    Generate a bun/updo hairstyle with circular hair mass on top.
+
+    Creates:
+    - Circular bun cluster at the top
+    - Supporting hair swept up from sides
+    - Some loose strands framing face
+    """
+    if rng is None:
+        rng = random.Random()
+
+    clusters = []
+
+    # Bun parameters
+    bun_cx = center_x
+    bun_cy = top_y - width * 0.15  # Bun sits above the head
+    bun_radius = width * 0.25
+
+    # Generate bun clusters (circular arrangement)
+    bun_cluster_count = count // 2
+    for i in range(bun_cluster_count):
+        # Angle around the bun
+        angle = (i / bun_cluster_count) * 2 * math.pi + rng.uniform(-0.2, 0.2)
+
+        # Start point on bun perimeter
+        start_x = bun_cx + bun_radius * 0.7 * math.cos(angle)
+        start_y = bun_cy + bun_radius * 0.5 * math.sin(angle)
+
+        # Curve inward toward bun center then back out
+        curve_angle = angle + math.pi * 0.5 + rng.uniform(-0.3, 0.3)
+        curve_radius = bun_radius * rng.uniform(0.3, 0.6)
+
+        p0 = (start_x, start_y)
+        p1 = (
+            bun_cx + curve_radius * 0.3 * math.cos(curve_angle),
+            bun_cy + curve_radius * 0.2 * math.sin(curve_angle)
+        )
+        p2 = (
+            bun_cx + curve_radius * 0.6 * math.cos(curve_angle + 0.5),
+            bun_cy + curve_radius * 0.4 * math.sin(curve_angle + 0.5)
+        )
+        p3 = (
+            start_x + rng.uniform(-3, 3),
+            start_y + rng.uniform(-3, 3)
+        )
+
+        base_width = rng.uniform(2.0, 3.5)
+        width_profile = [
+            (0.0, base_width),
+            (0.3, base_width * 1.2),
+            (0.7, base_width * 0.8),
+            (1.0, base_width * 0.3),
+        ]
+
+        # Bun clusters have high z-depth (in front)
+        z_depth = 0.6 + rng.uniform(0, 0.3)
+
+        cluster = HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=z_depth,
+            color_offset=rng.uniform(-0.2, 0.2),
+            is_highlight=angle < math.pi,  # Top half gets highlights
+        )
+        clusters.append(cluster)
+
+    # Generate supporting hair swept up from sides
+    side_cluster_count = count // 3
+    for i in range(side_cluster_count):
+        # Alternate sides
+        side = 1 if i % 2 == 0 else -1
+        t = (i // 2) / max(1, side_cluster_count // 2)
+
+        # Start from side of head
+        start_x = center_x + side * width * 0.4 * (0.8 + t * 0.2)
+        start_y = top_y + length * 0.2 * t
+
+        # Curve up toward bun
+        p0 = (start_x, start_y)
+        p1 = (
+            start_x + side * width * 0.1,
+            start_y - length * 0.15
+        )
+        p2 = (
+            bun_cx + side * bun_radius * 0.5,
+            bun_cy + bun_radius * 0.3
+        )
+        p3 = (
+            bun_cx + side * bun_radius * 0.3 + rng.uniform(-2, 2),
+            bun_cy + rng.uniform(-2, 2)
+        )
+
+        base_width = rng.uniform(2.5, 4.0)
+        width_profile = [
+            (0.0, base_width * 0.8),
+            (0.4, base_width),
+            (0.8, base_width * 0.6),
+            (1.0, base_width * 0.2),
+        ]
+
+        cluster = HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=0.3 + rng.uniform(0, 0.2),
+            color_offset=rng.uniform(-0.15, 0.15),
+            is_highlight=side > 0,
+        )
+        clusters.append(cluster)
+
+    # Sort by z_depth
+    clusters.sort(key=lambda c: c.z_depth)
+    return clusters
+
+
 def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
                            width: float, length: float,
                            count: int = 20,
@@ -330,6 +448,9 @@ def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
     elif style == HairStyle.SHORT:
         # Short hair: reduced length
         return generate_wavy_clusters(center_x, top_y, width, length * 0.4, int(count * 0.8), rng)
+    elif style == HairStyle.PONYTAIL:
+        # Use bun style for ponytail
+        return generate_bun_clusters(center_x, top_y, width, length, count, rng)
     else:
         # Default to wavy
         return generate_wavy_clusters(center_x, top_y, width, length, count, rng)

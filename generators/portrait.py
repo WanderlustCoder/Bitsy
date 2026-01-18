@@ -92,6 +92,10 @@ class PortraitConfig:
     eye_openness: float = 1.0  # 0.0 = closed, 1.0 = fully open
     gaze_direction: Tuple[float, float] = (0.0, 0.0)  # pupil offset
 
+    # Eyebrows
+    eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
+    eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
+
     # Accessories
     has_glasses: bool = False
     glasses_style: str = "round"
@@ -398,10 +402,51 @@ class PortraitGenerator:
         return self
 
     def set_expression(self, expression: str,
-                       gaze: Tuple[float, float] = (0.0, 0.0)) -> 'PortraitGenerator':
-        """Set facial expression and gaze direction."""
+                       gaze: Optional[Tuple[float, float]] = None) -> 'PortraitGenerator':
+        """Set facial expression with automatic eye/gaze adjustments.
+
+        Expression presets:
+        - neutral: Normal eyes, centered gaze
+        - happy: Slightly squinted, upward gaze hint
+        - sad: Droopy, downward gaze
+        - surprised: Wide eyes, centered gaze
+        - angry: Narrowed eyes, direct gaze
+        - sleepy: Half-closed eyes, downward gaze
+        - wink: One eye closed (left)
+        """
         self.config.expression = expression
-        self.config.gaze_direction = gaze
+
+        # Expression presets: (eye_openness, gaze, eyebrow_arch, eyebrow_angle)
+        presets = {
+            "neutral": (1.0, (0.0, 0.0), 0.3, 0.0),
+            "happy": (0.85, (0.0, -0.1), 0.4, 0.1),  # Raised, slight angle up
+            "sad": (0.9, (0.0, 0.2), 0.5, -0.25),  # High arch, sad angle
+            "surprised": (1.2, (0.0, 0.0), 0.6, 0.0),  # Raised eyebrows
+            "angry": (0.75, (0.0, 0.0), 0.15, 0.35),  # Low, angry angle
+            "sleepy": (0.5, (0.0, 0.15), 0.2, -0.1),  # Relaxed
+            "wink": (0.9, (0.1, 0.0), 0.35, 0.1),
+        }
+
+        if expression.lower() in presets:
+            openness, default_gaze, arch, angle = presets[expression.lower()]
+            self.config.eye_openness = openness
+            self.config.gaze_direction = gaze if gaze is not None else default_gaze
+            self.config.eyebrow_arch = arch
+            self.config.eyebrow_angle = angle
+        else:
+            self.config.gaze_direction = gaze if gaze is not None else (0.0, 0.0)
+
+        return self
+
+    def set_eyebrows(self, arch: float = 0.3, angle: float = 0.0) -> 'PortraitGenerator':
+        """Set eyebrow shape.
+
+        Args:
+            arch: Arch height (0.0-1.0, default 0.3)
+            angle: Angle tilt (-0.5 to 0.5, negative=sad, positive=angry)
+        """
+        self.config.eyebrow_arch = max(0.0, min(1.0, arch))
+        self.config.eyebrow_angle = max(-0.5, min(0.5, angle))
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -639,26 +684,40 @@ class PortraitGenerator:
                 canvas.set_pixel(cx + dx, lip_y + dy, color)
 
     def _render_eyebrows(self, canvas: Canvas) -> None:
-        """Render eyebrows."""
+        """Render eyebrows with configurable arch and angle."""
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
         brow_y = cy - fh // 5
         eye_spacing = fw // 4
         brow_width = fw // 6
+        half_width = brow_width // 2
 
         # Eyebrow color (darker than hair)
         brow_color = self._hair_ramp[0]  # Darkest hair color
 
+        # Get config values
+        arch_amount = self.config.eyebrow_arch
+        angle = self.config.eyebrow_angle
+
         for side in [-1, 1]:
             brow_x = cx + side * eye_spacing
 
-            # Simple arch shape
-            for dx in range(-brow_width // 2, brow_width // 2 + 1):
-                # Arch curve
-                arch = int(abs(dx) * 0.3)
+            # Angle is mirrored for left/right eyebrows
+            effective_angle = angle * side
+
+            for dx in range(-half_width, half_width + 1):
+                # Normalized position (-1 to 1)
+                t = dx / half_width if half_width > 0 else 0
+
+                # Arch curve (higher arch_amount = more curved)
+                arch = int(arch_amount * (1 - t ** 2) * 4)
+
+                # Angle offset (tilts the eyebrow)
+                angle_offset = int(effective_angle * t * 4)
+
                 px = brow_x + dx
-                py = brow_y + arch
+                py = brow_y - arch + angle_offset
 
                 canvas.set_pixel(px, py, brow_color)
                 canvas.set_pixel(px, py + 1, brow_color)  # 2px thick
@@ -685,7 +744,7 @@ class PortraitGenerator:
             HairStyle.STRAIGHT: HairStyleParts.STRAIGHT,
             HairStyle.CURLY: HairStyleParts.CURLY,
             HairStyle.SHORT: HairStyleParts.SHORT,
-            HairStyle.PONYTAIL: HairStyleParts.WAVY,
+            HairStyle.PONYTAIL: HairStyleParts.PONYTAIL,
             HairStyle.BRAIDED: HairStyleParts.STRAIGHT,
         }
         hair_style = style_map.get(self.config.hair_style, HairStyleParts.WAVY)
