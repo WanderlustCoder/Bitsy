@@ -316,118 +316,157 @@ def generate_curly_clusters(center_x: float, top_y: float,
 
 def generate_bun_clusters(center_x: float, top_y: float,
                           width: float, length: float,
-                          count: int = 25,
+                          count: int = 40,
                           rng: Optional[random.Random] = None) -> List[HairCluster]:
     """
-    Generate a bun/updo hairstyle with circular hair mass on top.
+    Generate a bun/updo hairstyle with volumetric circular hair mass.
 
     Creates:
-    - Circular bun cluster at the top
+    - Multi-layer circular bun with highlights
     - Supporting hair swept up from sides
-    - Some loose strands framing face
+    - Wispy edge strands for natural look
     """
     if rng is None:
         rng = random.Random()
 
     clusters = []
 
-    # Bun parameters
+    # Bun parameters - larger and more prominent
     bun_cx = center_x
-    bun_cy = top_y - width * 0.15  # Bun sits above the head
-    bun_radius = width * 0.25
+    bun_cy = top_y - width * 0.18
+    bun_radius = width * 0.28
 
-    # Generate bun clusters (circular arrangement)
-    bun_cluster_count = count // 2
-    for i in range(bun_cluster_count):
-        # Angle around the bun
-        angle = (i / bun_cluster_count) * 2 * math.pi + rng.uniform(-0.2, 0.2)
+    # Layer 1: Inner bun mass (dense core)
+    inner_count = count // 3
+    for i in range(inner_count):
+        angle = (i / inner_count) * 2 * math.pi + rng.uniform(-0.3, 0.3)
+        r_factor = rng.uniform(0.3, 0.6)
 
-        # Start point on bun perimeter
-        start_x = bun_cx + bun_radius * 0.7 * math.cos(angle)
-        start_y = bun_cy + bun_radius * 0.5 * math.sin(angle)
+        start_x = bun_cx + bun_radius * r_factor * math.cos(angle)
+        start_y = bun_cy + bun_radius * r_factor * 0.7 * math.sin(angle)
 
-        # Curve inward toward bun center then back out
-        curve_angle = angle + math.pi * 0.5 + rng.uniform(-0.3, 0.3)
-        curve_radius = bun_radius * rng.uniform(0.3, 0.6)
+        curve_angle = angle + math.pi * rng.uniform(0.3, 0.7)
+        curve_len = bun_radius * rng.uniform(0.2, 0.4)
 
         p0 = (start_x, start_y)
+        p1 = (bun_cx + curve_len * math.cos(curve_angle), bun_cy + curve_len * 0.6 * math.sin(curve_angle))
+        p2 = (bun_cx + curve_len * 0.5 * math.cos(curve_angle + 0.8), bun_cy + curve_len * 0.4 * math.sin(curve_angle + 0.8))
+        p3 = (start_x + rng.uniform(-2, 2), start_y + rng.uniform(-2, 2))
+
+        base_width = rng.uniform(2.5, 4.0)
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=[(0.0, base_width), (0.5, base_width * 1.1), (1.0, base_width * 0.4)],
+            z_depth=0.5 + rng.uniform(0, 0.15),
+            color_offset=rng.uniform(-0.15, 0.15),
+            is_highlight=False,
+        ))
+
+    # Layer 2: Outer bun surface (visible texture)
+    outer_count = count // 2
+    for i in range(outer_count):
+        angle = (i / outer_count) * 2 * math.pi + rng.uniform(-0.15, 0.15)
+        r_factor = rng.uniform(0.7, 0.95)
+
+        start_x = bun_cx + bun_radius * r_factor * math.cos(angle)
+        start_y = bun_cy + bun_radius * r_factor * 0.6 * math.sin(angle)
+
+        # Swirling curves around bun
+        swirl = math.pi * 0.4 + rng.uniform(-0.2, 0.2)
+        p0 = (start_x, start_y)
         p1 = (
-            bun_cx + curve_radius * 0.3 * math.cos(curve_angle),
-            bun_cy + curve_radius * 0.2 * math.sin(curve_angle)
+            bun_cx + bun_radius * 0.5 * math.cos(angle + swirl * 0.3),
+            bun_cy + bun_radius * 0.35 * math.sin(angle + swirl * 0.3)
         )
         p2 = (
-            bun_cx + curve_radius * 0.6 * math.cos(curve_angle + 0.5),
-            bun_cy + curve_radius * 0.4 * math.sin(curve_angle + 0.5)
+            bun_cx + bun_radius * 0.3 * math.cos(angle + swirl * 0.6),
+            bun_cy + bun_radius * 0.2 * math.sin(angle + swirl * 0.6)
         )
         p3 = (
-            start_x + rng.uniform(-3, 3),
-            start_y + rng.uniform(-3, 3)
+            bun_cx + bun_radius * 0.4 * math.cos(angle + swirl),
+            bun_cy + bun_radius * 0.3 * math.sin(angle + swirl)
         )
 
         base_width = rng.uniform(2.0, 3.5)
-        width_profile = [
-            (0.0, base_width),
-            (0.3, base_width * 1.2),
-            (0.7, base_width * 0.8),
-            (1.0, base_width * 0.3),
-        ]
+        # Top half of bun gets highlights
+        is_top = -0.5 * math.pi < angle < 0.5 * math.pi
 
-        # Bun clusters have high z-depth (in front)
-        z_depth = 0.6 + rng.uniform(0, 0.3)
-
-        cluster = HairCluster(
+        clusters.append(HairCluster(
             control_points=[p0, p1, p2, p3],
-            width_profile=width_profile,
-            z_depth=z_depth,
+            width_profile=[(0.0, base_width), (0.4, base_width * 1.2), (0.8, base_width * 0.7), (1.0, base_width * 0.2)],
+            z_depth=0.65 + rng.uniform(0, 0.25),
             color_offset=rng.uniform(-0.2, 0.2),
-            is_highlight=angle < math.pi,  # Top half gets highlights
-        )
-        clusters.append(cluster)
+            is_highlight=is_top,
+        ))
 
-    # Generate supporting hair swept up from sides
-    side_cluster_count = count // 3
-    for i in range(side_cluster_count):
-        # Alternate sides
-        side = 1 if i % 2 == 0 else -1
-        t = (i // 2) / max(1, side_cluster_count // 2)
+    # Layer 3: Highlight wisps on top
+    highlight_count = count // 6
+    for i in range(highlight_count):
+        angle = rng.uniform(-0.4 * math.pi, 0.4 * math.pi)  # Top area only
+        r = bun_radius * rng.uniform(0.6, 0.9)
 
-        # Start from side of head
-        start_x = center_x + side * width * 0.4 * (0.8 + t * 0.2)
-        start_y = top_y + length * 0.2 * t
+        start_x = bun_cx + r * math.cos(angle)
+        start_y = bun_cy + r * 0.5 * math.sin(angle) - bun_radius * 0.1
 
-        # Curve up toward bun
         p0 = (start_x, start_y)
-        p1 = (
-            start_x + side * width * 0.1,
-            start_y - length * 0.15
-        )
-        p2 = (
-            bun_cx + side * bun_radius * 0.5,
-            bun_cy + bun_radius * 0.3
-        )
-        p3 = (
-            bun_cx + side * bun_radius * 0.3 + rng.uniform(-2, 2),
-            bun_cy + rng.uniform(-2, 2)
-        )
+        p1 = (start_x + rng.uniform(-3, 3), start_y - rng.uniform(2, 5))
+        p2 = (bun_cx + rng.uniform(-5, 5), bun_cy - bun_radius * 0.2)
+        p3 = (bun_cx + rng.uniform(-3, 3), bun_cy)
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=[(0.0, 1.5), (0.5, 2.0), (1.0, 0.5)],
+            z_depth=0.9 + rng.uniform(0, 0.1),
+            color_offset=0.3 + rng.uniform(0, 0.2),  # Lighter
+            is_highlight=True,
+        ))
+
+    # Supporting hair swept up from sides
+    side_count = count // 4
+    for i in range(side_count):
+        side = 1 if i % 2 == 0 else -1
+        t = (i // 2) / max(1, side_count // 2)
+
+        start_x = center_x + side * width * 0.4 * (0.7 + t * 0.3)
+        start_y = top_y + length * 0.15 * t
+
+        p0 = (start_x, start_y)
+        p1 = (start_x + side * width * 0.08, start_y - length * 0.12)
+        p2 = (bun_cx + side * bun_radius * 0.6, bun_cy + bun_radius * 0.4)
+        p3 = (bun_cx + side * bun_radius * 0.35 + rng.uniform(-2, 2), bun_cy + rng.uniform(-2, 4))
 
         base_width = rng.uniform(2.5, 4.0)
-        width_profile = [
-            (0.0, base_width * 0.8),
-            (0.4, base_width),
-            (0.8, base_width * 0.6),
-            (1.0, base_width * 0.2),
-        ]
-
-        cluster = HairCluster(
+        clusters.append(HairCluster(
             control_points=[p0, p1, p2, p3],
-            width_profile=width_profile,
-            z_depth=0.3 + rng.uniform(0, 0.2),
-            color_offset=rng.uniform(-0.15, 0.15),
+            width_profile=[(0.0, base_width * 0.7), (0.4, base_width), (0.8, base_width * 0.5), (1.0, base_width * 0.15)],
+            z_depth=0.25 + rng.uniform(0, 0.15),
+            color_offset=rng.uniform(-0.1, 0.1),
             is_highlight=side > 0,
-        )
-        clusters.append(cluster)
+        ))
 
-    # Sort by z_depth
+    # Wispy edge strands (loose strands around bun)
+    wisp_count = count // 8
+    for i in range(wisp_count):
+        angle = rng.uniform(0, 2 * math.pi)
+        start_x = bun_cx + bun_radius * 1.1 * math.cos(angle)
+        start_y = bun_cy + bun_radius * 0.7 * math.sin(angle)
+
+        # Short wispy strand
+        end_x = start_x + rng.uniform(-6, 6)
+        end_y = start_y + rng.uniform(3, 8)
+
+        p0 = (start_x, start_y)
+        p1 = ((start_x + end_x) / 2 + rng.uniform(-2, 2), (start_y + end_y) / 2)
+        p2 = (end_x, end_y)
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2],  # Quadratic
+            width_profile=[(0.0, 1.5), (0.5, 1.0), (1.0, 0.3)],
+            z_depth=0.85 + rng.uniform(0, 0.1),
+            color_offset=rng.uniform(-0.1, 0.2),
+            is_highlight=rng.random() > 0.5,
+        ))
+
     clusters.sort(key=lambda c: c.z_depth)
     return clusters
 

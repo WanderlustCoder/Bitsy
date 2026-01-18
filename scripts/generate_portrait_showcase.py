@@ -190,9 +190,11 @@ def main():
     gen_ref.set_glasses("round")
     gen_ref.set_expression("happy")
     gen_ref.set_background(gradient=((20, 20, 40), (30, 30, 60)))
+    gen_ref.set_vignette(0.5)
+    gen_ref.set_vibrancy(1.2)
     ref_portrait = gen_ref.render()
     ref_portrait.save(f"{output_dir}/portrait_reference_style.png")
-    print(f"  Saved reference-style portrait (180x240)")
+    print(f"  Saved reference-style portrait with vignette and vibrancy (180x240)")
 
     print("\n" + "=" * 50)
     print(f"Portrait showcase complete! Files saved to {output_dir}/")

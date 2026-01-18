@@ -114,9 +114,13 @@ class PortraitConfig:
 
     # Background
     background_color: Optional[Tuple] = None  # None=transparent, RGB tuple, or (top, bottom) for gradient
+    vignette_strength: float = 0.0  # 0.0-1.0, darkens edges/corners
 
     # Framing
     show_shoulders: bool = True  # Show shoulders extending from clothing
+
+    # Color
+    color_vibrancy: float = 1.0  # 0.5-1.5, affects color saturation
 
 
 # Skin tone palettes (base colors for ramp generation)
@@ -505,6 +509,16 @@ class PortraitGenerator:
         self.config.show_shoulders = show_shoulders
         return self
 
+    def set_vignette(self, strength: float = 0.5) -> 'PortraitGenerator':
+        """Set vignette strength (0.0-1.0)."""
+        self.config.vignette_strength = max(0.0, min(1.0, strength))
+        return self
+
+    def set_vibrancy(self, factor: float = 1.0) -> 'PortraitGenerator':
+        """Set color vibrancy/saturation (0.5-1.5)."""
+        self.config.color_vibrancy = max(0.5, min(1.5, factor))
+        return self
+
     def _prepare_ramps(self) -> None:
         """Pre-compute color ramps based on configuration."""
         # Skin ramp
@@ -544,6 +558,72 @@ class PortraitGenerator:
             (*lip_base, 255),
             levels=5
         )
+
+        # Apply vibrancy adjustment if not default
+        vibrancy = getattr(self.config, 'color_vibrancy', 1.0)
+        if vibrancy != 1.0:
+            self._skin_ramp = self._adjust_ramp_vibrancy(self._skin_ramp, vibrancy)
+            self._hair_ramp = self._adjust_ramp_vibrancy(self._hair_ramp, vibrancy)
+            self._eye_ramp = self._adjust_ramp_vibrancy(self._eye_ramp, vibrancy)
+            self._lip_ramp = self._adjust_ramp_vibrancy(self._lip_ramp, vibrancy)
+
+    def _adjust_ramp_vibrancy(self, ramp: List[Color], factor: float) -> List[Color]:
+        """Adjust saturation of all colors in a ramp."""
+        result = []
+        for color in ramp:
+            r, g, b = color[0], color[1], color[2]
+            alpha = color[3] if len(color) > 3 else 255
+
+            # Convert RGB to HSV
+            max_c = max(r, g, b)
+            min_c = min(r, g, b)
+            diff = max_c - min_c
+
+            # Value
+            v = max_c
+
+            # Saturation
+            s = 0 if max_c == 0 else (diff / max_c) * 255
+
+            # Apply vibrancy to saturation
+            s = min(255, int(s * factor))
+
+            # Convert back to RGB
+            if s == 0:
+                nr, ng, nb = v, v, v
+            else:
+                # Hue calculation
+                if max_c == r:
+                    h = 60 * ((g - b) / diff % 6) if diff > 0 else 0
+                elif max_c == g:
+                    h = 60 * ((b - r) / diff + 2) if diff > 0 else 0
+                else:
+                    h = 60 * ((r - g) / diff + 4) if diff > 0 else 0
+
+                # HSV to RGB
+                s_norm = s / 255
+                c = v * s_norm
+                x = c * (1 - abs((h / 60) % 2 - 1))
+                m = v - c
+
+                if h < 60:
+                    nr, ng, nb = c + m, x + m, m
+                elif h < 120:
+                    nr, ng, nb = x + m, c + m, m
+                elif h < 180:
+                    nr, ng, nb = m, c + m, x + m
+                elif h < 240:
+                    nr, ng, nb = m, x + m, c + m
+                elif h < 300:
+                    nr, ng, nb = x + m, m, c + m
+                else:
+                    nr, ng, nb = c + m, m, x + m
+
+                nr, ng, nb = int(nr), int(ng), int(nb)
+
+            result.append((max(0, min(255, nr)), max(0, min(255, ng)),
+                          max(0, min(255, nb)), alpha))
+        return result
 
     def _get_face_center(self) -> Tuple[int, int]:
         """Calculate face center position."""
@@ -1160,33 +1240,40 @@ class PortraitGenerator:
                 canvas.set_pixel(x, y, color)
 
     def _render_background(self, canvas: Canvas) -> None:
-        """Render background with optional gradient."""
+        """Render background with optional gradient and vignette."""
         if not hasattr(self.config, 'background_color') or self.config.background_color is None:
             return  # Transparent background
 
         bg = self.config.background_color
+        cx, cy = self.config.width / 2, self.config.height / 2
+        max_dist = math.sqrt(cx * cx + cy * cy)
+        vignette = getattr(self.config, 'vignette_strength', 0.0)
 
-        # Check if it's a gradient (tuple of two colors)
-        if isinstance(bg, tuple) and len(bg) == 2 and isinstance(bg[0], (tuple, list)):
-            top_color = bg[0]
-            bottom_color = bg[1]
+        for y in range(self.config.height):
+            for x in range(self.config.width):
+                # Get base color
+                if isinstance(bg, tuple) and len(bg) == 2 and isinstance(bg[0], (tuple, list)):
+                    # Gradient
+                    t = y / max(1, self.config.height - 1)
+                    r = int(bg[0][0] + (bg[1][0] - bg[0][0]) * t)
+                    g = int(bg[0][1] + (bg[1][1] - bg[0][1]) * t)
+                    b = int(bg[0][2] + (bg[1][2] - bg[0][2]) * t)
+                else:
+                    # Solid
+                    r, g, b = bg[0], bg[1], bg[2]
 
-            for y in range(self.config.height):
-                t = y / max(1, self.config.height - 1)
-                r = int(top_color[0] + (bottom_color[0] - top_color[0]) * t)
-                g = int(top_color[1] + (bottom_color[1] - top_color[1]) * t)
-                b = int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
-                color = (r, g, b, 255)
+                # Apply vignette
+                if vignette > 0:
+                    dx, dy = x - cx, y - cy
+                    dist = math.sqrt(dx * dx + dy * dy) / max_dist
+                    # Smooth falloff from center
+                    darken = dist * dist * vignette
+                    r = int(r * (1 - darken * 0.7))
+                    g = int(g * (1 - darken * 0.7))
+                    b = int(b * (1 - darken * 0.7))
+                    r, g, b = max(0, r), max(0, g), max(0, b)
 
-                for x in range(self.config.width):
-                    canvas.set_pixel(x, y, color)
-        else:
-            # Solid color
-            if len(bg) == 3:
-                bg = (*bg, 255)
-            for y in range(self.config.height):
-                for x in range(self.config.width):
-                    canvas.set_pixel(x, y, bg)
+                canvas.set_pixel(x, y, (r, g, b, 255))
 
     def render(self) -> Canvas:
         """
