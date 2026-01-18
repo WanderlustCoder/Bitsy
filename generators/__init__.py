@@ -110,6 +110,23 @@ from .vehicle import (
     VEHICLE_GENERATORS,
 )
 
+from .portrait import (
+    PortraitGenerator,
+    PortraitConfig,
+    HairStyle,
+    EyeShape,
+    NoseType,
+    LipShape,
+    generate_portrait,
+    create_portrait_ramp,
+    create_hair_ramp,
+    create_skin_ramp,
+    create_eye_ramp,
+    SKIN_TONES,
+    HAIR_COLORS,
+    EYE_COLORS,
+)
+
 __all__ = [
     # Character generation
     'CharacterGenerator',
@@ -198,4 +215,19 @@ __all__ = [
     'generate_vehicle',
     'list_vehicle_types',
     'VEHICLE_GENERATORS',
+    # Portrait generation
+    'PortraitGenerator',
+    'PortraitConfig',
+    'HairStyle',
+    'EyeShape',
+    'NoseType',
+    'LipShape',
+    'generate_portrait',
+    'create_portrait_ramp',
+    'create_hair_ramp',
+    'create_skin_ramp',
+    'create_eye_ramp',
+    'SKIN_TONES',
+    'HAIR_COLORS',
+    'EYE_COLORS',
 ]
