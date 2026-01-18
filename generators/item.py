@@ -140,10 +140,10 @@ class ItemGenerator:
         """Initialize item generator.
 
         Args:
-            width: Item width in pixels
-            height: Item height in pixels
+            width: Item width in pixels (default: 16)
+            height: Item height in pixels (default: 16)
             seed: Random seed for reproducibility
-            style: Art style (default: PROFESSIONAL_HD if hd_mode, else None)
+            style: Art style (default: Style.default() unless hd_mode)
             hd_mode: Enable HD quality features (selout, etc.)
         """
         self.width = width
@@ -152,7 +152,7 @@ class ItemGenerator:
         self.rng = random.Random(seed)
         self.palette = ItemPalette.iron()
         self.hd_mode = hd_mode
-        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+        self.style = style or (PROFESSIONAL_HD if hd_mode else Style.default())
 
     def finalize(self, canvas: Canvas) -> Canvas:
         """Apply HD post-processing to a canvas.

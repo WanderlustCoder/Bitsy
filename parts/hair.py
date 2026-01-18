@@ -18,6 +18,9 @@ from core.canvas import Canvas
 from core.color import Color
 
 
+PRO_HAIR_MIN_SIZE = 32  # Use professional hair rendering at this size and above
+
+
 class Hair(Part):
     """Base class for hair parts."""
 
@@ -36,6 +39,29 @@ class Hair(Part):
         """Draw front layer of hair (bangs, in front of face)."""
         pass  # Subclasses override
 
+    def _draw_professional(self, canvas: Canvas, x: int, y: int,
+                           width: int, height: int) -> bool:
+        """Delegate to professional hair renderer for larger sizes."""
+        if width < PRO_HAIR_MIN_SIZE or height < PRO_HAIR_MIN_SIZE:
+            return False
+
+        # Lazy import to avoid circular dependency
+        from .hair_pro import ProfessionalLongHair
+
+        pro_hair_map = {
+            'long': ProfessionalLongHair,
+        }
+
+        pro_class = pro_hair_map.get(self.name)
+        if not pro_class:
+            return False
+
+        pro_hair = pro_class(self.config)
+        pro_hair.has_bangs = self.has_bangs
+        pro_hair.has_back = self.has_back
+        pro_hair.draw(canvas, x, y, width, height)
+        return True
+
 
 class FluffyHair(Hair):
     """Fluffy, rounded hair style."""
@@ -45,6 +71,8 @@ class FluffyHair(Hair):
 
     def draw(self, canvas: Canvas, x: int, y: int,
              width: int, height: int) -> None:
+        if self._draw_professional(canvas, x, y, width, height):
+            return
         self.draw_back(canvas, x, y, width, height)
         self.draw_front(canvas, x, y, width, height)
 
@@ -100,6 +128,8 @@ class SpikyHair(Hair):
 
     def draw(self, canvas: Canvas, x: int, y: int,
              width: int, height: int) -> None:
+        if self._draw_professional(canvas, x, y, width, height):
+            return
         self.draw_back(canvas, x, y, width, height)
         self.draw_front(canvas, x, y, width, height)
 
@@ -166,6 +196,8 @@ class LongHair(Hair):
 
     def draw(self, canvas: Canvas, x: int, y: int,
              width: int, height: int) -> None:
+        if self._draw_professional(canvas, x, y, width, height):
+            return
         self.draw_back(canvas, x, y, width, height)
         self.draw_front(canvas, x, y, width, height)
 
@@ -220,6 +252,8 @@ class ShortHair(Hair):
 
     def draw(self, canvas: Canvas, x: int, y: int,
              width: int, height: int) -> None:
+        if self._draw_professional(canvas, x, y, width, height):
+            return
         self.draw_front(canvas, x, y, width, height)
 
     def draw_front(self, canvas: Canvas, x: int, y: int,
@@ -268,6 +302,8 @@ class PonytailHair(Hair):
 
     def draw(self, canvas: Canvas, x: int, y: int,
              width: int, height: int) -> None:
+        if self._draw_professional(canvas, x, y, width, height):
+            return
         self.draw_back(canvas, x, y, width, height)
         self.draw_front(canvas, x, y, width, height)
 
@@ -321,6 +357,8 @@ class TwinTailsHair(Hair):
 
     def draw(self, canvas: Canvas, x: int, y: int,
              width: int, height: int) -> None:
+        if self._draw_professional(canvas, x, y, width, height):
+            return
         self.draw_back(canvas, x, y, width, height)
         self.draw_front(canvas, x, y, width, height)
 

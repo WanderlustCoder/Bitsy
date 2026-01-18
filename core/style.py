@@ -326,16 +326,17 @@ class Style:
             outline=OutlineConfig(
                 enabled=True,
                 color=None,  # Derive from fill
-                mode='external',
+                mode='selout',
                 thickness=1,
-                darken_factor=0.35  # Soft outline
+                darken_factor=0.35,  # Soft outline
+                selout_enabled=True
             ),
             shading=ShadingConfig(
                 mode='cel',
-                levels=3,
+                levels=5,
                 light_direction=(1.0, -1.0),
-                highlight_hue_shift=12.0,  # Slightly warm
-                shadow_hue_shift=-15.0,  # Slightly cool
+                highlight_hue_shift=15.0,  # Slightly warm
+                shadow_hue_shift=-20.0,  # Slightly cool
                 highlight_saturation=0.95,
                 shadow_saturation=0.9,
                 highlight_value=1.25,
@@ -551,9 +552,10 @@ class Style:
             outline=OutlineConfig(
                 enabled=True,
                 color=None,
-                mode='external',  # Selective outline
+                mode='selout',  # Selective outline
                 thickness=1,
-                darken_factor=0.25  # Very soft
+                darken_factor=0.25,  # Very soft
+                selout_enabled=True
             ),
             shading=ShadingConfig(
                 mode='gradient',
@@ -575,6 +577,53 @@ class Style:
             anti_alias=False,  # Still pixel art
             subpixel=False,
             head_ratio=0.28,  # More realistic proportions
+            eye_size='medium',
+            limb_style='detailed',
+            squash_stretch=0.2,
+            follow_through=0.15
+        )
+
+    @classmethod
+    def modern(cls) -> 'Style':
+        """Modern pixel art style for any resolution.
+
+        Characteristics:
+        - Unlimited colors
+        - 5-level gradient shading with hue shifts
+        - Selective/soft outlines
+        - Works at any resolution
+        - Smooth gradients
+        """
+        return cls(
+            name='modern',
+            outline=OutlineConfig(
+                enabled=True,
+                color=None,
+                mode='selout',
+                thickness=1,
+                darken_factor=0.25,
+                selout_enabled=True
+            ),
+            shading=ShadingConfig(
+                mode='gradient',
+                levels=5,
+                light_direction=(1.0, -1.0),
+                highlight_hue_shift=18.0,
+                shadow_hue_shift=-25.0,
+                highlight_saturation=0.85,
+                shadow_saturation=0.8,
+                highlight_value=1.35,
+                shadow_value=0.5,
+                dither_pattern='bayer4x4'
+            ),
+            palette=PaletteConfig(
+                max_colors=None,
+                per_sprite_colors=None
+            ),
+            pixel_perfect=True,
+            anti_alias=False,
+            subpixel=False,
+            head_ratio=0.28,
             eye_size='medium',
             limb_style='detailed',
             squash_stretch=0.2,
@@ -706,12 +755,18 @@ class Style:
             limb_style='simple'
         )
 
+    @classmethod
+    def default(cls) -> 'Style':
+        """Return the recommended default style for new users."""
+        return cls.modern()
+
 
 # Convenience aliases for quick access
 CHIBI = Style.chibi()
 RETRO_NES = Style.retro_nes()
 RETRO_SNES = Style.retro_snes()
 RETRO_GAMEBOY = Style.retro_gameboy()
+MODERN = Style.modern()
 MODERN_HD = Style.modern_hd()
 PROFESSIONAL_HD = Style.professional_hd()
 MINIMALIST = Style.minimalist()
@@ -723,6 +778,7 @@ STYLES = {
     'retro_nes': Style.retro_nes,
     'retro_snes': Style.retro_snes,
     'retro_gameboy': Style.retro_gameboy,
+    'modern': Style.modern,
     'modern_hd': Style.modern_hd,
     'professional_hd': Style.professional_hd,
     'minimalist': Style.minimalist,

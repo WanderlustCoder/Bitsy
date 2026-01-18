@@ -19,6 +19,13 @@ from core.style import Style, PROFESSIONAL_HD
 from core.palette import Palette
 from core.animation import Animation
 
+from quality.color_harmony import (
+    ColorHarmony,
+    generate_harmonious_palette,
+    HarmonyType,
+    create_shading_ramp,
+)
+
 from rig.skeleton import Skeleton, create_skeleton
 from rig.pose import Pose, PoseLibrary, create_pose_library, blend_poses
 
@@ -34,12 +41,12 @@ class CharacterConfig:
     """Configuration for character generation."""
 
     # Size
-    width: int = 32
-    height: int = 32
+    width: int = 48
+    height: int = 48
 
     # Style
     style: Optional[Style] = None
-    style_name: str = 'chibi'
+    style_name: str = 'modern'
 
     # Random seed (for determinism)
     seed: Optional[int] = None
@@ -70,7 +77,7 @@ class CharacterGenerator:
     """Generates complete character sprites from configuration.
 
     Usage:
-        gen = CharacterGenerator(width=32, height=32, seed=42)
+        gen = CharacterGenerator(width=48, height=48, seed=42)
         gen.set_style('chibi')
         gen.set_body('chibi', skin='warm')
         gen.set_hair('fluffy', palette='lavender')
@@ -80,14 +87,14 @@ class CharacterGenerator:
         sprite.save('character.png')
     """
 
-    def __init__(self, width: int = 32, height: int = 32,
+    def __init__(self, width: int = 48, height: int = 48,
                  style: Optional[Style] = None, seed: Optional[int] = None,
                  hd_mode: bool = False):
         """Initialize character generator.
 
         Args:
-            width, height: Output sprite size
-            style: Art style to use (or None for default)
+            width, height: Output sprite size (default: 48x48)
+            style: Art style to use (defaults to Style.default() unless hd_mode)
             seed: Random seed for deterministic generation
             hd_mode: Enable HD quality features (selout, AA)
         """
@@ -96,10 +103,13 @@ class CharacterGenerator:
 
         if style:
             self.config.style = style
+            self.config.style_name = style.name
         elif hd_mode:
             self.config.style = PROFESSIONAL_HD
+            self.config.style_name = PROFESSIONAL_HD.name
         else:
-            self.config.style = Style.chibi()
+            self.config.style = Style.default()
+            self.config.style_name = self.config.style.name
 
         self._rng = random.Random(seed)
 
@@ -446,16 +456,42 @@ class CharacterGenerator:
         eye_colors = ['blue', 'green', 'brown', 'purple', 'red', 'gold']
         eye_color = self._rng.choice(eye_colors)
 
-        # Random outfit
-        outfit_colors = ['cloth_blue', 'cloth_red', 'cloth_green', 'cloth_purple']
-        outfit_color = self._rng.choice(outfit_colors)
-
         # Apply
         self.set_hair(self.config.hair_type, hair_color)
         self.set_eyes(self.config.eye_type, eye_color)
-        self.set_outfit(outfit_color)
+
+        base_color = self.hair_palette.get(len(self.hair_palette) // 2) if self.hair_palette else (180, 140, 200, 255)
+        harmonious_colors = self._generate_harmonious_colors(base_color, count=3)
+        outfit_base = harmonious_colors[0] if harmonious_colors else base_color
+        self.outfit_palette = Palette(create_shading_ramp(outfit_base, levels=6), "Harmonious Outfit")
+        self.config.outfit_palette_name = 'harmonious'
+        self._create_parts()
 
         return self
+
+    def _generate_harmonious_colors(self, base_color: Color, count: int = 3) -> List[Color]:
+        """Generate harmonious colors for outfit and accessories."""
+        if self._rng.random() < 0.5:
+            harmony = ColorHarmony.analogous(base_color, count=count + 1, include_base=True)
+        else:
+            harmony = ColorHarmony.triadic(base_color, include_base=True)
+
+        colors = [color for color in harmony.colors if color != base_color]
+
+        if len(colors) < count:
+            fallback = generate_harmonious_palette(
+                base_color,
+                harmony_type=HarmonyType.ANALOGOUS,
+                count=count + 1,
+                include_base=True
+            )
+            for color in fallback.colors:
+                if color != base_color and color not in colors:
+                    colors.append(color)
+                if len(colors) >= count:
+                    break
+
+        return colors[:count]
 
     @classmethod
     def from_spec(cls, spec: Dict[str, Any]) -> 'CharacterGenerator':
