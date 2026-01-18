@@ -112,6 +112,12 @@ class PortraitConfig:
     # Quality
     shading_levels: int = 7  # Number of colors in shading ramps
 
+    # Background
+    background_color: Optional[Tuple] = None  # None=transparent, RGB tuple, or (top, bottom) for gradient
+
+    # Framing
+    show_shoulders: bool = True  # Show shoulders extending from clothing
+
 
 # Skin tone palettes (base colors for ramp generation)
 SKIN_TONES = {
@@ -473,6 +479,30 @@ class PortraitGenerator:
         mag = math.sqrt(direction[0]**2 + direction[1]**2)
         if mag > 0:
             self.config.light_direction = (direction[0]/mag, direction[1]/mag)
+        return self
+
+    def set_background(self, color: Optional[Tuple] = None,
+                       gradient: Optional[Tuple[Tuple, Tuple]] = None) -> 'PortraitGenerator':
+        """
+        Set background color or gradient.
+
+        Args:
+            color: RGB tuple for solid color, or None for transparent
+            gradient: Tuple of (top_color, bottom_color) for vertical gradient
+
+        Examples:
+            set_background(color=(30, 30, 50))  # Dark blue solid
+            set_background(gradient=((20, 20, 40), (40, 40, 80)))  # Dark gradient
+        """
+        if gradient:
+            self.config.background_color = gradient
+        else:
+            self.config.background_color = color
+        return self
+
+    def set_framing(self, show_shoulders: bool = True) -> 'PortraitGenerator':
+        """Set framing options."""
+        self.config.show_shoulders = show_shoulders
         return self
 
     def _prepare_ramps(self) -> None:
@@ -1039,6 +1069,125 @@ class PortraitGenerator:
 
         render_neckline(canvas, params, self.config.light_direction)
 
+    def _render_shoulders(self, canvas: Canvas) -> None:
+        """Render shoulders extending from clothing area."""
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Shoulder parameters
+        neckline_y = cy + fh // 2 + fh // 8
+        shoulder_width = int(self.config.width * 0.45)  # Wider shoulders
+        shoulder_drop = int(self.config.height * 0.12)  # How much shoulders slope down
+
+        # Get clothing color for shoulder fill
+        clothing_colors = {
+            "blue": (70, 90, 140),
+            "red": (140, 60, 60),
+            "green": (60, 120, 80),
+            "white": (230, 230, 235),
+            "black": (35, 35, 40),
+            "gray": (120, 120, 125),
+            "purple": (100, 70, 130),
+            "brown": (100, 75, 55),
+        }
+        base_color = clothing_colors.get(
+            self.config.clothing_color.lower(),
+            (70, 90, 140)
+        )
+
+        # Create shading colors
+        dark_color = (
+            max(0, base_color[0] - 30),
+            max(0, base_color[1] - 30),
+            max(0, base_color[2] - 30),
+            255
+        )
+        light_color = (
+            min(255, base_color[0] + 20),
+            min(255, base_color[1] + 20),
+            min(255, base_color[2] + 20),
+            255
+        )
+        base_color = (*base_color, 255)
+
+        lx, _ = self.config.light_direction
+
+        # Render left shoulder
+        for x in range(0, cx - fw // 3):
+            # Curved shoulder line
+            dist_from_body = (cx - fw // 3) - x
+            progress = dist_from_body / shoulder_width if shoulder_width > 0 else 0
+            progress = min(1.0, progress)
+
+            # Shoulder drops as it goes outward
+            shoulder_top = neckline_y + int(progress * shoulder_drop)
+
+            # Fill from shoulder top to canvas bottom
+            for y in range(shoulder_top, self.config.height):
+                # Gradient shading
+                vert_progress = (y - shoulder_top) / max(1, self.config.height - shoulder_top)
+
+                if progress > 0.6:
+                    # Outer shoulder is darker
+                    color = dark_color
+                elif lx < 0:
+                    # Light from left, this shoulder is lit
+                    color = light_color if vert_progress < 0.3 else base_color
+                else:
+                    color = dark_color if vert_progress > 0.5 else base_color
+
+                canvas.set_pixel(x, y, color)
+
+        # Render right shoulder
+        for x in range(cx + fw // 3, self.config.width):
+            dist_from_body = x - (cx + fw // 3)
+            progress = dist_from_body / shoulder_width if shoulder_width > 0 else 0
+            progress = min(1.0, progress)
+
+            shoulder_top = neckline_y + int(progress * shoulder_drop)
+
+            for y in range(shoulder_top, self.config.height):
+                vert_progress = (y - shoulder_top) / max(1, self.config.height - shoulder_top)
+
+                if progress > 0.6:
+                    color = dark_color
+                elif lx > 0:
+                    # Light from right, this shoulder is lit
+                    color = light_color if vert_progress < 0.3 else base_color
+                else:
+                    color = dark_color if vert_progress > 0.5 else base_color
+
+                canvas.set_pixel(x, y, color)
+
+    def _render_background(self, canvas: Canvas) -> None:
+        """Render background with optional gradient."""
+        if not hasattr(self.config, 'background_color') or self.config.background_color is None:
+            return  # Transparent background
+
+        bg = self.config.background_color
+
+        # Check if it's a gradient (tuple of two colors)
+        if isinstance(bg, tuple) and len(bg) == 2 and isinstance(bg[0], (tuple, list)):
+            top_color = bg[0]
+            bottom_color = bg[1]
+
+            for y in range(self.config.height):
+                t = y / max(1, self.config.height - 1)
+                r = int(top_color[0] + (bottom_color[0] - top_color[0]) * t)
+                g = int(top_color[1] + (bottom_color[1] - top_color[1]) * t)
+                b = int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
+                color = (r, g, b, 255)
+
+                for x in range(self.config.width):
+                    canvas.set_pixel(x, y, color)
+        else:
+            # Solid color
+            if len(bg) == 3:
+                bg = (*bg, 255)
+            for y in range(self.config.height):
+                for x in range(self.config.width):
+                    canvas.set_pixel(x, y, bg)
+
     def render(self) -> Canvas:
         """
         Render the complete portrait.
@@ -1053,7 +1202,10 @@ class PortraitGenerator:
         canvas = Canvas(self.config.width, self.config.height)
 
         # Render layers from back to front
-        self._render_clothing(canvas)  # Clothing behind everything
+        self._render_background(canvas)  # Background first
+        if self.config.show_shoulders:
+            self._render_shoulders(canvas)  # Shoulders behind clothing center
+        self._render_clothing(canvas)  # Clothing center area
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
         self._render_nose(canvas)

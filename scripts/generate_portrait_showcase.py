@@ -169,16 +169,30 @@ def main():
     print(f"  Saved expression grid")
 
     # 7. High-resolution portrait with all features
-    print("\n7. High Resolution Portrait (128x160)")
-    gen_hd = PortraitGenerator(width=128, height=160, seed=42)
+    print("\n7. High Resolution Portrait (160x200)")
+    gen_hd = PortraitGenerator(width=160, height=200, seed=42)
     gen_hd.set_skin("light")
-    gen_hd.set_hair(HairStyle.PONYTAIL, "auburn")  # Bun style
-    gen_hd.set_eyes(EyeShape.ROUND, "blue")
+    gen_hd.set_hair(HairStyle.PONYTAIL, "purple")  # Bun style, purple like reference
+    gen_hd.set_eyes(EyeShape.ROUND, "brown")
     gen_hd.set_glasses("round")
     gen_hd.set_expression("happy")
+    gen_hd.set_background(gradient=((25, 25, 45), (35, 35, 65)))  # Dark gradient
     hd_portrait = gen_hd.render()
     hd_portrait.save(f"{output_dir}/portrait_hd.png")
-    print(f"  Saved HD portrait with bun and glasses (128x160)")
+    print(f"  Saved HD portrait with bun, glasses, shoulders, background (160x200)")
+
+    # 8. Reference-style portrait comparison
+    print("\n8. Reference-Style Portrait (larger)")
+    gen_ref = PortraitGenerator(width=180, height=240, seed=123)
+    gen_ref.set_skin("tan")
+    gen_ref.set_hair(HairStyle.PONYTAIL, "purple")
+    gen_ref.set_eyes(EyeShape.ROUND, "brown")
+    gen_ref.set_glasses("round")
+    gen_ref.set_expression("happy")
+    gen_ref.set_background(gradient=((20, 20, 40), (30, 30, 60)))
+    ref_portrait = gen_ref.render()
+    ref_portrait.save(f"{output_dir}/portrait_reference_style.png")
+    print(f"  Saved reference-style portrait (180x240)")
 
     print("\n" + "=" * 50)
     print(f"Portrait showcase complete! Files saved to {output_dir}/")
