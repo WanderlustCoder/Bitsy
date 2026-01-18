@@ -158,10 +158,10 @@ class PropGenerator:
         """Initialize prop generator.
 
         Args:
-            width: Prop width in pixels
-            height: Prop height in pixels
+            width: Prop width in pixels (default: 16)
+            height: Prop height in pixels (default: 16)
             seed: Random seed for reproducibility
-            style: Style configuration for quality settings
+            style: Style configuration for quality settings (default: Style.default() unless hd_mode)
             hd_mode: Enable HD quality features (selout, AA)
         """
         self.width = width
@@ -170,7 +170,7 @@ class PropGenerator:
         self.rng = random.Random(seed)
         self.palette = PropPalette.wood()
         self.hd_mode = hd_mode
-        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+        self.style = style or (PROFESSIONAL_HD if hd_mode else Style.default())
 
     def finalize(self, canvas: Canvas) -> Canvas:
         """Apply HD post-processing effects.

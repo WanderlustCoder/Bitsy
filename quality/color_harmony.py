@@ -53,6 +53,43 @@ class HarmonyResult:
         return f"{self.harmony_type.value} harmony from RGB{self.base_color[:3]}: {len(self.colors)} colors"
 
 
+class ColorHarmony:
+    """Convenience wrappers for harmony generation."""
+
+    @staticmethod
+    def complementary(base_color: Color, include_base: bool = True) -> HarmonyResult:
+        return generate_complementary(base_color, include_base=include_base)
+
+    @staticmethod
+    def analogous(base_color: Color, spread: float = 30,
+                  count: int = 3, include_base: bool = True) -> HarmonyResult:
+        return generate_analogous(base_color, spread=spread, count=count, include_base=include_base)
+
+    @staticmethod
+    def triadic(base_color: Color, include_base: bool = True) -> HarmonyResult:
+        return generate_triadic(base_color, include_base=include_base)
+
+    @staticmethod
+    def split_complementary(base_color: Color, split_angle: float = 30,
+                            include_base: bool = True) -> HarmonyResult:
+        return generate_split_complementary(base_color, split_angle=split_angle, include_base=include_base)
+
+    @staticmethod
+    def tetradic(base_color: Color, angle: float = 60,
+                 include_base: bool = True) -> HarmonyResult:
+        return generate_tetradic(base_color, angle=angle, include_base=include_base)
+
+    @staticmethod
+    def monochromatic(base_color: Color, count: int = 5,
+                      value_range: Tuple[float, float] = (0.2, 1.0)) -> HarmonyResult:
+        return generate_monochromatic(base_color, count=count, value_range=value_range)
+
+    @staticmethod
+    def harmony(base_color: Color, harmony_type: HarmonyType,
+                **kwargs) -> HarmonyResult:
+        return generate_harmony(base_color, harmony_type, **kwargs)
+
+
 def _normalize_hue(hue: float) -> float:
     """Normalize hue to 0-360 range."""
     while hue < 0:
@@ -474,6 +511,48 @@ def generate_harmony(base_color: Color, harmony_type: HarmonyType,
         raise ValueError(f"Unknown harmony type: {harmony_type}")
 
     return generator(base_color, **kwargs)
+
+
+def generate_harmonious_palette(base_color: Color,
+                                harmony_type: HarmonyType = HarmonyType.ANALOGOUS,
+                                count: int = 3,
+                                include_base: bool = False,
+                                **kwargs) -> Palette:
+    """
+    Generate a harmonious palette around a base color.
+
+    Args:
+        base_color: Starting color
+        harmony_type: Harmony rule to apply
+        count: Maximum number of colors to return
+        include_base: Include base color in palette
+        **kwargs: Additional arguments for the harmony generator
+
+    Returns:
+        Palette with harmonious colors
+    """
+    if harmony_type == HarmonyType.ANALOGOUS:
+        result = generate_analogous(
+            base_color,
+            count=count + (1 if include_base else 0),
+            include_base=include_base,
+            **kwargs
+        )
+        colors = result.colors
+    elif harmony_type == HarmonyType.MONOCHROMATIC:
+        result = generate_monochromatic(base_color, count=count, **kwargs)
+        colors = result.colors
+    else:
+        result = generate_harmony(base_color, harmony_type, include_base=include_base, **kwargs)
+        colors = result.colors
+
+    if not include_base:
+        colors = [color for color in colors if color != base_color]
+
+    if count is not None:
+        colors = colors[:count]
+
+    return Palette(colors, f"{harmony_type.value} harmony")
 
 
 def palette_from_image_colors(colors: List[Color], harmony_type: HarmonyType,

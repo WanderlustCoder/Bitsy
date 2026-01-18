@@ -107,17 +107,17 @@ class CharacterBuilder:
 
     def __init__(
         self,
-        width: int = 32,
-        height: int = 32,
-        style: Union[str, Style] = 'chibi',
+        width: int = 48,
+        height: int = 48,
+        style: Union[str, Style] = 'modern',
         seed: Optional[int] = None
     ):
         """Initialize the builder.
 
         Args:
-            width: Sprite width in pixels
-            height: Sprite height in pixels
-            style: Art style name or Style object
+            width: Sprite width in pixels (default: 48)
+            height: Sprite height in pixels (default: 48)
+            style: Art style name or Style object (default: 'modern')
             seed: Random seed for deterministic generation
         """
         self._width = width
@@ -743,9 +743,9 @@ def build_character(**kwargs) -> Character:
         Built Character object.
     """
     builder = CharacterBuilder(
-        width=kwargs.get('width', 32),
-        height=kwargs.get('height', 32),
-        style=kwargs.get('style', 'chibi'),
+        width=kwargs.get('width', 48),
+        height=kwargs.get('height', 48),
+        style=kwargs.get('style', 'modern'),
         seed=kwargs.get('seed')
     )
 

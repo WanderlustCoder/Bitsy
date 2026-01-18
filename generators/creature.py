@@ -231,15 +231,15 @@ class CreaturePalette:
 class CreatureGenerator:
     """Generates pixel art creatures."""
 
-    def __init__(self, width: int = 16, height: int = 16, seed: int = 42,
+    def __init__(self, width: int = 32, height: int = 32, seed: int = 42,
                  style: Optional['Style'] = None, hd_mode: bool = False):
         """Initialize creature generator.
 
         Args:
-            width: Creature width in pixels
-            height: Creature height in pixels
+            width: Creature width in pixels (default: 32)
+            height: Creature height in pixels (default: 32)
             seed: Random seed for reproducibility
-            style: Style configuration for quality settings
+            style: Style configuration for quality settings (default: Style.default() unless hd_mode)
             hd_mode: Enable HD quality features (selout, AA)
         """
         self.width = width
@@ -248,7 +248,7 @@ class CreatureGenerator:
         self.rng = random.Random(seed)
         self.palette = CreaturePalette.green_slime()
         self.hd_mode = hd_mode
-        self.style = style or (PROFESSIONAL_HD if hd_mode else None)
+        self.style = style or (PROFESSIONAL_HD if hd_mode else Style.default())
 
     def finalize(self, canvas: Canvas) -> Canvas:
         """Apply HD post-processing effects.
