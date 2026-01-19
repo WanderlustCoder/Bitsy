@@ -37,6 +37,14 @@ class EarringStyle(Enum):
     DANGLE = "dangle"
 
 
+class NecklaceStyle(Enum):
+    """Necklace styles."""
+    CHAIN = "chain"
+    CHOKER = "choker"
+    PENDANT = "pendant"
+    PEARL = "pearl"
+
+
 @dataclass
 class GlassesParams:
     """Parameters for glasses rendering."""
@@ -287,3 +295,138 @@ def render_earring(canvas: Canvas, x: int, y: int,
         canvas.set_pixel(x, pendant_y, light)
         canvas.set_pixel(x + 1, pendant_y, color)
         canvas.set_pixel(x, pendant_y + 1, dark)
+
+
+def render_necklace(canvas: Canvas, cx: int, neck_y: int,
+                    neck_width: int,
+                    style: NecklaceStyle,
+                    color: Color = (255, 215, 0, 255),  # Gold default
+                    size: int = 2) -> None:
+    """
+    Render a necklace at the neck position.
+
+    Args:
+        canvas: Target canvas
+        cx: Center x position
+        neck_y: Y position of the neckline
+        neck_width: Width of the neck/neckline
+        style: Necklace style
+        color: Metal/gem color
+        size: Chain/element size
+    """
+    # Shading colors
+    dark = (
+        max(0, color[0] - 50),
+        max(0, color[1] - 50),
+        max(0, color[2] - 30),
+        color[3]
+    )
+    light = (
+        min(255, color[0] + 30),
+        min(255, color[1] + 30),
+        min(255, color[2] + 30),
+        color[3]
+    )
+
+    if style == NecklaceStyle.CHAIN:
+        _render_chain_necklace(canvas, cx, neck_y, neck_width, color, dark, size)
+
+    elif style == NecklaceStyle.CHOKER:
+        _render_choker(canvas, cx, neck_y, neck_width, color, dark, light, size)
+
+    elif style == NecklaceStyle.PENDANT:
+        _render_pendant_necklace(canvas, cx, neck_y, neck_width, color, dark, light, size)
+
+    elif style == NecklaceStyle.PEARL:
+        _render_pearl_necklace(canvas, cx, neck_y, neck_width, color, light, size)
+
+
+def _render_chain_necklace(canvas: Canvas, cx: int, y: int, width: int,
+                           color: Color, dark: Color, size: int) -> None:
+    """Render a simple chain necklace."""
+    # Chain follows a gentle curve
+    half_width = width // 2
+
+    for dx in range(-half_width, half_width + 1):
+        # Curved shape dipping in center
+        curve = int((dx / half_width) ** 2 * size * 2)
+        py = y + curve
+
+        # Alternating chain links
+        if abs(dx) % (size + 1) == 0:
+            canvas.set_pixel(cx + dx, py, color)
+        else:
+            canvas.set_pixel(cx + dx, py, dark)
+
+
+def _render_choker(canvas: Canvas, cx: int, y: int, width: int,
+                   color: Color, dark: Color, light: Color, size: int) -> None:
+    """Render a close-fitting choker necklace."""
+    half_width = width // 2
+
+    # Choker band (2-3 pixels tall)
+    for dy in range(size):
+        for dx in range(-half_width, half_width + 1):
+            if dy == 0:
+                c = light  # Top edge highlight
+            elif dy == size - 1:
+                c = dark  # Bottom edge shadow
+            else:
+                c = color
+            canvas.set_pixel(cx + dx, y + dy, c)
+
+    # Center decoration
+    canvas.set_pixel(cx, y + size // 2, light)
+
+
+def _render_pendant_necklace(canvas: Canvas, cx: int, y: int, width: int,
+                             color: Color, dark: Color, light: Color, size: int) -> None:
+    """Render a necklace with a pendant."""
+    half_width = width // 2
+
+    # Chain part
+    for dx in range(-half_width, half_width + 1):
+        curve = int((dx / half_width) ** 2 * size * 3)
+        py = y + curve
+
+        # Thinner chain
+        if abs(dx) % 2 == 0:
+            canvas.set_pixel(cx + dx, py, color)
+
+    # Pendant at center
+    pendant_y = y + size * 3 + 1
+    pendant_size = max(2, size)
+
+    # Diamond/teardrop shape
+    for dy in range(pendant_size * 2):
+        pw = pendant_size - abs(dy - pendant_size // 2)
+        for ddx in range(-pw, pw + 1):
+            if dy < pendant_size:
+                c = light if ddx <= 0 else color
+            else:
+                c = color if ddx <= 0 else dark
+            canvas.set_pixel(cx + ddx, pendant_y + dy, c)
+
+
+def _render_pearl_necklace(canvas: Canvas, cx: int, y: int, width: int,
+                           color: Color, light: Color, size: int) -> None:
+    """Render a pearl strand necklace."""
+    half_width = width // 2
+    pearl_spacing = size + 2
+
+    # Place pearls along a curve
+    num_pearls = (half_width * 2) // pearl_spacing
+
+    for i in range(num_pearls + 1):
+        # Position along necklace
+        t = (i / num_pearls) - 0.5  # -0.5 to 0.5
+        dx = int(t * half_width * 2)
+
+        # Curved shape
+        curve = int((t * 2) ** 2 * size * 2)
+        py = y + curve
+
+        # Pearl (small circle with highlight)
+        canvas.fill_circle_aa(cx + dx, py, size, color)
+        # Highlight
+        canvas.set_pixel(cx + dx - 1, py - 1, light)

@@ -106,6 +106,8 @@ class PortraitConfig:
     has_facial_hair: bool = False
     facial_hair_style: str = "none"
     facial_hair_color: Optional[str] = None  # None = use hair color
+    has_necklace: bool = False
+    necklace_style: str = "chain"
 
     # Clothing
     clothing_style: str = "casual"
@@ -488,6 +490,17 @@ class PortraitGenerator:
         self.config.has_facial_hair = True
         self.config.facial_hair_style = style
         self.config.facial_hair_color = color
+        return self
+
+    def set_necklace(self, style: str = "chain") -> 'PortraitGenerator':
+        """
+        Add a necklace.
+
+        Args:
+            style: One of 'chain', 'choker', 'pendant', 'pearl'
+        """
+        self.config.has_necklace = True
+        self.config.necklace_style = style
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -1253,6 +1266,51 @@ class PortraitGenerator:
 
         render_neckline(canvas, params, self.config.light_direction)
 
+    def _render_necklace(self, canvas: Canvas) -> None:
+        """Render necklace if configured."""
+        if not self.config.has_necklace:
+            return
+
+        from generators.portrait_parts.accessories import (
+            render_necklace, NecklaceStyle
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Necklace position - at the neckline
+        neck_y = cy + fh // 2
+        neck_width = fw // 2
+
+        # Map style string to enum
+        style_map = {
+            "chain": NecklaceStyle.CHAIN,
+            "choker": NecklaceStyle.CHOKER,
+            "pendant": NecklaceStyle.PENDANT,
+            "pearl": NecklaceStyle.PEARL,
+        }
+        necklace_style = style_map.get(
+            self.config.necklace_style.lower(),
+            NecklaceStyle.CHAIN
+        )
+
+        # Necklace colors based on style
+        necklace_colors = {
+            "chain": (255, 215, 0, 255),      # Gold
+            "choker": (30, 30, 35, 255),       # Black
+            "pendant": (200, 200, 210, 255),   # Silver
+            "pearl": (250, 245, 235, 255),     # Pearl white
+        }
+        color = necklace_colors.get(
+            self.config.necklace_style.lower(),
+            (255, 215, 0, 255)
+        )
+
+        # Size scales with face
+        size = max(2, fw // 30)
+
+        render_necklace(canvas, cx, neck_y, neck_width, necklace_style, color, size)
+
     def _render_shoulders(self, canvas: Canvas) -> None:
         """Render shoulders extending from clothing area."""
         cx, cy = self._get_face_center()
@@ -1397,6 +1455,7 @@ class PortraitGenerator:
         if self.config.show_shoulders:
             self._render_shoulders(canvas)  # Shoulders behind clothing center
         self._render_clothing(canvas)  # Clothing center area
+        self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
         self._render_nose(canvas)
