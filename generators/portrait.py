@@ -181,6 +181,7 @@ class PortraitConfig:
     lip_fullness_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable asymmetry
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
+    mouth_vertical_position: float = 0.0  # -0.2 = higher mouth, 0.0 = normal, 0.2 = lower mouth
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
     lip_gloss_position: float = 0.5  # 0.0 = upper lip, 0.5 = center, 1.0 = lower lip
     lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
@@ -1625,6 +1626,16 @@ class PortraitGenerator:
             corners: Corner lift (-1.0 = frown, 0.0 = neutral, 1.0 = smile)
         """
         self.config.mouth_corners = max(-1.0, min(1.0, corners))
+        return self
+
+    def set_mouth_vertical_position(self, position: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set vertical position of the mouth on the face.
+
+        Args:
+            position: Vertical offset (-0.2 = higher, 0.0 = normal, 0.2 = lower)
+        """
+        self.config.mouth_vertical_position = max(-0.2, min(0.2, position))
         return self
 
     def set_lip_gloss(self, gloss: float = 0.5) -> 'PortraitGenerator':
@@ -7025,10 +7036,12 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        # Apply philtrum length offset
+        # Apply philtrum length offset and mouth vertical position
         philtrum_len = getattr(self.config, 'philtrum_length', 1.0)
         philtrum_offset = int((philtrum_len - 1.0) * fh // 10)
-        lip_y = cy + fh // 4 + philtrum_offset
+        mouth_v_pos = getattr(self.config, 'mouth_vertical_position', 0.0)
+        mouth_v_offset = int(mouth_v_pos * fh // 5)  # Scale to face height
+        lip_y = cy + fh // 4 + philtrum_offset + mouth_v_offset
         width_mult = getattr(self.config, 'lip_width', 1.0)
         lip_width = int(fw // 5 * width_mult)
         base_lip_height = fh // 20
