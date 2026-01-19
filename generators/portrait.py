@@ -151,6 +151,11 @@ class PortraitConfig:
     blush_color: str = "pink"  # pink, peach, coral, rose
     blush_intensity: float = 0.5  # 0.0 to 1.0
 
+    # Contour
+    has_contour: bool = False
+    contour_intensity: float = 0.5  # 0.0 to 1.0, shadow depth
+    contour_areas: str = "all"  # all, cheeks, jawline, nose
+
     # Dimples
     has_dimples: bool = False
     dimple_depth: float = 0.5  # 0.0 to 1.0
@@ -923,6 +928,20 @@ class PortraitGenerator:
         self.config.blush_intensity = max(0.0, min(1.0, intensity))
         return self
 
+    def set_contour(self, intensity: float = 0.5,
+                    areas: str = "all") -> 'PortraitGenerator':
+        """
+        Add facial contouring for definition.
+
+        Args:
+            intensity: Shadow depth from 0.0 to 1.0
+            areas: Which areas to contour - "all", "cheeks", "jawline", "nose"
+        """
+        self.config.has_contour = True
+        self.config.contour_intensity = max(0.0, min(1.0, intensity))
+        self.config.contour_areas = areas
+        return self
+
     def set_wrinkles(self, intensity: float = 0.5,
                      areas: str = "all") -> 'PortraitGenerator':
         """
@@ -1537,6 +1556,96 @@ class PortraitGenerator:
                         if alpha > 0:
                             px, py = blush_cx + dx, cheek_y + dy
                             canvas.set_pixel(px, py, (*blush_color, alpha))
+
+    def _render_contour(self, canvas: Canvas) -> None:
+        """Render facial contour for definition under cheekbones and along jawline."""
+        if not self.config.has_contour:
+            return
+
+        intensity = max(0.0, min(1.0, self.config.contour_intensity))
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        areas = (self.config.contour_areas or "all").lower()
+
+        # Contour color: darker shade of skin tone
+        mid_idx = len(self._skin_ramp) // 2
+        contour_base = self._skin_ramp[max(0, mid_idx - 2)]
+        contour_color = (contour_base[0], contour_base[1], contour_base[2])
+        max_alpha = int(60 * intensity)
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        # Cheekbone contour (hollow of cheek)
+        if areas in ("all", "cheeks"):
+            cheek_y = eye_y + fh // 6  # Below cheekbone
+            cheek_rx = max(4, fw // 5)
+            cheek_ry = max(2, fh // 12)
+
+            for side in (-1, 1):
+                # Position contour diagonally under cheekbone
+                contour_cx = cx + side * (eye_spacing + fw // 10)
+                contour_cy = cheek_y + fh // 10
+
+                for dy in range(-cheek_ry, cheek_ry + 1):
+                    for dx in range(-cheek_rx, cheek_rx + 1):
+                        # Angled ellipse shape
+                        nx = dx / cheek_rx if cheek_rx > 0 else 0
+                        ny = dy / cheek_ry if cheek_ry > 0 else 0
+                        # Tilt the contour shape
+                        angle_offset = side * nx * 0.3
+                        dist = nx * nx + (ny + angle_offset) * (ny + angle_offset)
+                        if dist <= 1.0:
+                            falloff = (1.0 - dist) ** 1.5
+                            alpha = int(max_alpha * falloff)
+                            if alpha > 0:
+                                px = contour_cx + dx
+                                py = contour_cy + dy
+                                canvas.set_pixel(px, py, (*contour_color, alpha))
+
+        # Jawline contour
+        if areas in ("all", "jawline"):
+            jaw_y = cy + fh // 3
+            jaw_rx = max(3, fw // 6)
+            jaw_ry = max(2, fh // 10)
+
+            for side in (-1, 1):
+                jaw_cx = cx + side * (fw // 3)
+                jaw_cy = jaw_y
+
+                for dy in range(-jaw_ry, jaw_ry + 1):
+                    for dx in range(-jaw_rx, jaw_rx + 1):
+                        nx = dx / jaw_rx if jaw_rx > 0 else 0
+                        ny = dy / jaw_ry if jaw_ry > 0 else 0
+                        dist = nx * nx + ny * ny
+                        if dist <= 1.0:
+                            falloff = (1.0 - dist) ** 1.5
+                            alpha = int(max_alpha * 0.8 * falloff)
+                            if alpha > 0:
+                                px = jaw_cx + dx
+                                py = jaw_cy + dy
+                                canvas.set_pixel(px, py, (*contour_color, alpha))
+
+        # Nose contour (sides of nose)
+        if areas in ("all", "nose"):
+            nose_y = cy + fh // 10
+            nose_height = fh // 6
+
+            for side in (-1, 1):
+                nose_cx = cx + side * (fw // 16)
+
+                for dy in range(nose_height):
+                    # Fade from top to bottom
+                    y_fade = 1.0 - (dy / nose_height) * 0.5
+                    alpha = int(max_alpha * 0.5 * y_fade)
+                    if alpha > 0:
+                        py = nose_y + dy
+                        # 1-2 pixel wide contour
+                        canvas.set_pixel(nose_cx, py, (*contour_color, alpha))
+                        canvas.set_pixel(nose_cx + side, py, (*contour_color, alpha // 2))
 
     def _render_freckles(self, canvas: Canvas) -> None:
         """Render freckles across nose and cheeks."""
@@ -3476,6 +3585,7 @@ class PortraitGenerator:
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_ears(canvas)
         self._render_blush(canvas)
+        self._render_contour(canvas)  # Facial contouring for definition
         self._render_dimples(canvas)
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_eyebags(canvas)
