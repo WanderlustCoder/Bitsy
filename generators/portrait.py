@@ -174,6 +174,7 @@ class PortraitConfig:
     # Eyebags
     has_eyebags: bool = False
     eyebag_intensity: float = 0.5  # 0.0 to 1.0
+    eyebag_color: str = "shadow"  # shadow (gray), purple (dark circles), brown (natural)
 
     # Blush
     has_blush: bool = False
@@ -1193,10 +1194,21 @@ class PortraitGenerator:
         self.config.dimple_depth = max(0.0, min(1.0, depth))
         return self
 
-    def set_eyebags(self, intensity: float = 0.5) -> 'PortraitGenerator':
-        """Add eyebags with intensity from 0.0 to 1.0."""
+    def set_eyebags(self, intensity: float = 0.5, color: str = "shadow") -> 'PortraitGenerator':
+        """
+        Add eyebags/dark circles under eyes.
+
+        Args:
+            intensity: How pronounced the bags are (0.0-1.0)
+            color: Color style:
+                - "shadow": Gray shadows (default, subtle)
+                - "purple": Purple/blue dark circles (tired look)
+                - "brown": Brownish undertone (natural hyperpigmentation)
+        """
         self.config.has_eyebags = True
         self.config.eyebag_intensity = max(0.0, min(1.0, intensity))
+        valid_colors = ["shadow", "purple", "brown"]
+        self.config.eyebag_color = color.lower() if color.lower() in valid_colors else "shadow"
         return self
 
     def set_blush(self, color: str = "pink",
@@ -2943,9 +2955,28 @@ class PortraitGenerator:
         bag_offset_y = max(1, int(eye_height * 0.55))
         base_alpha = int(30 + 70 * intensity)
 
+        # Get base skin shade
         mid_idx = len(self._skin_ramp) // 2
         shade_idx = max(0, mid_idx - 2)
-        base_color = self._skin_ramp[shade_idx]
+        skin_shade = self._skin_ramp[shade_idx]
+
+        # Color based on eyebag type
+        eyebag_color = getattr(self.config, 'eyebag_color', 'shadow').lower()
+        if eyebag_color == "purple":
+            # Purple/blue dark circles - tired look
+            r = int(skin_shade[0] * 0.85)
+            g = int(skin_shade[1] * 0.75)
+            b = int(skin_shade[2] * 0.95)
+            base_color = (r, g, b)
+        elif eyebag_color == "brown":
+            # Brownish undertone - hyperpigmentation
+            r = int(skin_shade[0] * 0.9)
+            g = int(skin_shade[1] * 0.8)
+            b = int(skin_shade[2] * 0.7)
+            base_color = (r, g, b)
+        else:  # shadow (default)
+            # Gray shadows
+            base_color = skin_shade[:3]
 
         for side in [-1, 1]:
             ex = cx + side * eye_spacing
