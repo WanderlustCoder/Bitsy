@@ -247,6 +247,7 @@ class PortraitConfig:
     eyebag_color: str = "shadow"  # shadow (gray), purple (dark circles), brown (natural)
     tear_trough: float = 0.0  # 0.0 = none, 0.5 = subtle hollow, 1.0 = visible groove under inner eye
     under_eye_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (concealer effect)
+    undereye_darkness: float = 0.0  # 0.0 = none, 0.5 = subtle dark circles, 1.0 = heavy fatigue look
     malar_bags: float = 0.0  # 0.0 = none, 0.5 = subtle puffiness, 1.0 = visible festoons
 
     # Blush
@@ -2093,6 +2094,19 @@ class PortraitGenerator:
             intensity: Brightness level (0.0 = none, 0.5 = subtle, 1.0 = bright)
         """
         self.config.under_eye_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_undereye_darkness(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set undereye darkness (dark circles/fatigue appearance).
+
+        Creates dark discoloration under the eyes independent of
+        eyebag shape. Useful for tired/fatigued looks.
+
+        Args:
+            intensity: Darkness level (0.0 = none, 0.5 = subtle, 1.0 = heavy)
+        """
+        self.config.undereye_darkness = max(0.0, min(1.0, intensity))
         return self
 
     def set_malar_bags(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -5270,6 +5284,56 @@ class PortraitGenerator:
                         alpha = int(max_alpha * falloff)
                         if alpha > 5:
                             canvas.set_pixel(ex + dx, hl_y + dy, (*hl_color, alpha))
+
+    def _render_undereye_darkness(self, canvas: Canvas) -> None:
+        """Render undereye darkness (dark circles/fatigue appearance)."""
+        intensity = getattr(self.config, 'undereye_darkness', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+        eye_width = fw // 6
+        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+
+        # Dark circle area under eyes (semicircular)
+        dc_width = max(4, int(eye_width * (0.7 + 0.3 * intensity)))
+        dc_height = max(2, int(eye_height * (0.4 + 0.2 * intensity)))
+        dc_offset_y = max(2, int(eye_height * 0.6))
+
+        # Dark circle color - purplish/grayish shadow
+        mid_idx = len(self._skin_ramp) // 2
+        dark_idx = max(0, mid_idx - 2)
+        base_skin = self._skin_ramp[dark_idx]
+
+        # Add purple/blue tint for tired look
+        dc_color = (
+            max(0, base_skin[0] - 15),
+            max(0, base_skin[1] - 20),
+            min(255, base_skin[2] + 5),
+        )
+
+        max_alpha = int(30 + 60 * intensity)
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+            dc_y = eye_y + dc_offset_y
+
+            for dy in range(dc_height):
+                for dx in range(-dc_width, dc_width + 1):
+                    nx = dx / dc_width if dc_width > 0 else 0
+                    ny = dy / dc_height if dc_height > 0 else 0
+                    dist = nx * nx + ny * ny * 0.5
+
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 0.6
+                        alpha = int(max_alpha * falloff)
+                        if alpha > 5:
+                            canvas.set_pixel(ex + dx, dc_y + dy, (*dc_color, alpha))
 
     def _render_malar_bags(self, canvas: Canvas) -> None:
         """Render malar bags (festoons/puffiness below eye bags)."""
@@ -8597,6 +8661,7 @@ class PortraitGenerator:
         self._render_marionette_lines(canvas)  # Mouth corner lines
         self._render_eyebags(canvas)
         self._render_tear_trough(canvas)  # Tear trough (infraorbital groove)
+        self._render_undereye_darkness(canvas)  # Dark circles/fatigue appearance
         self._render_under_eye_highlight(canvas)  # Concealer/brightening effect
         self._render_malar_bags(canvas)  # Under-eye puffiness/festoons
         self._render_eye_bags(canvas)  # Under-eye bag puffiness
