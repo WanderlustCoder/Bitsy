@@ -233,6 +233,8 @@ class PortraitConfig:
     mole_positions: str = "random"  # random, cheeks, forehead
     has_beauty_mark: bool = False
     beauty_mark_position: str = "cheek"  # cheek, lip, chin
+    beauty_mark_x_offset: float = 0.0  # -1.0 to 1.0, horizontal fine-tune
+    beauty_mark_y_offset: float = 0.0  # -1.0 to 1.0, vertical fine-tune
     has_scar: bool = False
     scar_type: str = "cheek"  # cheek, eyebrow, lip, forehead
     scar_intensity: float = 0.5  # 0.0 to 1.0
@@ -1235,10 +1237,21 @@ class PortraitGenerator:
         self.config.neck_shadow = max(0.0, min(1.0, depth))
         return self
 
-    def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
-        """Add a beauty mark at the specified position."""
+    def set_beauty_mark(self, position: str = "cheek",
+                         x_offset: float = 0.0,
+                         y_offset: float = 0.0) -> 'PortraitGenerator':
+        """
+        Add a beauty mark at the specified position with optional fine-tuning.
+
+        Args:
+            position: Area - "cheek", "lip", "chin"
+            x_offset: Horizontal fine-tune (-1.0 to 1.0, relative to area)
+            y_offset: Vertical fine-tune (-1.0 to 1.0, relative to area)
+        """
         self.config.has_beauty_mark = True
         self.config.beauty_mark_position = position
+        self.config.beauty_mark_x_offset = max(-1.0, min(1.0, x_offset))
+        self.config.beauty_mark_y_offset = max(-1.0, min(1.0, y_offset))
         return self
 
     def set_scar(self, scar_type: str = "cheek",
@@ -2425,8 +2438,15 @@ class PortraitGenerator:
             bx, by = cx + fw // 8, lip_y - 2
         elif position == "chin":
             bx, by = cx + fw // 12, cy + fh // 3
-        else:
+        else:  # cheek
             bx, by = cx + fw // 6, cy - fh // 12
+
+        # Apply offset fine-tuning
+        x_offset = getattr(self.config, 'beauty_mark_x_offset', 0.0)
+        y_offset = getattr(self.config, 'beauty_mark_y_offset', 0.0)
+        offset_range = fw // 8  # Max offset range
+        bx += int(x_offset * offset_range)
+        by += int(y_offset * offset_range)
 
         mark_color = (30, 20, 20, 230)
         canvas.set_pixel(bx, by, mark_color)
