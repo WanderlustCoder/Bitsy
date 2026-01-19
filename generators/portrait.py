@@ -76,6 +76,7 @@ class PortraitConfig:
     # Skin
     skin_tone: str = "light"  # light, medium, tan, dark, pale
     skin_undertone: str = "neutral"  # warm, cool, neutral
+    skin_shine: float = 0.3  # 0.0 = matte, 0.5 = natural, 1.0 = dewy/shiny
 
     # Hair
     hair_style: HairStyle = HairStyle.WAVY
@@ -482,16 +483,19 @@ class PortraitGenerator:
         self._eye_ramp: List[Color] = []
         self._lip_ramp: List[Color] = []
 
-    def set_skin(self, tone: str, undertone: str = "neutral") -> 'PortraitGenerator':
+    def set_skin(self, tone: str, undertone: str = "neutral",
+                 shine: float = 0.3) -> 'PortraitGenerator':
         """
-        Set skin tone and undertone.
+        Set skin tone, undertone, and shine level.
 
         Args:
             tone: Skin tone (light, medium, tan, dark, pale, olive, brown)
             undertone: Undertone (warm, cool, neutral)
+            shine: Shine level (0.0 = matte, 0.5 = natural, 1.0 = dewy/shiny)
         """
         self.config.skin_tone = tone
         self.config.skin_undertone = undertone
+        self.config.skin_shine = max(0.0, min(1.0, shine))
         return self
 
     def set_face_shape(self, shape: str = "oval") -> 'PortraitGenerator':
@@ -1808,6 +1812,66 @@ class PortraitGenerator:
                         if alpha > 0:
                             px, py = bone_cx + dx, shadow_y + dy
                             canvas.set_pixel(px, py, (*dark_skin[:3], alpha))
+
+    def _render_skin_shine(self, canvas: Canvas) -> None:
+        """Render skin shine/highlight on forehead, nose, and cheeks."""
+        shine = getattr(self.config, 'skin_shine', 0.3)
+        if shine <= 0.0:
+            return  # Matte skin, no highlights
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Highlight color (white with varying alpha based on shine)
+        base_alpha = int(20 + shine * 40)  # 20-60 alpha range
+
+        # Forehead highlight (T-zone)
+        forehead_y = cy - fh // 3
+        forehead_rx = max(2, fw // 8)
+        forehead_ry = max(1, fh // 15)
+        for dy in range(-forehead_ry, forehead_ry + 1):
+            for dx in range(-forehead_rx, forehead_rx + 1):
+                nx = dx / forehead_rx if forehead_rx > 0 else 0
+                ny = dy / forehead_ry if forehead_ry > 0 else 0
+                dist = nx * nx + ny * ny
+                if dist <= 1.0:
+                    falloff = (1.0 - dist) ** 2
+                    alpha = int(base_alpha * falloff * shine)
+                    if alpha > 0:
+                        canvas.set_pixel(cx + dx, forehead_y + dy, (255, 255, 255, alpha))
+
+        # Nose bridge highlight
+        nose_y = cy - fh // 20
+        nose_rx = max(1, fw // 20)
+        nose_ry = max(1, fh // 12)
+        for dy in range(-nose_ry, nose_ry + 1):
+            for dx in range(-nose_rx, nose_rx + 1):
+                nx = dx / nose_rx if nose_rx > 0 else 0
+                ny = dy / nose_ry if nose_ry > 0 else 0
+                dist = nx * nx + ny * ny
+                if dist <= 1.0:
+                    falloff = (1.0 - dist) ** 2
+                    alpha = int(base_alpha * falloff * shine)
+                    if alpha > 0:
+                        canvas.set_pixel(cx + dx, nose_y + dy, (255, 255, 255, alpha))
+
+        # Cheek highlights (apple of cheeks)
+        cheek_y = cy + fh // 12
+        cheek_spacing = fw // 4
+        cheek_rx = max(2, fw // 10)
+        cheek_ry = max(1, fh // 18)
+        for side in (-1, 1):
+            cheek_cx = cx + side * cheek_spacing
+            for dy in range(-cheek_ry, cheek_ry + 1):
+                for dx in range(-cheek_rx, cheek_rx + 1):
+                    nx = dx / cheek_rx if cheek_rx > 0 else 0
+                    ny = dy / cheek_ry if cheek_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 2
+                        alpha = int(base_alpha * falloff * shine * 0.7)
+                        if alpha > 0:
+                            canvas.set_pixel(cheek_cx + dx, cheek_y + dy, (255, 255, 255, alpha))
 
     def _render_scar(self, canvas: Canvas) -> None:
         """Render a subtle facial scar line."""
@@ -3226,6 +3290,7 @@ class PortraitGenerator:
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
         self._render_cheekbones(canvas)  # Cheekbone shading
+        self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_ears(canvas)
         self._render_blush(canvas)
         self._render_dimples(canvas)
