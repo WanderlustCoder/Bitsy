@@ -137,6 +137,7 @@ class PortraitConfig:
     lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
+    lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
 
     # Teeth
     show_teeth: bool = False
@@ -981,6 +982,19 @@ class PortraitGenerator:
             depth: How defined the philtrum groove is (0.0 = flat, 0.5 = subtle, 1.0 = defined)
         """
         self.config.philtrum_depth = max(0.0, min(1.0, depth))
+        return self
+
+    def set_lip_texture(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lip texture visibility (horizontal lines on lips).
+
+        Adds subtle horizontal striations to lips for a more
+        realistic appearance.
+
+        Args:
+            intensity: Texture visibility (0.0 = smooth, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.lip_texture = max(0.0, min(1.0, intensity))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -4068,6 +4082,30 @@ class PortraitGenerator:
                 for dy in range(1, curve + 1):
                     color = highlight_color if dy == 1 else lower_lip_color
                     canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
+
+            # Lip texture (horizontal striations)
+            lip_texture = getattr(self.config, 'lip_texture', 0.0)
+            if lip_texture > 0.0:
+                texture_alpha = int(15 + 35 * lip_texture)  # Subtle texture lines
+                texture_color_dark = lip_ramp[0]  # Dark line color
+                texture_color_light = (255, 255, 255, int(texture_alpha * 0.6))
+
+                # Upper lip texture lines
+                for dy in range(1, lip_height // 2 + 1, 2):  # Every other pixel
+                    for dx in range(-lip_width + 2, lip_width - 1):
+                        curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
+                        if dy < curve:
+                            # Alternating dark/light for texture effect
+                            if (dx + dy) % 3 == 0:
+                                canvas.set_pixel(cx + dx, lip_y - dy, (*texture_color_dark[:3], texture_alpha))
+
+                # Lower lip texture lines
+                for dy in range(2, int(lip_height * 0.8), 2):  # Every other pixel
+                    for dx in range(-lip_width + 2, lip_width - 1):
+                        curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
+                        if dy < curve:
+                            if (dx + dy) % 3 == 0:
+                                canvas.set_pixel(cx + dx, lip_y + dy, (*texture_color_dark[:3], texture_alpha))
 
             # Lip gloss highlight for NEUTRAL shape
             gloss_level = getattr(self.config, 'lip_gloss', 0.0)
