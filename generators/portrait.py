@@ -156,6 +156,7 @@ class PortraitConfig:
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     nostril_flare: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide/flared nostrils
     nose_alar_width: float = 1.0  # 0.7 = narrow wings, 1.0 = normal, 1.3 = wide nostril wings
+    nose_deviation: float = 0.0  # -1.0 = deviated left, 0.0 = straight, 1.0 = deviated right
     under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
@@ -1313,6 +1314,19 @@ class PortraitGenerator:
             width: Width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = wide)
         """
         self.config.nose_alar_width = max(0.7, min(1.3, width))
+        return self
+
+    def set_nose_deviation(self, deviation: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set nose deviation (crooked/asymmetric nose).
+
+        Creates a slight sideways bend in the nose bridge,
+        giving a more realistic asymmetric appearance.
+
+        Args:
+            deviation: Direction and amount (-1.0 = left, 0.0 = straight, 1.0 = right)
+        """
+        self.config.nose_deviation = max(-1.0, min(1.0, deviation))
         return self
 
     def set_under_nose_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -6110,6 +6124,11 @@ class PortraitGenerator:
         bridge_width_mult = max(0.7, min(1.3, getattr(self.config, 'nose_bridge_width', 1.0)))
         nose_y = cy + fh // 10
         cx = self._apply_head_tilt(cx, cy, nose_y)
+
+        # Apply nose deviation (crooked nose)
+        deviation = getattr(self.config, 'nose_deviation', 0.0)
+        deviation_offset = int(deviation * fw * 0.03)  # Slight lateral shift
+        cx += deviation_offset
 
         # Nose shadow on one side (based on lighting)
         lx, _ = self.config.light_direction
