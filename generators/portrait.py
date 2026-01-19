@@ -105,6 +105,7 @@ class PortraitConfig:
     catchlight_style: str = "double"  # none, single, double, sparkle
     catchlight_brightness: float = 1.0  # 0.5 = dim, 1.0 = normal, 1.5 = bright
     catchlight_size: float = 1.0  # 0.5 = small, 1.0 = normal, 1.5 = large
+    iris_reflection: float = 0.0  # 0.0 = none, 0.5 = subtle arc, 1.0 = bright reflection arc
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
@@ -753,6 +754,19 @@ class PortraitGenerator:
         self.config.catchlight_style = style
         self.config.catchlight_brightness = max(0.5, min(1.5, brightness))
         self.config.catchlight_size = max(0.5, min(1.5, size))
+        return self
+
+    def set_iris_reflection(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Add a subtle arc of light reflection on the iris.
+
+        Creates a dimensional effect by simulating light reflecting
+        off the curved surface of the iris.
+
+        Args:
+            intensity: Reflection brightness (0.0 = none, 0.5 = subtle, 1.0 = bright)
+        """
+        self.config.iris_reflection = max(0.0, min(1.0, intensity))
         return self
 
     def set_inner_corner_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -3210,6 +3224,29 @@ class PortraitGenerator:
                         canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y + 1, (255, 255, 255, secondary_alpha))
                     # Secondary smaller catchlight
                     canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y + cl_offset_y, (255, 255, 255, secondary_alpha))
+
+            # Layer 4.5: Iris reflection arc (subtle light arc on iris surface)
+            iris_reflection = getattr(self.config, 'iris_reflection', 0.0)
+            if iris_reflection > 0.0:
+                # Draw a subtle arc on the lower portion of the iris
+                import math
+                arc_radius = int(iris_radius * 0.7)  # Inner arc radius
+                arc_alpha = int(40 + 80 * iris_reflection)  # 40-120 alpha range
+                reflection_color = (255, 255, 255, arc_alpha)
+
+                # Draw arc from lower-left to lower-right of iris
+                for angle in range(200, 340, 10):  # Bottom arc (roughly 200-340 degrees)
+                    rad = math.radians(angle)
+                    px = int(iris_x + arc_radius * math.cos(rad))
+                    py = int(iris_y + arc_radius * math.sin(rad))
+                    # Only draw if within iris bounds and below center
+                    dist_from_center = math.sqrt((px - iris_x)**2 + (py - iris_y)**2)
+                    if dist_from_center < iris_radius - 1 and py > iris_y - 1:
+                        # Fade alpha based on position in arc
+                        arc_pos = abs(angle - 270) / 70  # 0 at center, 1 at edges
+                        pixel_alpha = int(arc_alpha * (1 - arc_pos * 0.5))
+                        if pixel_alpha > 10:
+                            canvas.set_pixel(px, py, (255, 255, 255, pixel_alpha))
 
             # Layer 5: Eyelid shadow (1px darker at top of eye)
             eyelid_shadow = (0, 0, 0, 40)
