@@ -31,6 +31,16 @@ class EyeExpression(Enum):
     SLEEPY = "sleepy"      # Half-closed
 
 
+class FacialHairStyle(Enum):
+    """Facial hair style options."""
+    NONE = "none"
+    STUBBLE = "stubble"          # Short texture around chin/jaw
+    MUSTACHE = "mustache"        # Above upper lip only
+    GOATEE = "goatee"            # Chin area only
+    SHORT_BEARD = "short_beard"  # Trimmed short beard
+    FULL_BEARD = "full_beard"    # Full coverage beard
+
+
 @dataclass
 class EyeParams:
     """Parameters for eye rendering."""
@@ -261,3 +271,174 @@ def render_eyebrow(canvas: Canvas, center_x: int, center_y: int,
         # Draw with thickness
         for ty in range(thickness):
             canvas.set_pixel(px, py + ty, color)
+
+
+def render_facial_hair(canvas: Canvas, cx: int, cy: int,
+                       face_width: int, face_height: int,
+                       style: FacialHairStyle,
+                       color_ramp: List[Color],
+                       light_direction: Tuple[float, float] = (1.0, -1.0)) -> None:
+    """
+    Render facial hair based on style.
+
+    Args:
+        canvas: Target canvas
+        cx, cy: Face center position
+        face_width: Width of face for scaling
+        face_height: Height of face for scaling
+        style: Facial hair style to render
+        color_ramp: Hair color gradient (dark to light)
+        light_direction: Direction of light source
+    """
+    if style == FacialHairStyle.NONE or not color_ramp:
+        return
+
+    import random
+    rng = random.Random(cx + cy)  # Deterministic based on position
+
+    # Get colors from ramp
+    dark = color_ramp[0]
+    mid = color_ramp[len(color_ramp) // 2] if len(color_ramp) > 1 else dark
+    light = color_ramp[-1] if len(color_ramp) > 2 else mid
+
+    # Chin position (below mouth)
+    chin_y = cy + face_height // 3
+    jaw_width = face_width // 2
+
+    # Light-facing side gets lighter color
+    lx, _ = light_direction
+
+    if style == FacialHairStyle.STUBBLE:
+        _render_stubble(canvas, cx, chin_y, jaw_width, face_height // 4,
+                        dark, mid, rng, lx)
+
+    elif style == FacialHairStyle.MUSTACHE:
+        _render_mustache(canvas, cx, cy + face_height // 8, jaw_width,
+                         dark, mid, light, lx)
+
+    elif style == FacialHairStyle.GOATEE:
+        _render_goatee(canvas, cx, chin_y, jaw_width // 2, face_height // 4,
+                       dark, mid, light, lx)
+
+    elif style == FacialHairStyle.SHORT_BEARD:
+        _render_mustache(canvas, cx, cy + face_height // 8, jaw_width,
+                         dark, mid, light, lx)
+        _render_short_beard(canvas, cx, chin_y, jaw_width, face_height // 4,
+                            dark, mid, light, lx)
+
+    elif style == FacialHairStyle.FULL_BEARD:
+        _render_mustache(canvas, cx, cy + face_height // 8, jaw_width,
+                         dark, mid, light, lx)
+        _render_full_beard(canvas, cx, chin_y, jaw_width, face_height // 3,
+                           dark, mid, light, rng, lx)
+
+
+def _render_stubble(canvas: Canvas, cx: int, cy: int, width: int, height: int,
+                    dark: Color, mid: Color, rng, light_x: float) -> None:
+    """Render stubble texture with scattered dots."""
+    for dy in range(-height // 2, height):
+        for dx in range(-width, width + 1):
+            # Check if within jaw curve
+            jaw_curve = 1.0 - (abs(dx) / max(1, width)) ** 1.5
+            if dy > height * jaw_curve:
+                continue
+
+            # Sparse dots for stubble
+            if rng.random() < 0.25:
+                color = mid if (dx > 0 and light_x > 0) else dark
+                # Add some alpha variation
+                alpha = rng.randint(100, 200)
+                color = (*color[:3], alpha)
+                canvas.set_pixel(cx + dx, cy + dy, color)
+
+
+def _render_mustache(canvas: Canvas, cx: int, cy: int, width: int,
+                     dark: Color, mid: Color, light: Color, light_x: float) -> None:
+    """Render a mustache above the upper lip."""
+    mustache_width = width * 2 // 3
+    mustache_height = 4
+
+    for dy in range(mustache_height):
+        row_width = mustache_width - dy * 2
+        for dx in range(-row_width, row_width + 1):
+            # Taper at edges
+            edge_dist = abs(dx) / max(1, row_width)
+            if edge_dist > 0.9:
+                continue
+
+            # Color based on light
+            if dx > 0 and light_x > 0:
+                color = mid
+            elif dx < 0 and light_x < 0:
+                color = mid
+            else:
+                color = dark
+
+            canvas.set_pixel(cx + dx, cy + dy, color)
+
+
+def _render_goatee(canvas: Canvas, cx: int, cy: int, width: int, height: int,
+                   dark: Color, mid: Color, light: Color, light_x: float) -> None:
+    """Render a goatee on the chin."""
+    for dy in range(height):
+        # Taper toward bottom
+        row_width = int(width * (1 - dy / height * 0.5))
+        for dx in range(-row_width, row_width + 1):
+            # Rounded bottom
+            dist_from_center = abs(dx) / max(1, row_width)
+            bottom_curve = (1 - dist_from_center ** 2) * height
+            if dy > bottom_curve:
+                continue
+
+            color = mid if (dx > 0 and light_x > 0) else dark
+            canvas.set_pixel(cx + dx, cy + dy, color)
+
+
+def _render_short_beard(canvas: Canvas, cx: int, cy: int, width: int, height: int,
+                        dark: Color, mid: Color, light: Color, light_x: float) -> None:
+    """Render a trimmed short beard."""
+    for dy in range(-2, height):
+        # Jaw contour
+        jaw_factor = 1.0 - (dy / max(1, height)) * 0.3
+        row_width = int(width * jaw_factor)
+
+        for dx in range(-row_width, row_width + 1):
+            # Jaw curve falloff
+            edge_dist = abs(dx) / max(1, row_width)
+            if edge_dist > 0.95:
+                continue
+
+            color = mid if (dx > 0 and light_x > 0) else dark
+            canvas.set_pixel(cx + dx, cy + dy, color)
+
+
+def _render_full_beard(canvas: Canvas, cx: int, cy: int, width: int, height: int,
+                       dark: Color, mid: Color, light: Color,
+                       rng, light_x: float) -> None:
+    """Render a full beard with texture."""
+    for dy in range(-3, height):
+        # Jaw contour expanding then tapering
+        if dy < height // 2:
+            jaw_factor = 1.0 + (dy / max(1, height)) * 0.2
+        else:
+            jaw_factor = 1.2 - ((dy - height // 2) / max(1, height)) * 0.6
+        row_width = int(width * jaw_factor)
+
+        for dx in range(-row_width, row_width + 1):
+            # Rounded bottom
+            edge_dist = abs(dx) / max(1, row_width)
+            bottom_y = height * (1 - edge_dist ** 2)
+            if dy > bottom_y:
+                continue
+
+            # Base color with shading
+            if dx > 0 and light_x > 0:
+                color = mid
+            else:
+                color = dark
+
+            # Add texture variation
+            if rng.random() < 0.15:
+                color = light
+
+            canvas.set_pixel(cx + dx, cy + dy, color)

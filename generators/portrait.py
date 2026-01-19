@@ -103,6 +103,9 @@ class PortraitConfig:
     glasses_style: str = "round"
     has_earrings: bool = False
     earring_style: str = "stud"
+    has_facial_hair: bool = False
+    facial_hair_style: str = "none"
+    facial_hair_color: Optional[str] = None  # None = use hair color
 
     # Clothing
     clothing_style: str = "casual"
@@ -471,6 +474,20 @@ class PortraitGenerator:
         """Add earrings."""
         self.config.has_earrings = True
         self.config.earring_style = style
+        return self
+
+    def set_facial_hair(self, style: str = "stubble",
+                        color: Optional[str] = None) -> 'PortraitGenerator':
+        """
+        Add facial hair.
+
+        Args:
+            style: One of 'stubble', 'mustache', 'goatee', 'short_beard', 'full_beard'
+            color: Hair color (defaults to hair color if not specified)
+        """
+        self.config.has_facial_hair = True
+        self.config.facial_hair_style = style
+        self.config.facial_hair_color = color
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -884,6 +901,44 @@ class PortraitGenerator:
             for dy in range(1, curve + 1):
                 color = highlight_color if dy == 1 else lower_lip_color
                 canvas.set_pixel(cx + dx, lip_y + dy, color)
+
+    def _render_facial_hair(self, canvas: Canvas) -> None:
+        """Render facial hair if configured."""
+        if not self.config.has_facial_hair:
+            return
+
+        from generators.portrait_parts.face import (
+            render_facial_hair, FacialHairStyle
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Map style string to enum
+        style_map = {
+            "none": FacialHairStyle.NONE,
+            "stubble": FacialHairStyle.STUBBLE,
+            "mustache": FacialHairStyle.MUSTACHE,
+            "goatee": FacialHairStyle.GOATEE,
+            "short_beard": FacialHairStyle.SHORT_BEARD,
+            "full_beard": FacialHairStyle.FULL_BEARD,
+        }
+        style = style_map.get(
+            self.config.facial_hair_style.lower(),
+            FacialHairStyle.STUBBLE
+        )
+
+        # Use facial hair color if specified, otherwise use hair color
+        if self.config.facial_hair_color:
+            facial_hair_ramp = self._generate_hair_ramp(self.config.facial_hair_color)
+        else:
+            facial_hair_ramp = self._hair_ramp
+
+        render_facial_hair(
+            canvas, cx, cy, fw, fh,
+            style, facial_hair_ramp,
+            self.config.light_direction
+        )
 
     def _render_eyebrows(self, canvas: Canvas) -> None:
         """Render eyebrows with configurable arch and angle."""
@@ -1346,6 +1401,7 @@ class PortraitGenerator:
         self._render_face_base(canvas)
         self._render_nose(canvas)
         self._render_lips(canvas)
+        self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eyes(canvas)
         self._render_earrings(canvas)  # Earrings on side of face
         self._render_glasses(canvas)  # Glasses over eyes
