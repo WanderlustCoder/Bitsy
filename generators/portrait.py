@@ -101,7 +101,7 @@ class PortraitConfig:
     face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
     head_tilt: float = 0.0  # -0.3 = tilted right, 0.0 = straight, 0.3 = tilted left
     temple_width: float = 1.0  # 0.8 = narrow temples, 1.0 = normal, 1.2 = wide/broad temples
-    jaw_angle: float = 0.0  # 0.0 = soft/rounded, 0.5 = defined, 1.0 = sharp/angular jawline
+    jaw_angle: float = 0.25  # 0.0 = soft/rounded, 0.5 = defined, 1.0 = sharp/angular jawline
     jaw_width: float = 1.0  # 0.7 = narrow jaw, 1.0 = normal, 1.3 = wide/square jaw
     face_taper: float = 0.0  # -0.5 = U-shaped/broad lower face, 0.0 = normal, 0.5 = V-shaped/narrow chin
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
@@ -295,8 +295,8 @@ class PortraitConfig:
     marionette_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible
 
     # Temple shadow (adds depth to face structure)
-    temple_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
-    jawline_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle contour, 1.0 = defined
+    temple_shadow: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined
+    jawline_shadow: float = 0.35  # 0.0 = none, 0.5 = subtle contour, 1.0 = defined
     jowls: float = 0.0  # 0.0 = none, 0.5 = subtle sagging, 1.0 = visible jowls at jaw corners
 
     # Neck shadow (chin to neck transition)
@@ -350,7 +350,7 @@ class PortraitConfig:
     cheekbone_prominence: str = "normal"  # low, normal, high, sculpted
     cheekbone_highlight: float = 0.5  # 0.0 = no highlight, 0.5 = normal, 1.0 = intense
     cheekbone_height: float = 0.5  # 0.0 = low cheekbones, 0.5 = normal, 1.0 = high cheekbones
-    cheekbone_definition: float = 0.0  # 0.0 = soft, 0.5 = defined, 1.0 = sharp/angular
+    cheekbone_definition: float = 0.3  # 0.0 = soft, 0.5 = defined, 1.0 = sharp/angular
     cheek_hollows: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = gaunt/sunken cheeks
     cheek_fullness: float = 0.0  # 0.0 = normal, 0.5 = slightly full, 1.0 = chubby/baby face cheeks
     cheek_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright cheekbone highlight
@@ -365,7 +365,9 @@ class PortraitConfig:
     temple_veins: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible veins at temples
 
     # Quality
-    shading_levels: int = 7  # Number of colors in shading ramps
+    shading_levels: int = 12  # Number of colors in shading ramps
+    use_dithering: bool = False  # Apply Floyd-Steinberg dithering for smoother gradients
+    edge_aa_strength: float = 1.0  # 0.0-1.0, controls face edge anti-aliasing intensity
 
     # Background
     background_color: Optional[Tuple] = None  # None=transparent, RGB tuple, or (top, bottom) for gradient
@@ -572,13 +574,13 @@ def create_skin_ramp(base_color: Color, levels: int = 7) -> List[Color]:
     for i in range(levels):
         t = (i - mid) / mid if mid > 0 else 0
 
-        # Lightness curve
+        # Lightness curve - wider range for more depth
         if t < 0:
-            new_L = L + t * L * 0.6
+            new_L = L + t * L * 0.75  # 75% darkening in shadows
         else:
-            new_L = L + t * (100 - L) * 0.5
+            new_L = L + t * (100 - L) * 0.65  # 65% brightening in highlights
 
-        new_L = max(15, min(95, new_L))
+        new_L = max(10, min(97, new_L))  # Wider range: 10-97
 
         # Hue shift: warm highlights, cool shadows
         if t < 0:
@@ -2598,15 +2600,15 @@ class PortraitGenerator:
         r, g, b = skin_base
         intensity = getattr(self.config, 'skin_undertone_intensity', 1.0)
         if undertone == "warm":
-            # Shift toward yellow/orange
-            r = min(255, r + int(8 * intensity))
-            g = min(255, g + int(4 * intensity))
-            b = max(0, b - int(6 * intensity))
+            # Shift toward yellow/orange - stronger effect
+            r = min(255, r + int(20 * intensity))
+            g = min(255, g + int(10 * intensity))
+            b = max(0, b - int(15 * intensity))
         elif undertone == "cool":
-            # Shift toward pink/blue
-            r = max(0, r - int(4 * intensity))
-            g = max(0, g - int(2 * intensity))
-            b = min(255, b + int(8 * intensity))
+            # Shift toward pink/blue - stronger effect
+            r = max(0, r - int(10 * intensity))
+            g = max(0, g - int(5 * intensity))
+            b = min(255, b + int(20 * intensity))
         # neutral = no shift
 
         skin_base = (r, g, b)
@@ -2975,25 +2977,35 @@ class PortraitGenerator:
                 if dist_sq > 1.0:
                     continue
 
-                # Calculate shading based on surface normal approximation
-                # Normal points outward from ellipse center
+                # Calculate shading based on 3D hemisphere surface normal
+                # Treat face as hemisphere: z = sqrt(1 - dx² - dy²)
+                dist_2d_sq = dx * dx + dy * dy
+                if dist_2d_sq < 1.0:
+                    nz = (1.0 - dist_2d_sq) ** 0.5  # z-component from hemisphere
+                else:
+                    nz = 0.0
+
+                # 3D normal: (dx, dy, nz) - already unit length on hemisphere surface
                 nx = dx
                 ny = dy
-                nlen = (nx * nx + ny * ny) ** 0.5
-                if nlen > 0:
-                    nx, ny = nx / nlen, ny / nlen
-                else:
-                    nx, ny = 0, -1  # Top faces light
 
-                # Dot product with light direction (inverted for surface facing)
-                # Light comes FROM lx,ly direction, surface faces -normal
-                dot = -(nx * lx + ny * ly)
+                # Light direction in 3D: (lx, ly, lz) where lz comes toward viewer
+                lz = 0.5  # Light slightly in front of face
+                light_len = (lx * lx + ly * ly + lz * lz) ** 0.5
+                if light_len > 0:
+                    lx3 = lx / light_len
+                    ly3 = ly / light_len
+                    lz3 = lz / light_len
+                else:
+                    lx3, ly3, lz3 = 0.707, -0.707, 0.0
+
+                # Full 3D dot product for lighting
+                # Surface normal faces outward (toward viewer), light comes from direction
+                dot = -(nx * lx3 + ny * ly3) + nz * lz3
 
                 # Map dot product to ramp index
                 # dot ranges from -1 (facing away) to 1 (facing light)
-                # Add vertical bias (top is lighter)
-                vertical_bias = -dy * 0.3
-                shading = (dot + vertical_bias + 1.0) / 2.0  # Map to 0-1
+                shading = (dot + 1.0) / 2.0  # Map to 0-1
                 shading = max(0.0, min(1.0, shading))
 
                 # Select color from ramp
@@ -3014,11 +3026,19 @@ class PortraitGenerator:
                     r = max(0, int(r - coolness * 5))
                     b = min(255, int(b + coolness * 8))
 
-                # Anti-aliasing at edges
+                # Enhanced anti-aliasing at edges with subpixel sampling
                 alpha = 255
-                if dist_sq > 0.85:
-                    edge_factor = (1.0 - dist_sq) / 0.15
-                    alpha = int(255 * max(0, min(1, edge_factor)))
+                if dist_sq > 0.80:  # Start AA earlier (was 0.85)
+                    # Subpixel sampling: 4 samples per edge pixel for smoother transitions
+                    coverage = 0.0
+                    for sub_dy in (-0.25, 0.25):
+                        for sub_dx in (-0.25, 0.25):
+                            sub_x = dx + sub_dx / (rx if rx > 0 else 1)
+                            sub_y = dy + sub_dy / (ry if ry > 0 else 1)
+                            sub_dist_sq = sub_x * sub_x + sub_y * sub_y
+                            if sub_dist_sq < 1.0:
+                                coverage += 0.25
+                    alpha = int(255 * coverage)
 
                 if alpha > 0:
                     final_color = (r, g, b, alpha)
@@ -3606,6 +3626,19 @@ class PortraitGenerator:
                 # Curve from chin outward and upward
                 progress = t / jaw_width if jaw_width > 0 else 0
                 px = cx + side * t
+                # Jawline curves upward as it moves outward
+                curve_offset = int(progress * progress * (fh // 4))
+                py = chin_y - curve_offset
+                # Fade alpha at edges for smooth transition
+                edge_fade = 1.0 - abs(progress - 0.5) * 1.5
+                edge_fade = max(0.0, min(1.0, edge_fade))
+                alpha = int(max_alpha * edge_fade * (1.0 - progress * 0.3))
+                if alpha > 3:
+                    # Draw shadow below the jawline
+                    canvas.set_pixel(px, py + 1, (*shadow_color[:3], alpha))
+                    # Softer secondary shadow
+                    if alpha > 10:
+                        canvas.set_pixel(px, py + 2, (*shadow_color[:3], alpha // 2))
 
     def _render_jawline(self, canvas: Canvas) -> None:
         """Render jawline definition with highlight and shadow."""
@@ -7172,11 +7205,12 @@ class PortraitGenerator:
 
             for side in (-1, 1):
                 nx = cx + side * nostril_offset
-                # Main nostril shadow
-                canvas.set_pixel(nx, nostril_y, (*nostril_color[:3], nostril_alpha))
+                # Main nostril shadow - use AA circle for smoother edges
+                nostril_radius = max(1, int(nostril_size_mult))
+                canvas.fill_circle_aa(nx, nostril_y, nostril_radius, (*nostril_color[:3], nostril_alpha))
                 # Extended nostril for higher definition
                 if nostril_def > 0.3:
-                    canvas.set_pixel(nx, nostril_y - 1, (*nostril_color[:3], int(nostril_alpha * 0.6)))
+                    canvas.fill_circle_aa(nx, nostril_y - 1, max(1, nostril_radius - 1), (*nostril_color[:3], int(nostril_alpha * 0.6)))
                 if nostril_def > 0.6:
                     canvas.set_pixel(nx + side, nostril_y, (*nostril_color[:3], int(nostril_alpha * 0.4)))
                 # Wider alar wings
@@ -8913,6 +8947,60 @@ class PortraitGenerator:
         self._render_bangs(canvas)  # Front hair over forehead
         self._render_hair_shine(canvas)  # Hair shine/gloss streak
         self._render_hair_accessory(canvas)  # Hair accessories on top
+
+        # Post-processing pass
+        canvas = self._apply_post_processing(canvas)
+
+        return canvas
+
+    def _apply_post_processing(self, canvas: Canvas) -> Canvas:
+        """
+        Apply post-processing effects to the rendered portrait.
+
+        Effects include:
+        - Floyd-Steinberg dithering for smoother gradients (if enabled)
+        """
+        if not getattr(self.config, 'use_dithering', False):
+            return canvas
+
+        # Floyd-Steinberg dithering for smoother color transitions
+        # This helps reduce banding in gradient areas
+        width, height = canvas.width, canvas.height
+
+        for y in range(height - 1):
+            for x in range(1, width - 1):
+                old_pixel = canvas.get_pixel(x, y)
+                if old_pixel[3] == 0:  # Skip transparent pixels
+                    continue
+
+                # Quantize to fewer levels for visible dithering effect
+                levels = 32  # Reduced color levels
+                r = (old_pixel[0] // levels) * levels
+                g = (old_pixel[1] // levels) * levels
+                b = (old_pixel[2] // levels) * levels
+
+                # Set new pixel
+                canvas.set_pixel(x, y, (r, g, b, old_pixel[3]))
+
+                # Calculate quantization error
+                err_r = old_pixel[0] - r
+                err_g = old_pixel[1] - g
+                err_b = old_pixel[2] - b
+
+                # Distribute error to neighboring pixels (Floyd-Steinberg weights)
+                def add_error(px: int, py: int, factor: float) -> None:
+                    if 0 <= px < width and 0 <= py < height:
+                        p = canvas.get_pixel(px, py)
+                        if p[3] > 0:
+                            new_r = max(0, min(255, p[0] + int(err_r * factor)))
+                            new_g = max(0, min(255, p[1] + int(err_g * factor)))
+                            new_b = max(0, min(255, p[2] + int(err_b * factor)))
+                            canvas.set_pixel(px, py, (new_r, new_g, new_b, p[3]))
+
+                add_error(x + 1, y, 7 / 16)      # Right
+                add_error(x - 1, y + 1, 3 / 16)  # Bottom-left
+                add_error(x, y + 1, 5 / 16)      # Bottom
+                add_error(x + 1, y + 1, 1 / 16)  # Bottom-right
 
         return canvas
 

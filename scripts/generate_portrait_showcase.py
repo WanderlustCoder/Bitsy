@@ -1,204 +1,443 @@
 #!/usr/bin/env python3
-"""
-Portrait Showcase Generator
-
-Generates a variety of portraits demonstrating the PortraitGenerator's
-capabilities including different hair styles, skin tones, and features.
-"""
+"""Generate showcase images demonstrating PortraitGenerator features."""
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from generators.portrait import (
-    PortraitGenerator,
-    HairStyle,
-    EyeShape,
-    NoseType,
-    LipShape,
-)
-from core.canvas import Canvas
+from generators.portrait import PortraitGenerator, HairStyle, EyeShape, NoseType, LipShape
+from export.spritesheet import create_grid_sheet
 
 
-def create_portrait_grid(portraits: list, cols: int = 4, padding: int = 4) -> Canvas:
-    """Combine multiple portraits into a grid."""
-    if not portraits:
-        return Canvas(1, 1)
+def generate_skin_tones():
+    """Generate portraits showcasing different skin tones."""
+    print("Generating portrait_skin_tones.png...")
 
-    # Get dimensions from first portrait
-    pw, ph = portraits[0].width, portraits[0].height
-    rows = (len(portraits) + cols - 1) // cols
+    tones = [
+        ("pale", "cool"),
+        ("light", "neutral"),
+        ("medium", "warm"),
+        ("tan", "neutral"),
+        ("dark", "warm"),
+    ]
 
-    # Create combined canvas
-    total_width = cols * pw + (cols - 1) * padding
-    total_height = rows * ph + (rows - 1) * padding
-    grid = Canvas(total_width, total_height)
+    sprites = []
+    for tone, undertone in tones:
+        portrait = (PortraitGenerator(seed=42)
+            .set_skin(tone, undertone)
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "brown")
+            .render())
+        sprites.append(portrait)
 
-    # Blit each portrait
-    for i, portrait in enumerate(portraits):
-        row = i // cols
-        col = i % cols
-        x = col * (pw + padding)
-        y = row * (ph + padding)
-        grid.blit(portrait, x, y)
+    sheet = create_grid_sheet(sprites, columns=5, padding=4)
+    sheet.save('assets/showcase/portrait_skin_tones.png')
+    print("  Saved: assets/showcase/portrait_skin_tones.png")
 
-    return grid
+
+def generate_hair_styles():
+    """Generate portraits showcasing different hair styles."""
+    print("Generating portrait_hair_styles.png...")
+
+    styles = [HairStyle.WAVY, HairStyle.STRAIGHT, HairStyle.CURLY,
+              HairStyle.SHORT, HairStyle.PONYTAIL, HairStyle.BUN]
+
+    sprites = []
+    for style in styles:
+        portrait = (PortraitGenerator(seed=100)
+            .set_skin("light", "neutral")
+            .set_hair(style, "brown")
+            .set_eyes(EyeShape.ROUND, "green")
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=3, padding=4)
+    sheet.save('assets/showcase/portrait_hair_styles.png')
+    print("  Saved: assets/showcase/portrait_hair_styles.png")
+
+
+def generate_hair_colors():
+    """Generate portraits showcasing different hair colors."""
+    print("Generating portrait_hair_colors.png...")
+
+    colors = ["black", "brown", "blonde", "red", "auburn", "gray", "silver", "pink"]
+
+    sprites = []
+    for color in colors:
+        portrait = (PortraitGenerator(seed=200)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, color)
+            .set_eyes(EyeShape.ROUND, "brown")
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=4)
+    sheet.save('assets/showcase/portrait_hair_colors.png')
+    print("  Saved: assets/showcase/portrait_hair_colors.png")
+
+
+def generate_eye_colors():
+    """Generate portraits showcasing different eye colors."""
+    print("Generating portrait_eye_colors.png...")
+
+    colors = ["brown", "blue", "green", "hazel", "amber", "gray", "violet"]
+
+    sprites = []
+    for color in colors:
+        portrait = (PortraitGenerator(seed=300)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, color)
+            .render())
+        sprites.append(portrait)
+
+    # Add heterochromia example
+    portrait = (PortraitGenerator(seed=300)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue", right_color="green")
+        .render())
+    sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=4)
+    sheet.save('assets/showcase/portrait_eye_colors.png')
+    print("  Saved: assets/showcase/portrait_eye_colors.png")
+
+
+def generate_eye_shapes():
+    """Generate portraits showcasing different eye shapes."""
+    print("Generating portrait_eye_shapes.png...")
+
+    shapes = [EyeShape.ROUND, EyeShape.ALMOND, EyeShape.DROOPY, EyeShape.SHARP]
+
+    sprites = []
+    for shape in shapes:
+        portrait = (PortraitGenerator(seed=400)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(shape, "blue")
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=4)
+    sheet.save('assets/showcase/portrait_eye_shapes.png')
+    print("  Saved: assets/showcase/portrait_eye_shapes.png")
+
+
+def generate_makeup_looks():
+    """Generate portraits showcasing makeup options."""
+    print("Generating portrait_makeup.png...")
+
+    sprites = []
+
+    # Natural look
+    portrait = (PortraitGenerator(seed=500)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "brown")
+        .render())
+    sprites.append(portrait)
+
+    # Lipstick
+    portrait = (PortraitGenerator(seed=500)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "brown")
+        .set_lipstick("red", 0.8)
+        .render())
+    sprites.append(portrait)
+
+    # Eyeshadow
+    portrait = (PortraitGenerator(seed=500)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "brown")
+        .set_eyeshadow("purple", 0.7)
+        .render())
+    sprites.append(portrait)
+
+    # Eyeliner
+    portrait = (PortraitGenerator(seed=500)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "brown")
+        .set_eyeliner("winged", "black")
+        .render())
+    sprites.append(portrait)
+
+    # Blush
+    portrait = (PortraitGenerator(seed=500)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "brown")
+        .set_blush("coral", 0.6)
+        .render())
+    sprites.append(portrait)
+
+    # Full glam
+    portrait = (PortraitGenerator(seed=500)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "brown")
+        .set_lipstick("berry", 0.8)
+        .set_eyeshadow("gold", 0.8)
+        .set_eyeliner("winged", "black")
+        .set_blush("peach", 0.5)
+        .render())
+    sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=3, padding=4)
+    sheet.save('assets/showcase/portrait_makeup.png')
+    print("  Saved: assets/showcase/portrait_makeup.png")
+
+
+def generate_accessories():
+    """Generate portraits showcasing accessories."""
+    print("Generating portrait_accessories.png...")
+
+    sprites = []
+
+    # Base portrait
+    portrait = (PortraitGenerator(seed=600)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue")
+        .render())
+    sprites.append(portrait)
+
+    # Glasses
+    portrait = (PortraitGenerator(seed=600)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue")
+        .set_glasses("round")
+        .render())
+    sprites.append(portrait)
+
+    # Earrings
+    portrait = (PortraitGenerator(seed=600)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue")
+        .set_earrings("stud")
+        .render())
+    sprites.append(portrait)
+
+    # Freckles
+    portrait = (PortraitGenerator(seed=600)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue")
+        .set_freckles(0.6)
+        .render())
+    sprites.append(portrait)
+
+    # Beauty mark
+    portrait = (PortraitGenerator(seed=600)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue")
+        .set_beauty_mark("cheek")
+        .render())
+    sprites.append(portrait)
+
+    # Headband
+    portrait = (PortraitGenerator(seed=600)
+        .set_skin("light", "neutral")
+        .set_hair(HairStyle.WAVY, "brown")
+        .set_eyes(EyeShape.ROUND, "blue")
+        .set_hair_accessory("headband", "pink")
+        .render())
+    sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=3, padding=4)
+    sheet.save('assets/showcase/portrait_accessories.png')
+    print("  Saved: assets/showcase/portrait_accessories.png")
+
+
+def generate_facial_features():
+    """Generate portraits showcasing facial feature variations."""
+    print("Generating portrait_facial_features.png...")
+
+    sprites = []
+
+    # Different nose types
+    for nose in [NoseType.SMALL, NoseType.BUTTON, NoseType.POINTED, NoseType.WIDE]:
+        portrait = (PortraitGenerator(seed=700)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "brown")
+            .set_nose(nose)
+            .render())
+        sprites.append(portrait)
+
+    # Different lip shapes
+    for lip in [LipShape.THIN, LipShape.FULL, LipShape.HEART, LipShape.NEUTRAL]:
+        portrait = (PortraitGenerator(seed=700)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "brown")
+            .set_lips(lip)
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=4)
+    sheet.save('assets/showcase/portrait_facial_features.png')
+    print("  Saved: assets/showcase/portrait_facial_features.png")
+
+
+def generate_face_shapes():
+    """Generate portraits showcasing different face shapes."""
+    print("Generating portrait_face_shapes.png...")
+
+    shapes = ["oval", "round", "square", "heart", "oblong", "diamond"]
+
+    sprites = []
+    for shape in shapes:
+        portrait = (PortraitGenerator(seed=800)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "brown")
+            .set_face_shape(shape)
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=3, padding=4)
+    sheet.save('assets/showcase/portrait_face_shapes.png')
+    print("  Saved: assets/showcase/portrait_face_shapes.png")
+
+
+def generate_iris_brightness():
+    """Generate portraits showcasing iris brightness variations."""
+    print("Generating portrait_iris_brightness.png...")
+
+    brightnesses = [0.5, 0.75, 1.0, 1.25, 1.5]
+
+    sprites = []
+    for brightness in brightnesses:
+        portrait = (PortraitGenerator(seed=900)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "blue")
+            .set_iris_brightness(brightness)
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=5, padding=4)
+    sheet.save('assets/showcase/portrait_iris_brightness.png')
+    print("  Saved: assets/showcase/portrait_iris_brightness.png")
+
+
+def generate_eyebrow_variations():
+    """Generate portraits showcasing eyebrow arch positions."""
+    print("Generating portrait_eyebrows.png...")
+
+    sprites = []
+
+    # Different arch positions
+    for arch_pos in [0.3, 0.5, 0.7]:
+        portrait = (PortraitGenerator(seed=1000)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "brown")
+            .set_eyebrow_arch_position(arch_pos)
+            .render())
+        sprites.append(portrait)
+
+    # Different shapes
+    for shape in ["natural", "straight", "arched", "angular"]:
+        portrait = (PortraitGenerator(seed=1000)
+            .set_skin("light", "neutral")
+            .set_hair(HairStyle.WAVY, "brown")
+            .set_eyes(EyeShape.ROUND, "brown")
+            .set_eyebrows(shape=shape)
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=4)
+    sheet.save('assets/showcase/portrait_eyebrows.png')
+    print("  Saved: assets/showcase/portrait_eyebrows.png")
+
+
+def generate_diversity_grid():
+    """Generate a diverse grid of portraits."""
+    print("Generating portrait_diversity.png...")
+
+    configs = [
+        # Row 1: Various skin tones and hair colors
+        {"seed": 1, "skin": ("pale", "cool"), "hair": (HairStyle.STRAIGHT, "black"), "eyes": ("brown", EyeShape.ALMOND)},
+        {"seed": 2, "skin": ("light", "warm"), "hair": (HairStyle.WAVY, "auburn"), "eyes": ("green", EyeShape.ROUND)},
+        {"seed": 3, "skin": ("medium", "neutral"), "hair": (HairStyle.CURLY, "brown"), "eyes": ("amber", EyeShape.ROUND)},
+        {"seed": 4, "skin": ("tan", "warm"), "hair": (HairStyle.WAVY, "black"), "eyes": ("brown", EyeShape.ALMOND)},
+        # Row 2: More diversity
+        {"seed": 5, "skin": ("dark", "warm"), "hair": (HairStyle.CURLY, "black"), "eyes": ("brown", EyeShape.ROUND)},
+        {"seed": 6, "skin": ("light", "cool"), "hair": (HairStyle.SHORT, "blonde"), "eyes": ("blue", EyeShape.SHARP)},
+        {"seed": 7, "skin": ("medium", "warm"), "hair": (HairStyle.PONYTAIL, "brown"), "eyes": ("hazel", EyeShape.DROOPY)},
+        {"seed": 8, "skin": ("tan", "neutral"), "hair": (HairStyle.BUN, "black"), "eyes": ("gray", EyeShape.ALMOND)},
+    ]
+
+    sprites = []
+    for cfg in configs:
+        portrait = (PortraitGenerator(seed=cfg["seed"])
+            .set_skin(cfg["skin"][0], cfg["skin"][1])
+            .set_hair(cfg["hair"][0], cfg["hair"][1])
+            .set_eyes(cfg["eyes"][1], cfg["eyes"][0])
+            .render())
+        sprites.append(portrait)
+
+    sheet = create_grid_sheet(sprites, columns=4, padding=6)
+    sheet.save('assets/showcase/portrait_diversity.png')
+    print("  Saved: assets/showcase/portrait_diversity.png")
+
+
+def generate_hero_portrait():
+    """Generate a single detailed hero portrait."""
+    print("Generating portrait_hero.png...")
+
+    portrait = (PortraitGenerator(seed=42)
+        .set_skin("light", "warm", shine=0.4)
+        .set_hair(HairStyle.WAVY, "auburn", length=1.2, volume=1.1)
+        .set_hair_shine(0.6)
+        .set_eyes(EyeShape.ROUND, "green", size=1.1)
+        .set_iris_brightness(1.2)
+        .set_catchlight("double", brightness=1.2)
+        .set_eyebrows(shape="natural")
+        .set_lips(LipShape.FULL)
+        .set_lipstick("nude", 0.4)
+        .set_blush("peach", 0.4)
+        .set_freckles(0.3)
+        .render())
+
+    scaled = portrait.scale(2)
+    scaled.save('assets/showcase/portrait_hero.png')
+    print("  Saved: assets/showcase/portrait_hero.png")
 
 
 def main():
-    output_dir = "output/portraits"
-    os.makedirs(output_dir, exist_ok=True)
+    print("=" * 60)
+    print("BITSY PORTRAIT SHOWCASE GENERATOR")
+    print("=" * 60)
 
-    print("Generating Portrait Showcase...")
-    print("=" * 50)
+    os.makedirs('assets/showcase', exist_ok=True)
 
-    # 1. Hair style showcase
-    print("\n1. Hair Style Showcase")
-    hair_portraits = []
-    for i, style in enumerate(HairStyle):
-        gen = PortraitGenerator(width=96, height=120, seed=42 + i)
-        gen.set_skin("light")
-        gen.set_hair(style, "brown")
-        gen.set_eyes(EyeShape.ROUND, "blue")
-        p = gen.render()
-        p.save(f"{output_dir}/hair_{style.value}.png")
-        hair_portraits.append(p)
-        print(f"  - {style.value}")
+    generate_hero_portrait()
+    generate_skin_tones()
+    generate_hair_styles()
+    generate_hair_colors()
+    generate_eye_colors()
+    generate_eye_shapes()
+    generate_makeup_looks()
+    generate_accessories()
+    generate_facial_features()
+    generate_face_shapes()
+    generate_iris_brightness()
+    generate_eyebrow_variations()
+    generate_diversity_grid()
 
-    hair_grid = create_portrait_grid(hair_portraits, cols=3)
-    hair_grid.save(f"{output_dir}/showcase_hair_styles.png")
-    print(f"  Saved hair style grid")
-
-    # 2. Skin tone showcase
-    print("\n2. Skin Tone Showcase")
-    skin_portraits = []
-    skin_tones = ["pale", "light", "medium", "tan", "olive", "brown", "dark"]
-    for i, tone in enumerate(skin_tones):
-        gen = PortraitGenerator(width=96, height=120, seed=100 + i)
-        gen.set_skin(tone)
-        gen.set_hair(HairStyle.WAVY, "dark_brown")
-        gen.set_eyes(EyeShape.ALMOND, "brown")
-        p = gen.render()
-        p.save(f"{output_dir}/skin_{tone}.png")
-        skin_portraits.append(p)
-        print(f"  - {tone}")
-
-    skin_grid = create_portrait_grid(skin_portraits, cols=4)
-    skin_grid.save(f"{output_dir}/showcase_skin_tones.png")
-    print(f"  Saved skin tone grid")
-
-    # 3. Hair color showcase
-    print("\n3. Hair Color Showcase")
-    hair_color_portraits = []
-    hair_colors = ["black", "brown", "auburn", "blonde", "red", "gray", "blue", "pink"]
-    for i, color in enumerate(hair_colors):
-        gen = PortraitGenerator(width=96, height=120, seed=200 + i)
-        gen.set_skin("medium")
-        gen.set_hair(HairStyle.STRAIGHT, color)
-        gen.set_eyes(EyeShape.ROUND, "green")
-        p = gen.render()
-        p.save(f"{output_dir}/hair_color_{color}.png")
-        hair_color_portraits.append(p)
-        print(f"  - {color}")
-
-    hair_color_grid = create_portrait_grid(hair_color_portraits, cols=4)
-    hair_color_grid.save(f"{output_dir}/showcase_hair_colors.png")
-    print(f"  Saved hair color grid")
-
-    # 4. Eye color showcase
-    print("\n4. Eye Color Showcase")
-    eye_portraits = []
-    eye_colors = ["brown", "hazel", "green", "blue", "gray", "amber", "violet"]
-    for i, color in enumerate(eye_colors):
-        gen = PortraitGenerator(width=96, height=120, seed=300 + i)
-        gen.set_skin("light")
-        gen.set_hair(HairStyle.CURLY, "dark_brown")
-        gen.set_eyes(EyeShape.ROUND, color)
-        p = gen.render()
-        p.save(f"{output_dir}/eye_{color}.png")
-        eye_portraits.append(p)
-        print(f"  - {color}")
-
-    eye_grid = create_portrait_grid(eye_portraits, cols=4)
-    eye_grid.save(f"{output_dir}/showcase_eye_colors.png")
-    print(f"  Saved eye color grid")
-
-    # 5. Character variety showcase
-    print("\n5. Character Variety Showcase")
-    variety_portraits = []
-    character_configs = [
-        ("light", HairStyle.WAVY, "auburn", "green"),
-        ("tan", HairStyle.CURLY, "black", "brown"),
-        ("pale", HairStyle.STRAIGHT, "blonde", "blue"),
-        ("dark", HairStyle.SHORT, "black", "brown"),
-        ("medium", HairStyle.WAVY, "brown", "hazel"),
-        ("olive", HairStyle.STRAIGHT, "dark_brown", "amber"),
-        ("light", HairStyle.CURLY, "red", "green"),
-        ("brown", HairStyle.WAVY, "black", "brown"),
-    ]
-    for i, (skin, hair_style, hair_color, eye_color) in enumerate(character_configs):
-        gen = PortraitGenerator(width=96, height=120, seed=400 + i)
-        gen.set_skin(skin)
-        gen.set_hair(hair_style, hair_color)
-        gen.set_eyes(EyeShape.ROUND, eye_color)
-        p = gen.render()
-        variety_portraits.append(p)
-        print(f"  - Character {i+1}: {skin} skin, {hair_style.value} {hair_color} hair, {eye_color} eyes")
-
-    variety_grid = create_portrait_grid(variety_portraits, cols=4)
-    variety_grid.save(f"{output_dir}/showcase_variety.png")
-    print(f"  Saved character variety grid")
-
-    # 6. Expression showcase
-    print("\n6. Expression Showcase")
-    expr_portraits = []
-    expressions = ["neutral", "happy", "sad", "surprised", "angry", "sleepy"]
-    for i, expr in enumerate(expressions):
-        gen = PortraitGenerator(width=96, height=120, seed=500 + i)
-        gen.set_skin("light")
-        gen.set_hair(HairStyle.WAVY, "auburn")
-        gen.set_eyes(EyeShape.ROUND, "blue")
-        gen.set_expression(expr)
-        p = gen.render()
-        p.save(f"{output_dir}/expr_{expr}.png")
-        expr_portraits.append(p)
-        print(f"  - {expr}")
-
-    expr_grid = create_portrait_grid(expr_portraits, cols=3)
-    expr_grid.save(f"{output_dir}/showcase_expressions.png")
-    print(f"  Saved expression grid")
-
-    # 7. High-resolution portrait with all features
-    print("\n7. High Resolution Portrait (160x200)")
-    gen_hd = PortraitGenerator(width=160, height=200, seed=42)
-    gen_hd.set_skin("light")
-    gen_hd.set_hair(HairStyle.PONYTAIL, "purple")  # Bun style, purple like reference
-    gen_hd.set_eyes(EyeShape.ROUND, "brown")
-    gen_hd.set_glasses("round")
-    gen_hd.set_expression("happy")
-    gen_hd.set_background(gradient=((25, 25, 45), (35, 35, 65)))  # Dark gradient
-    hd_portrait = gen_hd.render()
-    hd_portrait.save(f"{output_dir}/portrait_hd.png")
-    print(f"  Saved HD portrait with bun, glasses, shoulders, background (160x200)")
-
-    # 8. Reference-style portrait comparison
-    print("\n8. Reference-Style Portrait (larger)")
-    gen_ref = PortraitGenerator(width=180, height=240, seed=123)
-    gen_ref.set_skin("tan")
-    gen_ref.set_hair(HairStyle.PONYTAIL, "purple")
-    gen_ref.set_eyes(EyeShape.ROUND, "brown")
-    gen_ref.set_glasses("round")
-    gen_ref.set_expression("happy")
-    gen_ref.set_background(gradient=((20, 20, 40), (30, 30, 60)))
-    gen_ref.set_vignette(0.5)
-    gen_ref.set_vibrancy(1.2)
-    ref_portrait = gen_ref.render()
-    ref_portrait.save(f"{output_dir}/portrait_reference_style.png")
-    print(f"  Saved reference-style portrait with vignette and vibrancy (180x240)")
-
-    print("\n" + "=" * 50)
-    print(f"Portrait showcase complete! Files saved to {output_dir}/")
+    print("\n" + "=" * 60)
+    print("Portrait showcase generation complete!")
+    print("=" * 60)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

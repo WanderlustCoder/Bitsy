@@ -62,6 +62,285 @@ class HairCluster:
     is_highlight: bool = False
 
 
+@dataclass
+class FlowField:
+    """
+    Grid of direction vectors for coherent hair flow.
+
+    Uses 8x8 grid with bilinear interpolation to create smooth,
+    natural-looking directional flow for hair strands.
+    """
+    # Grid dimensions (8x8 by default)
+    grid_size: int = 8
+
+    # Direction vectors for each grid cell: [(dx, dy), ...]
+    # Stored as flat list, index = y * grid_size + x
+    directions: List[Tuple[float, float]] = field(default_factory=list)
+
+    # Bounds of the flow field in world coordinates
+    min_x: float = 0.0
+    max_x: float = 100.0
+    min_y: float = 0.0
+    max_y: float = 100.0
+
+    def sample(self, x: float, y: float) -> Tuple[float, float]:
+        """Sample the flow direction at a world coordinate using bilinear interpolation."""
+        if not self.directions:
+            return (0.0, 1.0)  # Default: flow downward
+
+        # Normalize to grid coordinates
+        gx = (x - self.min_x) / max(0.001, self.max_x - self.min_x) * (self.grid_size - 1)
+        gy = (y - self.min_y) / max(0.001, self.max_y - self.min_y) * (self.grid_size - 1)
+
+        # Clamp to grid bounds
+        gx = max(0, min(self.grid_size - 1.001, gx))
+        gy = max(0, min(self.grid_size - 1.001, gy))
+
+        # Get integer grid cell and fractional part
+        ix = int(gx)
+        iy = int(gy)
+        fx = gx - ix
+        fy = gy - iy
+
+        # Bilinear interpolation
+        def get_dir(gx: int, gy: int) -> Tuple[float, float]:
+            idx = min(len(self.directions) - 1, gy * self.grid_size + gx)
+            return self.directions[max(0, idx)]
+
+        d00 = get_dir(ix, iy)
+        d10 = get_dir(min(ix + 1, self.grid_size - 1), iy)
+        d01 = get_dir(ix, min(iy + 1, self.grid_size - 1))
+        d11 = get_dir(min(ix + 1, self.grid_size - 1), min(iy + 1, self.grid_size - 1))
+
+        # Interpolate
+        dx = (d00[0] * (1 - fx) + d10[0] * fx) * (1 - fy) + (d01[0] * (1 - fx) + d11[0] * fx) * fy
+        dy = (d00[1] * (1 - fx) + d10[1] * fx) * (1 - fy) + (d01[1] * (1 - fx) + d11[1] * fx) * fy
+
+        # Normalize
+        mag = math.sqrt(dx * dx + dy * dy)
+        if mag > 0:
+            return (dx / mag, dy / mag)
+        return (0.0, 1.0)
+
+
+@dataclass
+class StrandBundle:
+    """
+    A group of strands that flow together, creating more coherent hair appearance.
+
+    Contains a master spine curve with 8-15 tightly-grouped sub-strands that share
+    similar direction and color variation.
+    """
+    # Master spine curve control points
+    spine_points: List[Tuple[float, float]]
+
+    # Number of sub-strands in this bundle
+    strand_count: int = 10
+
+    # How tightly grouped the strands are (0.0 = on spine, 1.0 = spread out)
+    spread: float = 0.3
+
+    # Shared color offset for the bundle
+    color_offset: float = 0.0
+
+    # Z-depth for rendering order
+    z_depth: float = 0.0
+
+    # Is this bundle on the light-facing side?
+    is_highlight: bool = False
+
+
+def create_flow_field(center_x: float, top_y: float, width: float, height: float,
+                      style: 'HairStyle', rng: random.Random) -> FlowField:
+    """
+    Create a flow field for a given hair style.
+
+    Different styles have different flow patterns:
+    - STRAIGHT: Mostly downward flow
+    - WAVY: Gentle side-to-side variation
+    - CURLY: More chaotic but still coherent
+    """
+    grid_size = 8
+    directions = []
+
+    for gy in range(grid_size):
+        for gx in range(grid_size):
+            # Normalize grid position
+            nx = gx / (grid_size - 1)  # 0 to 1
+            ny = gy / (grid_size - 1)  # 0 to 1
+
+            # Side position: -1 (left) to 1 (right)
+            side = (nx - 0.5) * 2
+
+            # Base direction: flow outward and down
+            base_dx = side * 0.3  # Outward spread
+            base_dy = 0.8 + ny * 0.2  # Downward, slightly faster at bottom
+
+            # Style-specific modifications
+            if style == HairStyle.STRAIGHT:
+                # Very little variation
+                dx = base_dx * 0.5
+                dy = base_dy
+            elif style == HairStyle.CURLY:
+                # More variation with some noise
+                noise = simple_noise(gx * 0.5, gy * 0.5, rng.randint(0, 1000))
+                dx = base_dx + noise * 0.3
+                dy = base_dy + simple_noise(gx * 0.3, gy * 0.7, rng.randint(0, 1000)) * 0.2
+            else:  # WAVY and others
+                # Gentle wave pattern
+                wave = math.sin(ny * math.pi * 1.5 + side * 0.5) * 0.15
+                dx = base_dx + wave
+                dy = base_dy
+
+            # Normalize
+            mag = math.sqrt(dx * dx + dy * dy)
+            if mag > 0:
+                dx, dy = dx / mag, dy / mag
+            else:
+                dx, dy = 0, 1
+
+            directions.append((dx, dy))
+
+    return FlowField(
+        grid_size=grid_size,
+        directions=directions,
+        min_x=center_x - width / 2,
+        max_x=center_x + width / 2,
+        min_y=top_y,
+        max_y=top_y + height,
+    )
+
+
+def generate_strand_bundles(center_x: float, top_y: float, width: float, length: float,
+                            flow_field: FlowField, bundle_count: int,
+                            light_direction: Tuple[float, float],
+                            rng: random.Random) -> List[StrandBundle]:
+    """
+    Generate strand bundles that follow the flow field.
+
+    Each bundle has a master spine curve that follows the flow field,
+    with sub-strands tightly grouped around it.
+    """
+    bundles = []
+
+    for i in range(bundle_count):
+        # Distribute starting points across the head width
+        t = (i + 0.5) / bundle_count
+        start_x = center_x - width / 2 + t * width
+        start_x += rng.uniform(-width * 0.02, width * 0.02)  # Tight variation (was ±5%, now ±2%)
+        start_y = top_y + rng.uniform(0, length * 0.08)
+
+        # Side bias for outward flow
+        side_bias = (t - 0.5) * 2
+
+        # Build spine curve by following flow field
+        spine_points = [(start_x, start_y)]
+        current_x, current_y = start_x, start_y
+
+        # Length varies by position (shorter at edges)
+        edge_factor = 1.0 - abs(side_bias) * 0.3
+        segment_length = length * edge_factor / 3
+
+        for seg in range(3):  # 4 control points (cubic bezier)
+            # Sample flow at current position
+            flow_dx, flow_dy = flow_field.sample(current_x, current_y)
+
+            # Add slight phase variation (±0.1 rad instead of 0 to 2π)
+            phase_var = rng.uniform(-0.1, 0.1)
+            cos_var = math.cos(phase_var)
+            sin_var = math.sin(phase_var)
+            varied_dx = flow_dx * cos_var - flow_dy * sin_var
+            varied_dy = flow_dx * sin_var + flow_dy * cos_var
+
+            # Move along flow
+            current_x += varied_dx * segment_length * 0.3
+            current_y += varied_dy * segment_length
+
+            spine_points.append((current_x, current_y))
+
+        # Determine if this bundle catches highlights
+        # Use curve normal at middle point
+        if len(spine_points) >= 2:
+            mid_dx = spine_points[2][0] - spine_points[1][0]
+            mid_dy = spine_points[2][1] - spine_points[1][1]
+            # Normal is perpendicular to tangent
+            normal_x = -mid_dy
+            normal_y = mid_dx
+            norm_len = math.sqrt(normal_x * normal_x + normal_y * normal_y)
+            if norm_len > 0:
+                normal_x, normal_y = normal_x / norm_len, normal_y / norm_len
+            # Dot with light direction
+            light_dot = normal_x * light_direction[0] + normal_y * light_direction[1]
+            is_highlight = light_dot > 0.2
+        else:
+            is_highlight = side_bias > 0.3
+
+        bundle = StrandBundle(
+            spine_points=spine_points,
+            strand_count=rng.randint(8, 15),  # 8-15 sub-strands per bundle
+            spread=rng.uniform(0.2, 0.4),
+            color_offset=rng.uniform(-0.2, 0.2),
+            z_depth=1.0 - abs(side_bias) + rng.uniform(-0.1, 0.1),
+            is_highlight=is_highlight,
+        )
+        bundles.append(bundle)
+
+    # Sort by z-depth
+    bundles.sort(key=lambda b: b.z_depth)
+    return bundles
+
+
+def expand_bundle_to_clusters(bundle: StrandBundle, width: float,
+                               rng: random.Random) -> List[HairCluster]:
+    """
+    Expand a strand bundle into individual HairCluster objects.
+
+    Creates tightly-grouped strands around the master spine.
+    """
+    clusters = []
+
+    for strand_idx in range(bundle.strand_count):
+        # Offset from spine center
+        strand_t = strand_idx / max(1, bundle.strand_count - 1)
+        offset_angle = strand_t * 2 * math.pi  # Distribute around spine
+        offset_dist = bundle.spread * width * 0.05 * (0.5 + 0.5 * math.sin(strand_t * 3))
+
+        offset_x = math.cos(offset_angle) * offset_dist
+        offset_y = math.sin(offset_angle) * offset_dist * 0.3  # Flatter in y
+
+        # Create offset control points
+        control_points = []
+        for px, py in bundle.spine_points:
+            # Vary offset slightly along length
+            varied_offset_x = offset_x + rng.uniform(-1, 1)
+            varied_offset_y = offset_y + rng.uniform(-0.5, 0.5)
+            control_points.append((px + varied_offset_x, py + varied_offset_y))
+
+        # Width profile
+        base_width = rng.uniform(2.0, 3.5)
+        width_profile = [
+            (0.0, base_width * 0.8),
+            (0.25, base_width),
+            (0.5, base_width * 0.85),
+            (0.75, base_width * 0.5),
+            (1.0, base_width * 0.15),
+        ]
+
+        # Color variation within bundle (tighter than random)
+        strand_color_offset = bundle.color_offset + rng.uniform(-0.1, 0.1)
+
+        cluster = HairCluster(
+            control_points=control_points,
+            width_profile=width_profile,
+            z_depth=bundle.z_depth + strand_idx * 0.001,  # Slight z variation
+            color_offset=strand_color_offset,
+            is_highlight=bundle.is_highlight,
+        )
+        clusters.append(cluster)
+
+    return clusters
+
+
 def bezier_quadratic(p0: Tuple[float, float], p1: Tuple[float, float],
                      p2: Tuple[float, float], t: float) -> Tuple[float, float]:
     """Evaluate quadratic bezier curve at parameter t."""
@@ -897,8 +1176,8 @@ def render_cluster(canvas: Canvas, cluster: HairCluster,
     highlight_idx = min(ramp_len - 1, color_idx + 2)
     specular_idx = min(ramp_len - 1, color_idx + 3)
 
-    # Sample points along the bezier curve (more steps for smoother curves)
-    steps = 45
+    # Sample points along the bezier curve (more steps for smoother, professional curves)
+    steps = 90  # Increased from 45 for smoother rendering
     points = cluster.control_points
 
     for i in range(steps):
@@ -1038,7 +1317,7 @@ def _draw_spiral_curl(canvas: Canvas, cx: float, cy: float,
 
         dot_radius = max(1, int(curl_radius * (0.25 - 0.1 * t)))
         color = _pick_curl_color(color_ramp, base_idx, light_factor, t, rng)
-        canvas.fill_circle(int(px), int(py), dot_radius, color)
+        canvas.fill_circle_aa(int(px), int(py), dot_radius, color)
 
 
 def _render_curly_hair(canvas: Canvas, center_x: float, top_y: float,
@@ -1096,7 +1375,7 @@ def _render_curly_hair(canvas: Canvas, center_x: float, top_y: float,
     for _ in range(base_count):
         cx, cy = random_point_in_mass()
         radius = rng.uniform(base_min, base_max)
-        canvas.fill_circle(int(cx), int(cy), int(radius), base_color)
+        canvas.fill_circle_aa(int(cx), int(cy), int(radius), base_color)
 
     for _ in range(mid_count):
         cx, cy = random_point_in_mass()
@@ -1117,23 +1396,26 @@ def _render_curly_hair(canvas: Canvas, center_x: float, top_y: float,
         if light_factor > 0.35 and rng.random() > 0.6:
             hx = cx + radius * 0.3
             hy = cy - radius * 0.25
-            canvas.fill_circle(int(hx), int(hy), max(1, int(radius * 0.2)), color_ramp[highlight_idx])
+            canvas.fill_circle_aa(int(hx), int(hy), max(1, int(radius * 0.2)), color_ramp[highlight_idx])
 
 
 def render_hair(canvas: Canvas, style: HairStyle, center_x: float, top_y: float,
                 width: float, length: float, color_ramp: List[Color],
                 light_direction: Tuple[float, float] = (1.0, -1.0),
-                count: int = 20,
+                count: int = 70,
                 seed: Optional[int] = None,
                 include_strays: bool = True,
                 highlight_ramp: Optional[List[Color]] = None,
-                highlight_intensity: float = 0.0) -> None:
+                highlight_intensity: float = 0.0,
+                use_bundles: bool = True) -> None:
     """
     Render hair for a given style.
 
     Args:
+        count: Number of hair bundles (60-100 recommended for quality)
         highlight_ramp: Optional color ramp for highlighted strands
         highlight_intensity: 0.0-1.0, proportion of clusters to highlight
+        use_bundles: If True, use the FlowField/StrandBundle system for coherent flow
     """
     if style == HairStyle.CURLY:
         _render_curly_hair(
@@ -1148,10 +1430,30 @@ def render_hair(canvas: Canvas, style: HairStyle, center_x: float, top_y: float,
         )
         return
 
-    clusters = generate_hair_clusters(style, center_x, top_y, width, length, count, seed)
+    rng = random.Random(seed) if seed is not None else random.Random()
+
+    # Use bundle system for styles that benefit from coherent flow
+    if use_bundles and style in (HairStyle.WAVY, HairStyle.STRAIGHT, HairStyle.LONG):
+        # Create flow field
+        flow_field = create_flow_field(center_x, top_y, width, length, style, rng)
+
+        # Generate bundles
+        bundle_count = max(60, min(100, count))  # Clamp to 60-100 range
+        bundles = generate_strand_bundles(
+            center_x, top_y, width, length,
+            flow_field, bundle_count, light_direction, rng
+        )
+
+        # Expand bundles to clusters
+        clusters = []
+        for bundle in bundles:
+            bundle_clusters = expand_bundle_to_clusters(bundle, width, rng)
+            clusters.extend(bundle_clusters)
+    else:
+        # Use legacy cluster generation for other styles
+        clusters = generate_hair_clusters(style, center_x, top_y, width, length, count, seed)
 
     if include_strays:
-        rng = random.Random(seed) if seed is not None else random.Random()
         strays = generate_stray_strands(center_x, top_y, width, length, max(3, count // 6), rng)
         clusters.extend(strays)
 
