@@ -822,6 +822,11 @@ class PortraitGenerator:
         self.config.chin_type = chin_type
         return self
 
+    def set_chin_shape(self, roundness: float = 0.5) -> 'PortraitGenerator':
+        """Set chin shape from pointed to rounded."""
+        self.config.chin_shape = max(0.0, min(1.0, roundness))
+        return self
+
     def set_chin_dimple(self, depth: float = 0.5) -> 'PortraitGenerator':
         """
         Set chin dimple depth (works with any chin type).
@@ -2752,6 +2757,7 @@ class PortraitGenerator:
         # Face shape parameters
         face_shape = self.config.face_shape.lower()
         chin_type = self.config.chin_type.lower()
+        chin_shape = getattr(self.config, 'chin_shape', 0.5)
 
         # Per-pixel gradient shading
         for y in range(cy - ry - 1, cy + ry + 2):
@@ -2827,6 +2833,18 @@ class PortraitGenerator:
                 chin_adjust = 0.0
                 if dy > 0:
                     chin_weight = dy
+                    if chin_shape != 0.5:
+                        shape_bias = (chin_shape - 0.5) * 2.0
+                        if shape_bias < 0:
+                            point_intensity = -shape_bias
+                            taper = 1.0 + chin_weight * 0.5 * point_intensity
+                            dx = dx * taper
+                            dy = dy * (1.0 + chin_weight * 0.1 * point_intensity)
+                        else:
+                            round_intensity = shape_bias
+                            soften = max(0.75, 1.0 - chin_weight * 0.2 * round_intensity)
+                            dx = dx * soften
+                            dy = dy * (1.0 - chin_weight * 0.1 * round_intensity)
                     if chin_type == "pointed":
                         # Narrower, more angular chin
                         taper = 1.0 + chin_weight * 0.6
