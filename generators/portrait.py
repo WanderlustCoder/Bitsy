@@ -35,6 +35,7 @@ class HairStyle(Enum):
     PONYTAIL = "ponytail"
     BRAIDED = "braided"
     LONG = "long"
+    BUN = "bun"
 
 
 class EyeShape(Enum):

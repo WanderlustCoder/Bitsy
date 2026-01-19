@@ -32,6 +32,7 @@ class HairStyle(Enum):
     PONYTAIL = "ponytail"
     BRAIDED = "braided"
     LONG = "long"
+    BUN = "bun"
 
 
 @dataclass
@@ -607,6 +608,8 @@ def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
         return generate_bun_clusters(center_x, top_y, width, length, count, rng)
     elif style == HairStyle.LONG:
         return generate_long_clusters(center_x, top_y, width, length, count, rng)
+    elif style == HairStyle.BUN:
+        return generate_bun_clusters(center_x, top_y, width, length, count, rng)
     else:
         # Default to wavy
         return generate_wavy_clusters(center_x, top_y, width, length, count, rng)
