@@ -2634,6 +2634,9 @@ class PortraitGenerator:
 
         # Eye ramp (left eye / both if no heterochromia)
         eye_base = EYE_COLORS.get(self.config.eye_color, EYE_COLORS["brown"])
+        # Apply iris brightness multiplier
+        iris_bright = getattr(self.config, 'iris_brightness', 1.0)
+        eye_base = tuple(min(255, int(c * iris_bright)) for c in eye_base)
         self._eye_ramp = create_eye_ramp(
             (*eye_base, 255),
             levels=5
@@ -2642,6 +2645,7 @@ class PortraitGenerator:
         # Right eye ramp for heterochromia
         if self.config.right_eye_color:
             right_eye_base = EYE_COLORS.get(self.config.right_eye_color, EYE_COLORS["brown"])
+            right_eye_base = tuple(min(255, int(c * iris_bright)) for c in right_eye_base)
             self._right_eye_ramp = create_eye_ramp(
                 (*right_eye_base, 255),
                 levels=5
