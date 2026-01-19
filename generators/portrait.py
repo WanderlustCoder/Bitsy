@@ -273,6 +273,7 @@ class PortraitConfig:
     has_wrinkles: bool = False
     wrinkle_intensity: float = 0.5  # 0.0 to 1.0, controls visibility
     wrinkle_areas: str = "all"  # all, forehead, eyes, mouth
+    forehead_wrinkles: float = 0.0  # 0.0 = none, 0.5 = subtle lines, 1.0 = prominent wrinkles
     forehead_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (independent of wrinkles)
     crows_feet: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (eye corner wrinkles)
     frown_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (glabella lines between brows)
@@ -2153,6 +2154,11 @@ class PortraitGenerator:
         self.config.has_wrinkles = True
         self.config.wrinkle_intensity = max(0.0, min(1.0, intensity))
         self.config.wrinkle_areas = areas
+        return self
+
+    def set_forehead_wrinkles(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """Set forehead wrinkle intensity (0.0 = none, 0.5 = subtle, 1.0 = prominent)."""
+        self.config.forehead_wrinkles = max(0.0, min(1.0, intensity))
         return self
 
     def set_forehead_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -5401,6 +5407,36 @@ class PortraitGenerator:
                         if alpha > 0:
                             canvas.set_pixel(px, py, (*base_color[:3], alpha))
 
+    def _render_forehead_wrinkles(self, canvas: Canvas) -> None:
+        """Render horizontal forehead wrinkle lines."""
+        intensity = getattr(self.config, 'forehead_wrinkles', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        mid_idx = len(self._skin_ramp) // 2
+        line_idx = max(0, mid_idx - 3)
+        line_color = self._skin_ramp[line_idx]
+        max_alpha = int(35 + 75 * intensity)
+
+        forehead_center_y = cy - fh // 3
+        line_width = int(fw * 0.55)
+        num_lines = 2 + int(intensity * 2)
+        line_spacing = max(2, fh // 14)
+
+        for i in range(num_lines):
+            line_y = forehead_center_y + (i - (num_lines - 1) / 2) * line_spacing
+            line_w = int(line_width * (0.9 - 0.08 * i))
+
+            for dx in range(-line_w, line_w + 1):
+                x_fade = 1.0 - (abs(dx) / line_w) ** 2 if line_w > 0 else 1.0
+                wave = math.sin(dx * 0.2 + i * 0.7) * 0.6
+                alpha = int(max_alpha * x_fade * (0.85 - 0.1 * i))
+                if alpha > 0:
+                    canvas.set_pixel(cx + dx, int(line_y + wave), (*line_color[:3], alpha))
+
     def _render_forehead_lines(self, canvas: Canvas) -> None:
         """Render forehead expression lines (independent of wrinkle system)."""
         intensity = getattr(self.config, 'forehead_lines', 0.0)
@@ -8516,6 +8552,7 @@ class PortraitGenerator:
         self._render_mentolabial_fold(canvas)  # Groove under lower lip
         self._render_chin_projection(canvas)  # Prominent/recessed chin shading
         self._render_wrinkles(canvas)  # Age lines on face
+        self._render_forehead_wrinkles(canvas)  # Forehead wrinkle lines
         self._render_forehead_lines(canvas)  # Forehead expression lines
         self._render_crows_feet(canvas)  # Eye corner wrinkles
         self._render_frown_lines(canvas)  # Glabella lines between eyebrows
