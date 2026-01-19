@@ -96,7 +96,9 @@ class PortraitConfig:
     face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
     face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
+    head_tilt: float = 0.0  # -0.3 = tilted right, 0.0 = straight, 0.3 = tilted left
     jaw_width: float = 1.0  # 0.8 = narrow/V-shaped, 1.0 = normal, 1.2 = wide/square jaw
+    face_taper: float = 0.0  # -0.5 = U-shaped/broad lower face, 0.0 = normal, 0.5 = V-shaped/narrow chin
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
@@ -162,6 +164,7 @@ class PortraitConfig:
     philtrum_width: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide philtrum
     lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
     lip_pout: float = 0.0  # 0.0 = flat, 0.5 = subtle pout, 1.0 = full pout (enhanced curves)
+    lower_lip_protrusion: float = 0.0  # 0.0 = normal, 0.5 = subtle protrusion, 1.0 = pouty
     vermillion_border: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
     has_lip_liner: bool = False  # Whether to apply lip liner
     lip_liner_color: str = "matching"  # matching (darker lip), red, nude, berry, plum
@@ -196,6 +199,7 @@ class PortraitConfig:
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
     eyebrow_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle height diff, 0.6 = noticeable
+    eyebrow_height: float = 0.0  # -0.3 = low (close to eyes), 0.0 = normal, 0.3 = high (raised)
     brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
     under_brow_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep shadow under brow ridge
     glabella_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle depth, 1.0 = defined shadow between brows
@@ -687,6 +691,16 @@ class PortraitGenerator:
         self.config.face_asymmetry = max(0.0, min(1.0, amount))
         return self
 
+    def set_head_tilt(self, tilt: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set head tilt direction/intensity.
+
+        Args:
+            tilt: Tilt amount (-0.5 = right, 0.0 = straight, 0.5 = left)
+        """
+        self.config.head_tilt = max(-0.5, min(0.5, tilt))
+        return self
+
     def set_jaw_width(self, width: float = 1.0) -> 'PortraitGenerator':
         """
         Set jaw width multiplier.
@@ -699,6 +713,18 @@ class PortraitGenerator:
             width: Jaw width multiplier (0.8 = narrow, 1.0 = normal, 1.2 = wide)
         """
         self.config.jaw_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_face_taper(self, taper: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set face taper (V-shape vs U-shape).
+
+        Controls how much the face narrows toward the chin.
+
+        Args:
+            taper: Taper level (-0.5 = broad U-shape, 0.0 = normal, 0.5 = narrow V-shape)
+        """
+        self.config.face_taper = max(-0.5, min(0.5, taper))
         return self
 
     def set_chin(self, chin_type: str = "normal") -> 'PortraitGenerator':
@@ -1348,6 +1374,19 @@ class PortraitGenerator:
         self.config.lip_pout = max(0.0, min(1.0, intensity))
         return self
 
+    def set_lower_lip_protrusion(self, protrusion: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lower lip protrusion (pouty look).
+
+        Makes the lower lip appear to extend forward more,
+        creating a fuller or pouty appearance.
+
+        Args:
+            protrusion: Protrusion level (0.0 = normal, 0.5 = subtle, 1.0 = pouty)
+        """
+        self.config.lower_lip_protrusion = max(0.0, min(1.0, protrusion))
+        return self
+
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
         """
         Show teeth (visible when smiling/happy expression).
@@ -1452,6 +1491,18 @@ class PortraitGenerator:
             amount: Asymmetry level (0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable)
         """
         self.config.eyebrow_asymmetry = max(0.0, min(1.0, amount))
+        return self
+
+    def set_eyebrow_height(self, height: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set eyebrow vertical position.
+
+        Controls how high or low the eyebrows sit relative to the eyes.
+
+        Args:
+            height: Height offset (-0.3 = low/close to eyes, 0.0 = normal, 0.3 = high/raised)
+        """
+        self.config.eyebrow_height = max(-0.3, min(0.3, height))
         return self
     def set_brow_bone(self, prominence: float = 0.5) -> 'PortraitGenerator':
         """
@@ -2095,6 +2146,14 @@ class PortraitGenerator:
         cy = int(self.config.height * 0.45) + center_shift  # Face slightly above center
         return cx, cy
 
+    def _apply_head_tilt(self, cx: int, cy: int, y: int) -> int:
+        """Shift center x based on head tilt and vertical position."""
+        tilt = getattr(self.config, 'head_tilt', 0.0)
+        if tilt == 0.0:
+            return cx
+        tilt = max(-0.5, min(0.5, tilt))
+        return int(cx + (y - cy) * tilt)
+
     def _get_face_dimensions(self) -> Tuple[int, int]:
         """Calculate face width and height."""
         # Face takes about 60% of width, 50% of height
@@ -2193,9 +2252,10 @@ class PortraitGenerator:
 
         # Per-pixel gradient shading
         for y in range(cy - ry - 1, cy + ry + 2):
+            tilt_cx = self._apply_head_tilt(cx, cy, y)
             for x in range(cx - rx - 1, cx + rx + 2):
                 # Calculate base normalized coordinates
-                dx = (x - cx) / rx if rx > 0 else 0
+                dx = (x - tilt_cx) / rx if rx > 0 else 0
                 dy = (y - cy) / ry if ry > 0 else 0
 
                 # Apply face shape transformation
@@ -2204,14 +2264,14 @@ class PortraitGenerator:
                     radius = min(rx, ry)
                     adj_rx = radius
                     adj_ry = radius
-                    dx = (x - cx) / adj_rx if adj_rx > 0 else 0
+                    dx = (x - tilt_cx) / adj_rx if adj_rx > 0 else 0
                     dy = (y - cy) / adj_ry if adj_ry > 0 else 0
 
                 elif face_shape == "oblong":
                     # Oblong face: longer than wide
                     adj_rx = rx * 0.9
                     adj_ry = ry * 1.15
-                    dx = (x - cx) / adj_rx if adj_rx > 0 else 0
+                    dx = (x - tilt_cx) / adj_rx if adj_rx > 0 else 0
                     dy = (y - cy) / adj_ry if adj_ry > 0 else 0
 
                 elif face_shape == "diamond":
@@ -2234,7 +2294,7 @@ class PortraitGenerator:
                     side = min(rx, ry)
                     adj_rx = side
                     adj_ry = side
-                    dx = (x - cx) / adj_rx if adj_rx > 0 else 0
+                    dx = (x - tilt_cx) / adj_rx if adj_rx > 0 else 0
                     dy = (y - cy) / adj_ry if adj_ry > 0 else 0
                     abs_dx = abs(dx)
                     abs_dy = abs(dy)
@@ -2254,6 +2314,12 @@ class PortraitGenerator:
                     jaw_influence = min(1.0, (dy - 0.2) / 0.6)
                     width_factor = 1.0 + (jaw_mult - 1.0) * jaw_influence
                     dx = dx / width_factor  # Inverse to widen/narrow
+
+                taper = getattr(self.config, 'face_taper', 0.0)
+                if taper != 0.0 and dy > 0.2:
+                    taper_influence = min(1.0, (dy - 0.2) / 0.5)
+                    taper_factor = 1.0 - (taper * 0.3 * taper_influence)
+                    dx = dx / taper_factor
 
                 chin_adjust = 0.0
                 if dy > 0:
@@ -4458,6 +4524,7 @@ class PortraitGenerator:
 
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         # Line color - slightly darker than skin
         mid_idx = len(self._skin_ramp) // 2
@@ -4648,9 +4715,10 @@ class PortraitGenerator:
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = int(fw // 6 * size_mult)
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         for side in [-1, 1]:  # Left (-1) and right (1) eye
-            ex = cx + side * eye_spacing
+            ex = tilt_cx + side * eye_spacing
 
             # Apply eye tilt - shifts Y position based on side
             # Positive tilt = outer corners up (cat-eye), negative = outer corners down
@@ -4942,12 +5010,15 @@ class PortraitGenerator:
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         lash_color = (20, 15, 15, 255)  # Dark brown/black
         base_lash_len = max(1, int(eye_height * 0.4 * lash_length))
 
         for side in (-1, 1):  # Left and right eye
-            ex = cx + side * eye_spacing
+            ex = tilt_cx + side * eye_spacing
 
             # Apply eye tilt offset (must match _render_eyes)
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -4992,7 +5063,7 @@ class PortraitGenerator:
             lower_lash_len = max(1, int(base_lash_len * 0.4 * lower_lash_intensity))
 
             for side in (-1, 1):
-                ex = cx + side * eye_spacing
+                ex = tilt_cx + side * eye_spacing
                 tilt = getattr(self.config, 'eye_tilt', 0.0)
                 tilt_offset = int(tilt * eye_width * 0.5)
                 ey = eye_y - side * tilt_offset
@@ -5032,6 +5103,7 @@ class PortraitGenerator:
         eye_spacing = self._get_eye_spacing(fw)
         eye_width = max(1, fw // 6)
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         style = self.config.eyeliner_style.lower()
         if style not in ("thin", "thick", "winged", "smoky"):
@@ -5053,7 +5125,7 @@ class PortraitGenerator:
             alpha = 170
 
         for side in (-1, 1):
-            ex = cx + side * eye_spacing
+            ex = tilt_cx + side * eye_spacing
 
             # Apply eye tilt offset (must match _render_eyes)
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -5122,7 +5194,7 @@ class PortraitGenerator:
         socket_ry = eye_height + 3
 
         for side in (-1, 1):
-            ex = cx + side * eye_spacing
+            ex = tilt_cx + side * eye_spacing
 
             # Apply eye tilt offset
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -5172,7 +5244,7 @@ class PortraitGenerator:
         outer_thresh = 1.05
 
         for side in (-1, 1):
-            ex = cx + side * eye_spacing
+            ex = tilt_cx + side * eye_spacing
 
             # Apply eye tilt offset
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -5224,7 +5296,7 @@ class PortraitGenerator:
         max_shadow_alpha = int(20 + 35 * prominence)
 
         for side in (-1, 1):
-            brow_cx = cx + side * eye_spacing
+            brow_cx = tilt_cx + side * eye_spacing
 
             # Apply eye tilt offset
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -5266,6 +5338,7 @@ class PortraitGenerator:
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
         eye_height = max(1, int(eye_width * 0.6))
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         # Shadow sits between brow ridge and top of eye
         shadow_y = eye_y - eye_height // 2 - 1
@@ -5279,7 +5352,7 @@ class PortraitGenerator:
         max_alpha = int(30 + 50 * intensity)
 
         for side in (-1, 1):
-            brow_cx = cx + side * eye_spacing
+            brow_cx = tilt_cx + side * eye_spacing
 
             # Apply eye tilt
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -5309,6 +5382,7 @@ class PortraitGenerator:
         glabella_y = eye_y - 2
         glabella_width = max(2, eye_spacing // 2)
         glabella_height = max(3, fh // 12)
+        tilt_cx = self._apply_head_tilt(cx, cy, glabella_y)
 
         # Shadow color
         mid_idx = len(self._skin_ramp) // 2
@@ -5329,7 +5403,7 @@ class PortraitGenerator:
                     falloff = (1.0 - dist) ** 0.8
                     alpha = int(max_alpha * falloff)
                     if alpha > 3:
-                        canvas.set_pixel(cx + dx, glabella_y + dy, (*shadow_color[:3], alpha))
+                        canvas.set_pixel(tilt_cx + dx, glabella_y + dy, (*shadow_color[:3], alpha))
 
     def _render_eyeshadow(self, canvas: Canvas) -> None:
         """Render eye shadow on the eyelid area above the eye."""
@@ -5344,6 +5418,7 @@ class PortraitGenerator:
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         # Get shadow color
         shadow_color = EYESHADOW_COLORS.get(
@@ -5354,7 +5429,7 @@ class PortraitGenerator:
         style = (self.config.eyeshadow_style or "natural").lower()
 
         for side in (-1, 1):
-            ex = cx + side * eye_spacing
+            ex = tilt_cx + side * eye_spacing
 
             # Apply eye tilt offset (must match _render_eyes)
             tilt = getattr(self.config, 'eye_tilt', 0.0)
@@ -5450,6 +5525,7 @@ class PortraitGenerator:
         nose_size_mult = getattr(self.config, 'nose_size', 1.0)
         bridge_width_mult = max(0.7, min(1.3, getattr(self.config, 'nose_bridge_width', 1.0)))
         nose_y = cy + fh // 10
+        cx = self._apply_head_tilt(cx, cy, nose_y)
 
         # Nose shadow on one side (based on lighting)
         lx, _ = self.config.light_direction
@@ -6062,8 +6138,31 @@ class PortraitGenerator:
         # Render lip liner if enabled
         self._render_lip_liner(canvas, cx, lip_y, lip_width, lip_height)
 
+    def _render_lower_lip_protrusion(self, canvas: Canvas) -> None:
+        """Render lower lip protrusion highlight for pouty appearance."""
+        protrusion = getattr(self.config, 'lower_lip_protrusion', 0.0)
+        if protrusion <= 0.0:
+            return
+        # Get lip position and draw highlight on front/top of lower lip
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        lip_y = cy + fh // 4
+        width_mult = getattr(self.config, 'lip_width', 1.0)
+        lip_width = int(fw // 5 * width_mult)
+        if lip_width <= 0:
+            return
+        # Draw subtle highlight strip across lower lip
+        highlight_y = lip_y + 2
+        max_alpha = int(25 + 40 * protrusion)
+        for dx in range(-lip_width, lip_width + 1):
+            edge_fade = 1.0 - (abs(dx) / lip_width) ** 1.5
+            alpha = int(max_alpha * edge_fade)
+            if alpha > 3:
+                # Use lip highlight color
+                canvas.set_pixel(cx + dx, highlight_y, (255, 230, 225, alpha))
+
     def _render_lip_corner_shadow(self, canvas: Canvas, cx: int, lip_y: int,
-                                   lip_width: int, lip_height: int) -> None:
+                                  lip_width: int, lip_height: int) -> None:
         """Render shadows at the corners of the lips for definition."""
         depth = getattr(self.config, 'lip_corner_shadow', 0.3)
         if depth <= 0.0:
@@ -6278,11 +6377,14 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        brow_y = cy - fh // 5
+        # Apply eyebrow height offset
+        height_offset = getattr(self.config, 'eyebrow_height', 0.0)
+        brow_y = cy - fh // 5 - int(height_offset * fh // 4)
         gap_mult = getattr(self.config, 'eyebrow_gap', 1.0)
         eye_spacing = int(self._get_eye_spacing(fw) * gap_mult)  # Apply gap multiplier
         brow_width = fw // 6
         half_width = brow_width // 2
+        tilt_cx = self._apply_head_tilt(cx, cy, brow_y)
 
         # Eyebrow color (default to darker than hair)
         custom_brow_color = getattr(self.config, 'eyebrow_color', None)
@@ -6328,7 +6430,7 @@ class PortraitGenerator:
         rng = random.Random(seed + 3100) if seed is not None else random.Random()
 
         for side in [-1, 1]:
-            brow_x = cx + side * eye_spacing
+            brow_x = tilt_cx + side * eye_spacing
 
             # Apply eyebrow asymmetry (right eyebrow offset)
             asymmetry = getattr(self.config, 'eyebrow_asymmetry', 0.0)
@@ -7065,6 +7167,7 @@ class PortraitGenerator:
         self._render_under_nose_shadow(canvas)
         self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
+        self._render_lower_lip_protrusion(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
         self._render_orbital_rim_light(canvas)  # Subtle rim light around eye socket
