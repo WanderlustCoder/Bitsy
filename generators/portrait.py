@@ -98,6 +98,7 @@ class PortraitConfig:
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
+    smile_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep nasolabial folds
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
@@ -194,6 +195,7 @@ class PortraitConfig:
     eyebag_intensity: float = 0.5  # 0.0 to 1.0
     eyebag_color: str = "shadow"  # shadow (gray), purple (dark circles), brown (natural)
     under_eye_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (concealer effect)
+    malar_bags: float = 0.0  # 0.0 = none, 0.5 = subtle puffiness, 1.0 = visible festoons
 
     # Blush
     has_blush: bool = False
@@ -231,6 +233,7 @@ class PortraitConfig:
     # Temple shadow (adds depth to face structure)
     temple_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
     jawline_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle contour, 1.0 = defined
+    jowls: float = 0.0  # 0.0 = none, 0.5 = subtle sagging, 1.0 = visible jowls at jaw corners
 
     # Neck shadow (chin to neck transition)
     neck_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
@@ -289,6 +292,7 @@ class PortraitConfig:
     # Lighting
     light_direction: Tuple[float, float] = (1.0, -1.0)  # (x, y) normalized
     face_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = strong backlight glow
+    temple_veins: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible veins at temples
 
     # Quality
     shading_levels: int = 7  # Number of colors in shading ramps
@@ -689,6 +693,19 @@ class PortraitGenerator:
             intensity: Crease depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.chin_crease = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_smile_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set smile line intensity (nasolabial folds).
+
+        Adds curved lines from the nose sides to the mouth corners
+        to suggest smile lines or facial depth.
+
+        Args:
+            intensity: Line depth (0.0 = none, 0.5 = subtle, 1.0 = deep)
+        """
+        self.config.smile_lines = max(0.0, min(1.0, intensity))
         return self
 
     def set_forehead(self, size: str = "normal") -> 'PortraitGenerator':
@@ -1448,6 +1465,19 @@ class PortraitGenerator:
         self.config.under_eye_highlight = max(0.0, min(1.0, intensity))
         return self
 
+    def set_malar_bags(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set malar bags (festoons/under-eye puffiness).
+
+        Creates puffiness below the eye bags area, different from
+        regular eye bags. Common with aging or fluid retention.
+
+        Args:
+            intensity: Puffiness (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.malar_bags = max(0.0, min(1.0, intensity))
+        return self
+
     def set_blush(self, color: str = "pink",
                   intensity: float = 0.5,
                   position_y: float = 0.5,
@@ -1586,6 +1616,19 @@ class PortraitGenerator:
         self.config.jawline_shadow = max(0.0, min(1.0, intensity))
         return self
 
+    def set_jowls(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set jowls (sagging at jaw corners) visibility.
+
+        Creates subtle droop at the lower jaw corners for
+        an aged or fuller face appearance.
+
+        Args:
+            intensity: Sag amount (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.jowls = max(0.0, min(1.0, intensity))
+        return self
+
     def set_neck_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
         """
         Set neck shadow (under chin) for depth.
@@ -1709,6 +1752,16 @@ class PortraitGenerator:
             intensity: Glow strength (0.0 = none, 0.5 = subtle, 1.0 = strong)
         """
         self.config.face_rim_light = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_temple_veins(self, visibility: float = 0.3) -> 'PortraitGenerator':
+        """
+        Set temple veins visibility.
+
+        Args:
+            visibility: Vein visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.temple_veins = max(0.0, min(1.0, visibility))
         return self
 
     def set_background(self, color: Optional[Tuple] = None,
@@ -2574,6 +2627,49 @@ class PortraitGenerator:
                         if pixel_alpha > 0:
                             canvas.set_pixel(px, py + dy, (*shadow_color[:3], pixel_alpha))
 
+    def _render_jowls(self, canvas: Canvas) -> None:
+        """Render jowls (sagging skin at jaw corners)."""
+        intensity = getattr(self.config, 'jowls', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Jowls appear at the lower jaw corners
+        chin_y = cy + fh // 3
+        jaw_corner_x = fw // 3
+
+        # Jowl color - slightly darker/richer skin tone
+        mid_idx = len(self._skin_ramp) // 2
+        jowl_color = self._skin_ramp[max(0, mid_idx - 1)]
+        max_alpha = int(30 + 45 * intensity)
+
+        jowl_width = max(3, int(fw * 0.08 * (1 + intensity * 0.5)))
+        jowl_height = max(2, int(fh * 0.06 * (1 + intensity * 0.5)))
+
+        for side in (-1, 1):
+            jowl_x = cx + side * jaw_corner_x
+            jowl_y = chin_y
+
+            # Draw droopy oval shape
+            for dy in range(jowl_height):
+                for dx in range(-jowl_width, jowl_width + 1):
+                    nx = dx / jowl_width if jowl_width > 0 else 0
+                    # Ellipse that droops downward
+                    ny = (dy - jowl_height * 0.3) / jowl_height if jowl_height > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 0.6
+                        # Shadow on lower part, highlight on upper
+                        if dy > jowl_height * 0.6:
+                            alpha = int(max_alpha * falloff)
+                        else:
+                            alpha = int(max_alpha * falloff * 0.5)
+                        if alpha > 3:
+                            canvas.set_pixel(jowl_x + dx, jowl_y + dy, (*jowl_color[:3], alpha))
+
     def _render_hairline(self, canvas: Canvas) -> None:
         """Render hairline shape adjustments at the forehead edge."""
         hairline = getattr(self.config, 'hairline_shape', 'straight').lower()
@@ -2848,6 +2944,60 @@ class PortraitGenerator:
                 alpha = int(max_highlight_alpha * edge_fade)
                 if alpha > 5:
                     canvas.set_pixel(cx + dx, chin_y + 1, (*highlight_color[:3], alpha))
+
+    def _render_smile_lines(self, canvas: Canvas) -> None:
+        """Render curved smile lines from nose sides to mouth corners."""
+        intensity = getattr(self.config, 'smile_lines', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Reference positions
+        nose_y = cy + fh // 16
+        lip_y = cy + fh // 4
+        width_mult = getattr(self.config, 'lip_width', 1.0)
+        lip_width = int(fw // 5 * width_mult)
+        corner_val = getattr(self.config, 'mouth_corners', 0.0)
+        base_lip_height = fh // 20
+        thickness = getattr(self.config, 'lip_thickness', 1.0)
+        lip_height = int(base_lip_height * thickness)
+        max_corner_shift = max(1, lip_height // 2)
+
+        nose_x_offset = max(2, fw // 12)
+        mouth_x_offset = max(3, lip_width)
+        mouth_corner_y = lip_y - int(corner_val * max_corner_shift)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 1)]
+
+        max_shadow_alpha = int(20 + 50 * intensity)
+        max_highlight_alpha = int(10 + 30 * intensity)
+
+        for side in (-1, 1):
+            start_x = cx + side * nose_x_offset
+            start_y = nose_y
+            end_x = cx + side * mouth_x_offset
+            end_y = mouth_corner_y
+
+            steps = max(4, int(abs(end_y - start_y) * 1.4))
+            for i in range(steps):
+                t = i / max(1, steps - 1)
+                curve = math.sin(t * math.pi) * fw * 0.02 * side * (0.6 + 0.4 * intensity)
+                px = int(start_x + (end_x - start_x) * t + curve)
+                py = int(start_y + (end_y - start_y) * t)
+
+                if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                    fade = math.sin(t * math.pi)
+                    alpha = int(max_shadow_alpha * fade)
+                    if alpha > 0:
+                        canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+                    if intensity > 0.4:
+                        highlight_alpha = int(max_highlight_alpha * fade)
+                        if highlight_alpha > 0:
+                            canvas.set_pixel(px - side, py + 1, (*highlight_color[:3], highlight_alpha))
 
     def _render_highlight(self, canvas: Canvas) -> None:
         """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
@@ -3510,6 +3660,73 @@ class PortraitGenerator:
                     if pixel_alpha > 5:
                         canvas.set_pixel(px, py, (*rim_color, pixel_alpha))
 
+    def _render_temple_veins(self, canvas: Canvas) -> None:
+        """Render subtle temple veins between eyes and hairline."""
+        visibility = getattr(self.config, 'temple_veins', 0.0)
+        if visibility <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+        eye_y = self._get_eye_y(cy, fh)
+        _, _, forehead_scale = self._get_forehead_tuning(fh)
+
+        temple_y = eye_y - int(fh * 0.18 * forehead_scale)
+        temple_y = max(cy - ry + 2, temple_y)
+        temple_x_offset = int(rx * 0.82)
+
+        base_alpha = int(18 + 70 * visibility)
+        vein_color = (70, 110, 150)
+
+        seed = self.config.seed
+        rng = random.Random(seed + 3900) if seed is not None else random.Random()
+
+        def draw_line(x0: int, y0: int, x1: int, y1: int,
+                      alpha_scale: float = 1.0) -> None:
+            steps = max(abs(x1 - x0), abs(y1 - y0))
+            if steps == 0:
+                steps = 1
+            for i in range(steps + 1):
+                t = i / steps
+                x = int(round(x0 + (x1 - x0) * t))
+                y = int(round(y0 + (y1 - y0) * t))
+                if rx > 0 and ry > 0:
+                    dx = (x - cx) / rx
+                    dy = (y - cy) / ry
+                    if dx * dx + dy * dy > 1.0:
+                        continue
+                fade = 0.45 + 0.55 * (1.0 - t)
+                alpha = int(base_alpha * alpha_scale * fade)
+                if alpha > 4:
+                    canvas.set_pixel(x, y, (*vein_color, alpha))
+
+        main_length = int(fh * (0.12 + 0.08 * visibility))
+        for side in (-1, 1):
+            start_x = cx + side * temple_x_offset
+            start_y = temple_y + rng.randint(-2, 2)
+            end_x = start_x + side * rng.randint(2, 5)
+            end_y = start_y - main_length
+
+            draw_line(start_x, start_y, end_x, end_y, 1.0)
+
+            branch_len = int(main_length * (0.45 + 0.15 * rng.random()))
+            branch_t = 0.4 + 0.25 * rng.random()
+            branch_x = int(round(start_x + (end_x - start_x) * branch_t))
+            branch_y = int(round(start_y + (end_y - start_y) * branch_t))
+            branch_end_x = branch_x + side * rng.randint(3, 6)
+            branch_end_y = branch_y - branch_len
+            draw_line(branch_x, branch_y, branch_end_x, branch_end_y, 0.7)
+
+            if visibility > 0.6 and rng.random() < 0.8:
+                lower_len = int(main_length * (0.35 + 0.2 * rng.random()))
+                lower_t = 0.55 + 0.2 * rng.random()
+                lower_x = int(round(start_x + (end_x - start_x) * lower_t))
+                lower_y = int(round(start_y + (end_y - start_y) * lower_t))
+                lower_end_x = lower_x + side * rng.randint(2, 4)
+                lower_end_y = lower_y + int(lower_len * 0.35)
+                draw_line(lower_x, lower_y, lower_end_x, lower_end_y, 0.55)
+
     def _render_skin_texture(self, canvas: Canvas) -> None:
         """Render subtle skin texture/pores on the face."""
         texture = getattr(self.config, 'skin_texture', 0.0)
@@ -3760,6 +3977,58 @@ class PortraitGenerator:
                         alpha = int(max_alpha * falloff)
                         if alpha > 5:
                             canvas.set_pixel(ex + dx, hl_y + dy, (*hl_color, alpha))
+
+    def _render_malar_bags(self, canvas: Canvas) -> None:
+        """Render malar bags (festoons/puffiness below eye bags)."""
+        intensity = getattr(self.config, 'malar_bags', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+        eye_width = fw // 6
+        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+
+        # Malar bags are below and lateral to regular eye bags
+        bag_width = max(3, int(eye_width * (0.5 + 0.3 * intensity)))
+        bag_height = max(2, int(eye_height * (0.3 + 0.2 * intensity)))
+        bag_offset_y = max(3, int(eye_height * 0.9))  # Below eye bags
+        bag_offset_x = int(eye_width * 0.15)  # Slightly lateral
+
+        # Puffiness uses highlight on upper edge, shadow on lower
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_idx = min(len(self._skin_ramp) - 1, mid_idx + 1)
+        shadow_idx = max(0, mid_idx - 1)
+        hl_color = self._skin_ramp[highlight_idx]
+        sh_color = self._skin_ramp[shadow_idx]
+
+        max_alpha = int(20 + 40 * intensity)
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing + side * bag_offset_x
+            bag_y = eye_y + bag_offset_y
+
+            for dy in range(-bag_height, bag_height + 1):
+                for dx in range(-bag_width, bag_width + 1):
+                    nx = dx / bag_width if bag_width > 0 else 0
+                    ny = dy / bag_height if bag_height > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 0.7
+                        # Upper half = highlight, lower half = shadow
+                        if dy < 0:
+                            color = hl_color
+                            alpha = int(max_alpha * falloff * 0.8)
+                        else:
+                            color = sh_color
+                            alpha = int(max_alpha * falloff)
+                        if alpha > 3:
+                            canvas.set_pixel(ex + dx, bag_y + dy, (*color[:3], alpha))
 
     def _render_wrinkles(self, canvas: Canvas) -> None:
         """Render wrinkle lines for an aged appearance."""
@@ -6401,6 +6670,7 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_smile_lines(canvas)  # Smile lines after base face rendering
         self._render_hairline(canvas)  # Hairline shape adjustments
         self._render_neck_shadow(canvas)  # Shadow under chin
         self._render_double_chin(canvas)  # Double chin fold
@@ -6410,12 +6680,14 @@ class PortraitGenerator:
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_face_powder(canvas)  # Matte powder overlay to reduce shine
         self._render_face_rim_light(canvas)  # Backlight glow on face edges
+        self._render_temple_veins(canvas)  # Subtle temple veins near hairline
         self._render_skin_texture(canvas)  # Subtle skin pores/texture
         self._render_ears(canvas)
         self._render_blush(canvas)
         self._render_contour(canvas)  # Facial contouring for definition
         self._render_temple_shadow(canvas)  # Temple shadow for depth
         self._render_jawline_shadow(canvas)  # Jawline contouring
+        self._render_jowls(canvas)  # Jaw corner sagging
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
@@ -6428,6 +6700,7 @@ class PortraitGenerator:
         self._render_marionette_lines(canvas)  # Mouth corner lines
         self._render_eyebags(canvas)
         self._render_under_eye_highlight(canvas)  # Concealer/brightening effect
+        self._render_malar_bags(canvas)  # Under-eye puffiness/festoons
         self._render_freckles(canvas)
         self._render_moles(canvas)
         self._render_beauty_mark(canvas)
