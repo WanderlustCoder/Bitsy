@@ -106,6 +106,8 @@ class PortraitConfig:
     catchlight_brightness: float = 1.0  # 0.5 = dim, 1.0 = normal, 1.5 = bright
     catchlight_size: float = 1.0  # 0.5 = small, 1.0 = normal, 1.5 = large
     iris_reflection: float = 0.0  # 0.0 = none, 0.5 = subtle arc, 1.0 = bright reflection arc
+    sclera_tint: str = "normal"  # normal, yellow (aged), blue (bright), red (tired/bloodshot)
+    sclera_tint_intensity: float = 0.0  # 0.0 = no tint, 0.5 = subtle, 1.0 = noticeable
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
@@ -769,6 +771,24 @@ class PortraitGenerator:
             intensity: Reflection brightness (0.0 = none, 0.5 = subtle, 1.0 = bright)
         """
         self.config.iris_reflection = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_sclera_tint(self, tint: str = "normal", intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eye whites (sclera) color tint.
+
+        Allows customizing eye white color for different effects:
+        - "normal": Clean white (default)
+        - "yellow": Slightly yellowed (aged appearance)
+        - "blue": Bright blue-white (youthful, fresh)
+        - "red": Pinkish/red (tired, bloodshot)
+
+        Args:
+            tint: Tint type (normal, yellow, blue, red)
+            intensity: Tint strength (0.0 = no tint, 0.5 = subtle, 1.0 = noticeable)
+        """
+        self.config.sclera_tint = tint.lower()
+        self.config.sclera_tint_intensity = max(0.0, min(1.0, intensity))
         return self
 
     def set_inner_corner_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -3185,8 +3205,29 @@ class PortraitGenerator:
             # Select eye color ramp (heterochromia support)
             eye_ramp = self._right_eye_ramp if side == 1 else self._eye_ramp
 
-            # Layer 1: Eye white (slight off-white)
-            white_color = (245, 242, 238, 255)
+            # Layer 1: Eye white (sclera) with optional tint
+            base_white = (245, 242, 238)
+            sclera_tint = getattr(self.config, 'sclera_tint', 'normal').lower()
+            tint_intensity = getattr(self.config, 'sclera_tint_intensity', 0.0)
+
+            if tint_intensity > 0.0 and sclera_tint != "normal":
+                # Tint colors to blend with white
+                tint_colors = {
+                    "yellow": (255, 250, 220),  # Yellowed/aged
+                    "blue": (235, 245, 255),    # Bright/youthful
+                    "red": (255, 235, 235),     # Tired/bloodshot
+                }
+                tint_color = tint_colors.get(sclera_tint, base_white)
+                # Blend base white with tint color
+                white_color = (
+                    int(base_white[0] + (tint_color[0] - base_white[0]) * tint_intensity),
+                    int(base_white[1] + (tint_color[1] - base_white[1]) * tint_intensity),
+                    int(base_white[2] + (tint_color[2] - base_white[2]) * tint_intensity),
+                    255
+                )
+            else:
+                white_color = (*base_white, 255)
+
             canvas.fill_ellipse_aa(ex, ey, eye_width, eye_height, white_color)
 
             # Layer 2: Iris
