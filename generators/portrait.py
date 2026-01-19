@@ -150,6 +150,7 @@ class PortraitConfig:
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eyelash_curl: float = 0.5  # 0.0 = straight, 0.5 = natural curl, 1.0 = dramatic curl
     lower_lashes: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible lower lashes
+    lower_lid_curve: float = 0.5  # 0.0 = straight/flat lower lid, 0.5 = normal, 1.0 = curved/rounded
     tear_film: float = 0.0  # 0.0 = normal, 0.5 = moist, 1.0 = wet/glassy eyes
     sclera_show: float = 0.0  # -1.0 = upper sanpaku, 0.0 = centered, 1.0 = lower sanpaku (visible below iris)
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
@@ -1129,6 +1130,18 @@ class PortraitGenerator:
         self.config.eyelash_length = max(0.0, min(1.5, length))
         self.config.eyelash_curl = max(0.0, min(1.0, curl))
         self.config.lower_lashes = max(0.0, min(1.0, lower))
+        return self
+
+    def set_lower_lid_curve(self, curve: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lower eyelid curvature.
+
+        Controls how curved or straight the lower eyelid appears.
+
+        Args:
+            curve: Curvature amount (0.0 = straight/flat, 0.5 = normal, 1.0 = curved/rounded)
+        """
+        self.config.lower_lid_curve = max(0.0, min(1.0, curve))
         return self
 
     def set_tear_film(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -5643,6 +5656,30 @@ class PortraitGenerator:
                         alpha = int(ext_alpha * fade * y_fade)
                         if alpha > 30:
                             canvas.set_pixel(px, outer_y + dy, (*white_color[:3], alpha))
+
+            # Layer 1c: Lower lid curve adjustment
+            lower_curve = getattr(self.config, 'lower_lid_curve', 0.5)
+            if abs(lower_curve - 0.5) > 0.1:  # Only modify if noticeably different from default
+                # Modify lower edge of eye
+                curve_strength = (lower_curve - 0.5) * 2  # -1 to 1 range
+                lower_y = ey + eye_height_adj
+
+                for dx in range(-eye_width_adj + 1, eye_width_adj):
+                    # Parabolic curve adjustment
+                    t = dx / eye_width_adj if eye_width_adj > 0 else 0
+                    curve_offset = int(curve_strength * (1 - t * t) * 2)
+
+                    if curve_offset > 0:  # More curved - extend white downward
+                        for dy in range(1, curve_offset + 1):
+                            fade = 1.0 - dy / (curve_offset + 1)
+                            alpha = int(200 * fade)
+                            canvas.set_pixel(ex + dx, lower_y + dy - 1, (*white_color[:3], alpha))
+                    elif curve_offset < 0:  # Flatter - add skin color to bottom
+                        skin_color = self._skin_ramp[len(self._skin_ramp) // 2]
+                        for dy in range(abs(curve_offset)):
+                            fade = 1.0 - dy / (abs(curve_offset) + 1)
+                            alpha = int(180 * fade)
+                            canvas.set_pixel(ex + dx, lower_y - dy - 1, (*skin_color[:3], alpha))
 
             # Layer 2: Iris
             iris_mult = getattr(self.config, 'iris_size', 1.0)
