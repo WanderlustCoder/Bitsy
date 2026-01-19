@@ -26,6 +26,12 @@ from core.color import Color
 from core.palette import Palette, rgb_to_lch, lch_to_rgb, rgb_to_hsv, hsv_to_rgb
 
 
+class RenderMode(Enum):
+    """Rendering style mode."""
+    REALISTIC = "realistic"  # Current photorealistic gradients
+    ANIME = "anime"          # Stylized anime with color blocking
+
+
 class HairStyle(Enum):
     """Available hair styles."""
     WAVY = "wavy"
@@ -62,6 +68,26 @@ class LipShape(Enum):
     NEUTRAL = "neutral"
 
 
+class CompositionMode(Enum):
+    """Portrait composition/framing modes."""
+    HEAD_ONLY = "head_only"      # Just head and hair
+    BUST = "bust"                # Head + shoulders
+    UPPER_BODY = "upper_body"    # Head + upper body with arms
+
+
+# Canvas sizes for different composition modes
+CANVAS_SIZES = {
+    CompositionMode.HEAD_ONLY: (64, 64),
+    CompositionMode.BUST: (64, 96),
+    CompositionMode.UPPER_BODY: (80, 128),
+}
+
+
+def get_canvas_size(composition_mode: CompositionMode) -> Tuple[int, int]:
+    """Get the recommended canvas size for a composition mode."""
+    return CANVAS_SIZES.get(composition_mode, (64, 64))
+
+
 @dataclass
 class PortraitConfig:
     """Configuration for portrait generation."""
@@ -72,6 +98,22 @@ class PortraitConfig:
 
     # Random seed
     seed: Optional[int] = None
+
+    # Render mode
+    render_mode: RenderMode = RenderMode.REALISTIC
+
+    # Anime mode settings (only used when render_mode == ANIME)
+    anime_eye_scale: float = 2.5  # Eyes are 2-3x larger in anime style
+    anime_palette_size: int = 6   # Colors per element in limited palette
+    use_hue_shifting: bool = True  # Use hue-shifted shadows vs luminance-only
+
+    # Rim lighting (used for both modes, more prominent in anime)
+    rim_light_enabled: bool = False
+    rim_light_color: Tuple[int, int, int] = (180, 200, 255)  # Cool blue rim
+    rim_light_intensity: float = 0.4
+
+    # Composition mode (affects canvas and framing)
+    composition_mode: str = "head_only"  # head_only, bust, upper_body
 
     # Skin
     skin_tone: str = "light"  # light, medium, tan, dark, pale
@@ -378,6 +420,12 @@ class PortraitConfig:
 
     # Color
     color_vibrancy: float = 1.0  # 0.5-1.5, affects color saturation
+
+    # Post-processing (Phase 10)
+    outline_mode: str = "none"  # none, thin (1px), thick (2px)
+    outline_color: Tuple[int, int, int] = (40, 30, 50)  # Dark outline color
+    selective_aa: bool = False  # Only AA silhouette edges, not internal
+    palette_enforce: bool = False  # Snap all colors to registered palette
 
 
 # Skin tone palettes (base colors for ramp generation)

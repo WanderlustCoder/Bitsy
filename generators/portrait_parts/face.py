@@ -442,3 +442,339 @@ def _render_full_beard(canvas: Canvas, cx: int, cy: int, width: int, height: int
                 color = light
 
             canvas.set_pixel(cx + dx, cy + dy, color)
+
+
+# =============================================================================
+# ANIME-STYLE SIMPLIFIED FACIAL FEATURES
+# =============================================================================
+
+class AnimeNoseStyle(Enum):
+    """Anime nose style options."""
+    DOT = "dot"              # Single dot or small circle
+    TRIANGLE = "triangle"    # Minimal triangle shadow
+    SIDE_HOOK = "side_hook"  # L-shaped side view hint
+    MINIMAL = "minimal"      # Just a tiny shadow
+    NONE = "none"            # No nose (very stylized)
+
+
+class AnimeMouthStyle(Enum):
+    """Anime mouth style options."""
+    LINE = "line"            # Simple horizontal line
+    SMALL = "small"          # Small curved shape
+    CAT = "cat"              # :3 cat mouth
+    OPEN = "open"            # Open showing darkness inside
+    SMILE = "smile"          # Curved smile line
+    FROWN = "frown"          # Downturned line
+
+
+def render_anime_nose(canvas: Canvas, center_x: int, center_y: int,
+                      style: AnimeNoseStyle,
+                      skin_ramp: List[Color],
+                      size: float = 1.0,
+                      light_direction: Tuple[float, float] = (1.0, -1.0)) -> None:
+    """
+    Render a simplified anime-style nose.
+
+    Anime noses are minimal - often just a dot, small shadow, or nothing.
+
+    Args:
+        canvas: Target canvas
+        center_x, center_y: Nose position
+        style: Nose style
+        skin_ramp: Skin color palette
+        size: Size multiplier
+        light_direction: Light direction for shadow placement
+    """
+    if style == AnimeNoseStyle.NONE or not skin_ramp:
+        return
+
+    mid_idx = len(skin_ramp) // 2
+    shadow_color = skin_ramp[max(0, mid_idx - 2)]
+    shadow_alpha = (*shadow_color[:3], 120)
+    highlight_color = (*skin_ramp[min(len(skin_ramp) - 1, mid_idx + 2)][:3], 80)
+
+    lx, _ = light_direction
+    shadow_side = -1 if lx > 0 else 1
+
+    if style == AnimeNoseStyle.DOT:
+        # Simple dot
+        dot_size = max(1, int(2 * size))
+        for dy in range(-dot_size // 2, dot_size // 2 + 1):
+            for dx in range(-dot_size // 2, dot_size // 2 + 1):
+                if dx * dx + dy * dy <= (dot_size // 2) ** 2:
+                    canvas.set_pixel(center_x + dx, center_y + dy, shadow_alpha)
+
+    elif style == AnimeNoseStyle.TRIANGLE:
+        # Small triangle shadow pointing down
+        tri_height = max(2, int(4 * size))
+        tri_width = max(1, int(3 * size))
+
+        for dy in range(tri_height):
+            row_width = int(tri_width * (1 - dy / tri_height))
+            for dx in range(-row_width, row_width + 1):
+                alpha = int(120 * (1 - dy / tri_height))
+                canvas.set_pixel(center_x + dx, center_y + dy,
+                               (*shadow_color[:3], alpha))
+
+    elif style == AnimeNoseStyle.SIDE_HOOK:
+        # L-shaped side indicator
+        hook_height = max(3, int(5 * size))
+        hook_width = max(1, int(2 * size))
+
+        # Vertical line
+        for dy in range(hook_height):
+            canvas.set_pixel(center_x + shadow_side * hook_width, center_y + dy,
+                           shadow_alpha)
+
+        # Horizontal bottom
+        for dx in range(hook_width + 1):
+            canvas.set_pixel(center_x + shadow_side * dx, center_y + hook_height - 1,
+                           shadow_alpha)
+
+        # Small highlight on opposite side
+        canvas.set_pixel(center_x - shadow_side, center_y + hook_height - 2,
+                        highlight_color)
+
+    elif style == AnimeNoseStyle.MINIMAL:
+        # Just a tiny shadow hint
+        canvas.set_pixel(center_x + shadow_side, center_y, shadow_alpha)
+        canvas.set_pixel(center_x + shadow_side, center_y + 1,
+                        (*shadow_color[:3], 80))
+
+
+def render_anime_mouth(canvas: Canvas, center_x: int, center_y: int,
+                       style: AnimeMouthStyle,
+                       width: int,
+                       lip_color: Color,
+                       skin_ramp: List[Color],
+                       expression_intensity: float = 0.5) -> None:
+    """
+    Render a simplified anime-style mouth.
+
+    Anime mouths are simple shapes - lines, curves, or small forms.
+
+    Args:
+        canvas: Target canvas
+        center_x, center_y: Mouth center position
+        style: Mouth style
+        width: Mouth width
+        lip_color: Lip/line color
+        skin_ramp: Skin colors for interior shading
+        expression_intensity: How pronounced the expression (0-1)
+    """
+    half_w = width // 2
+
+    # Mouth line color (darker than lips for contrast)
+    line_color = (
+        max(0, lip_color[0] - 40),
+        max(0, lip_color[1] - 40),
+        max(0, lip_color[2] - 30),
+        255
+    )
+
+    # Interior color for open mouth
+    interior_color = (40, 30, 35, 255)
+
+    if style == AnimeMouthStyle.LINE:
+        # Simple horizontal line
+        for dx in range(-half_w, half_w + 1):
+            canvas.set_pixel(center_x + dx, center_y, line_color)
+
+    elif style == AnimeMouthStyle.SMALL:
+        # Small curved shape
+        small_w = half_w // 2
+        for dx in range(-small_w, small_w + 1):
+            # Slight curve
+            curve = int((1 - (dx / small_w) ** 2) * 1)
+            canvas.set_pixel(center_x + dx, center_y - curve, line_color)
+
+    elif style == AnimeMouthStyle.CAT:
+        # :3 cat mouth - W shape
+        cat_w = half_w * 2 // 3
+        # Left curve
+        for dx in range(-cat_w, 0):
+            curve = int(abs(dx / cat_w) * 2 * expression_intensity)
+            canvas.set_pixel(center_x + dx, center_y + curve, line_color)
+        # Right curve
+        for dx in range(0, cat_w + 1):
+            curve = int(abs(dx / cat_w) * 2 * expression_intensity)
+            canvas.set_pixel(center_x + dx, center_y + curve, line_color)
+        # Center dip
+        canvas.set_pixel(center_x, center_y - 1, line_color)
+
+    elif style == AnimeMouthStyle.OPEN:
+        # Open mouth showing interior
+        open_h = max(2, int(4 * expression_intensity))
+        open_w = half_w * 2 // 3
+
+        # Fill interior
+        for dy in range(open_h):
+            row_w = int(open_w * (1 - (dy / open_h) * 0.3))
+            for dx in range(-row_w, row_w + 1):
+                canvas.set_pixel(center_x + dx, center_y + dy, interior_color)
+
+        # Top lip line
+        for dx in range(-open_w, open_w + 1):
+            canvas.set_pixel(center_x + dx, center_y - 1, line_color)
+
+        # Bottom lip hint
+        for dx in range(-open_w + 1, open_w):
+            canvas.set_pixel(center_x + dx, center_y + open_h, lip_color)
+
+    elif style == AnimeMouthStyle.SMILE:
+        # Curved smile
+        curve_amount = int(3 * expression_intensity)
+        for dx in range(-half_w, half_w + 1):
+            norm_x = dx / half_w if half_w > 0 else 0
+            curve = int(norm_x ** 2 * curve_amount)
+            canvas.set_pixel(center_x + dx, center_y + curve, line_color)
+
+    elif style == AnimeMouthStyle.FROWN:
+        # Downturned line
+        curve_amount = int(2 * expression_intensity)
+        for dx in range(-half_w, half_w + 1):
+            norm_x = dx / half_w if half_w > 0 else 0
+            curve = -int(norm_x ** 2 * curve_amount)
+            canvas.set_pixel(center_x + dx, center_y + curve, line_color)
+
+
+def render_anime_eyebrows(canvas: Canvas, left_x: int, right_x: int, y: int,
+                          width: int, color: Color,
+                          expression: str = "neutral",
+                          thickness: int = 2) -> None:
+    """
+    Render simplified anime-style eyebrows.
+
+    Args:
+        canvas: Target canvas
+        left_x, right_x: X positions for each brow
+        y: Y position
+        width: Brow width
+        color: Brow color
+        expression: Expression affecting angle (neutral, angry, sad, surprised)
+        thickness: Line thickness
+    """
+    half_w = width // 2
+
+    # Expression angles
+    angles = {
+        "neutral": (0.0, 0.0),
+        "angry": (0.3, -0.3),      # Inner up, outer down
+        "sad": (-0.2, 0.2),        # Inner down, outer up
+        "surprised": (-0.1, -0.1), # Both raised
+        "determined": (0.15, -0.15),
+    }
+    inner_angle, outer_angle = angles.get(expression, (0.0, 0.0))
+
+    # Left eyebrow
+    for dx in range(-half_w, half_w + 1):
+        t = (dx + half_w) / width if width > 0 else 0.5
+        # Interpolate angle from inner to outer
+        angle_offset = inner_angle * (1 - t) + outer_angle * t
+        py = y + int(angle_offset * 4)
+
+        for ty in range(thickness):
+            canvas.set_pixel(left_x + dx, py + ty, color)
+
+    # Right eyebrow (mirrored)
+    for dx in range(-half_w, half_w + 1):
+        t = (dx + half_w) / width if width > 0 else 0.5
+        # Mirror the angle
+        angle_offset = outer_angle * (1 - t) + inner_angle * t
+        py = y + int(angle_offset * 4)
+
+        for ty in range(thickness):
+            canvas.set_pixel(right_x + dx, py + ty, color)
+
+
+def get_anime_face_proportions(face_width: int, face_height: int,
+                                eye_scale: float = 2.5) -> dict:
+    """
+    Calculate anime face feature positions.
+
+    Anime faces have:
+    - Larger forehead
+    - Eyes lower and larger
+    - Smaller nose and mouth
+    - Softer jaw
+
+    Args:
+        face_width: Face width
+        face_height: Face height
+        eye_scale: Eye size multiplier
+
+    Returns:
+        Dictionary of feature positions and sizes
+    """
+    return {
+        # Eyes are lower on face (more forehead)
+        "eye_y": int(face_height * 0.45),
+        "eye_spacing": int(face_width * 0.22),
+        "eye_width": int(face_width * 0.18 * eye_scale),
+        "eye_height": int(face_width * 0.18 * eye_scale * 0.65),
+
+        # Eyebrows just above eyes
+        "brow_y": int(face_height * 0.32),
+        "brow_width": int(face_width * 0.15),
+
+        # Nose is minimal, centered
+        "nose_y": int(face_height * 0.55),
+
+        # Mouth is small and low
+        "mouth_y": int(face_height * 0.7),
+        "mouth_width": int(face_width * 0.12),
+
+        # Chin point
+        "chin_y": int(face_height * 0.9),
+    }
+
+
+def render_anime_blush(canvas: Canvas, left_x: int, right_x: int, y: int,
+                       radius: int, color: Color, intensity: float = 0.5) -> None:
+    """
+    Render anime-style cheek blush (circular or lined).
+
+    Args:
+        canvas: Target canvas
+        left_x, right_x: X positions for each cheek
+        y: Y position
+        radius: Blush radius
+        color: Blush color
+        intensity: Opacity (0-1)
+    """
+    alpha = int(100 * intensity)
+    blush_color = (*color[:3], alpha)
+
+    for cx in [left_x, right_x]:
+        # Soft circular blush
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist <= radius:
+                    # Fade at edges
+                    edge_alpha = int(alpha * (1 - dist / radius))
+                    if edge_alpha > 0:
+                        canvas.set_pixel(cx + dx, y + dy, (*color[:3], edge_alpha))
+
+
+def render_anime_blush_lines(canvas: Canvas, left_x: int, right_x: int, y: int,
+                              width: int, color: Color, line_count: int = 3) -> None:
+    """
+    Render anime-style diagonal blush lines.
+
+    Args:
+        canvas: Target canvas
+        left_x, right_x: X positions
+        y: Y position
+        width: Line area width
+        color: Line color
+        line_count: Number of lines
+    """
+    line_color = (*color[:3], 150)
+
+    for cx in [left_x, right_x]:
+        for i in range(line_count):
+            offset = (i - line_count // 2) * 3
+            # Diagonal line
+            for j in range(4):
+                canvas.set_pixel(cx + offset + j, y - j, line_color)

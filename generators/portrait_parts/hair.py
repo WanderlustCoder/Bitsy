@@ -1629,3 +1629,883 @@ def generate_stray_strands(center_x: float, top_y: float,
         clusters.append(cluster)
 
     return clusters
+
+
+# =============================================================================
+# ANIME-STYLE VOLUMETRIC HAIR SYSTEM
+# =============================================================================
+
+@dataclass
+class HairMass:
+    """
+    A large volumetric section of hair for anime-style rendering.
+
+    Unlike individual strands, hair masses represent chunked ribbons
+    that define the overall hair silhouette with clear form.
+    """
+    # Bezier spine curve for mass center: [(x, y), ...]
+    spine: List[Tuple[float, float]]
+
+    # Width at each spine point (creates the ribbon shape)
+    widths: List[float]
+
+    # Z-depth for layering (-1 = back, 0 = mid, 1 = front)
+    z_depth: float = 0.0
+
+    # Whether this mass renders in front of the face
+    foreground: bool = False
+
+    # Color variation (-1 to 1, shifts along palette)
+    color_shift: float = 0.0
+
+    # Whether this mass catches rim light
+    has_rim_light: bool = True
+
+    # Side of mass for lighting (-1 = left, 0 = center, 1 = right)
+    side: float = 0.0
+
+
+def generate_anime_hair_masses(style: HairStyle, center_x: float, top_y: float,
+                                width: float, length: float,
+                                seed: Optional[int] = None) -> List[HairMass]:
+    """
+    Generate volumetric hair masses for anime-style rendering.
+
+    Creates 5-10 large ribbon shapes instead of 70+ individual strands.
+
+    Args:
+        style: Hair style template
+        center_x: Horizontal center of hair
+        top_y: Top of hair area
+        width: Total hair width
+        length: Hair length
+        seed: Random seed for reproducibility
+
+    Returns:
+        List of HairMass objects sorted by z_depth
+    """
+    rng = random.Random(seed) if seed is not None else random.Random()
+
+    masses = []
+
+    if style == HairStyle.WAVY:
+        masses = _generate_wavy_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.STRAIGHT:
+        masses = _generate_straight_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.LONG:
+        masses = _generate_long_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.SHORT:
+        masses = _generate_short_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.PONYTAIL:
+        masses = _generate_ponytail_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.BUN:
+        masses = _generate_bun_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.CURLY:
+        masses = _generate_curly_masses(center_x, top_y, width, length, rng)
+    elif style == HairStyle.BRAIDED:
+        masses = _generate_braided_masses(center_x, top_y, width, length, rng)
+    else:
+        masses = _generate_wavy_masses(center_x, top_y, width, length, rng)
+
+    # Sort by z_depth (back to front)
+    masses.sort(key=lambda m: m.z_depth)
+    return masses
+
+
+def _generate_wavy_masses(cx: float, ty: float, w: float, l: float,
+                          rng: random.Random) -> List[HairMass]:
+    """Generate wavy anime hair masses."""
+    masses = []
+
+    # Back mass (fills behind head)
+    back_spine = [
+        (cx, ty + l * 0.1),
+        (cx, ty + l * 0.4),
+        (cx, ty + l * 0.7),
+        (cx, ty + l * 1.0),
+    ]
+    masses.append(HairMass(
+        spine=back_spine,
+        widths=[w * 0.9, w * 1.0, w * 0.95, w * 0.8],
+        z_depth=-1.0,
+        foreground=False,
+        color_shift=-0.2,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Left side mass
+    left_spine = [
+        (cx - w * 0.35, ty + l * 0.05),
+        (cx - w * 0.45, ty + l * 0.35),
+        (cx - w * 0.5, ty + l * 0.65),
+        (cx - w * 0.45, ty + l * 0.95),
+    ]
+    masses.append(HairMass(
+        spine=left_spine,
+        widths=[w * 0.25, w * 0.3, w * 0.28, w * 0.2],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=-0.1,
+        has_rim_light=True,
+        side=-1.0,
+    ))
+
+    # Right side mass
+    right_spine = [
+        (cx + w * 0.35, ty + l * 0.05),
+        (cx + w * 0.45, ty + l * 0.35),
+        (cx + w * 0.5, ty + l * 0.65),
+        (cx + w * 0.45, ty + l * 0.95),
+    ]
+    masses.append(HairMass(
+        spine=right_spine,
+        widths=[w * 0.25, w * 0.3, w * 0.28, w * 0.2],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=0.1,
+        has_rim_light=True,
+        side=1.0,
+    ))
+
+    # Front bangs (left)
+    bangs_left = [
+        (cx - w * 0.15, ty + l * 0.02),
+        (cx - w * 0.2, ty + l * 0.15),
+        (cx - w * 0.22, ty + l * 0.28),
+    ]
+    masses.append(HairMass(
+        spine=bangs_left,
+        widths=[w * 0.15, w * 0.18, w * 0.12],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=-0.5,
+    ))
+
+    # Front bangs (center)
+    bangs_center = [
+        (cx, ty),
+        (cx + w * 0.02, ty + l * 0.12),
+        (cx + w * 0.03, ty + l * 0.22),
+    ]
+    masses.append(HairMass(
+        spine=bangs_center,
+        widths=[w * 0.2, w * 0.22, w * 0.15],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.2,
+        has_rim_light=False,
+        side=0.0,
+    ))
+
+    # Front bangs (right)
+    bangs_right = [
+        (cx + w * 0.15, ty + l * 0.02),
+        (cx + w * 0.2, ty + l * 0.15),
+        (cx + w * 0.22, ty + l * 0.28),
+    ]
+    masses.append(HairMass(
+        spine=bangs_right,
+        widths=[w * 0.15, w * 0.18, w * 0.12],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.1,
+        has_rim_light=False,
+        side=0.5,
+    ))
+
+    return masses
+
+
+def _generate_straight_masses(cx: float, ty: float, w: float, l: float,
+                               rng: random.Random) -> List[HairMass]:
+    """Generate straight anime hair masses."""
+    masses = []
+
+    # Back mass
+    masses.append(HairMass(
+        spine=[(cx, ty + l * 0.1), (cx, ty + l * 0.5), (cx, ty + l * 0.9)],
+        widths=[w * 0.95, w * 1.0, w * 0.9],
+        z_depth=-1.0,
+        foreground=False,
+        color_shift=-0.2,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Left side
+    masses.append(HairMass(
+        spine=[(cx - w * 0.4, ty + l * 0.05), (cx - w * 0.42, ty + l * 0.5), (cx - w * 0.4, ty + l * 0.9)],
+        widths=[w * 0.2, w * 0.22, w * 0.18],
+        z_depth=-0.3,
+        foreground=False,
+        color_shift=-0.1,
+        has_rim_light=True,
+        side=-1.0,
+    ))
+
+    # Right side
+    masses.append(HairMass(
+        spine=[(cx + w * 0.4, ty + l * 0.05), (cx + w * 0.42, ty + l * 0.5), (cx + w * 0.4, ty + l * 0.9)],
+        widths=[w * 0.2, w * 0.22, w * 0.18],
+        z_depth=-0.3,
+        foreground=False,
+        color_shift=0.1,
+        has_rim_light=True,
+        side=1.0,
+    ))
+
+    # Straight bangs
+    for i in range(4):
+        t = (i + 0.5) / 4
+        x_offset = (t - 0.5) * w * 0.5
+        masses.append(HairMass(
+            spine=[
+                (cx + x_offset, ty),
+                (cx + x_offset, ty + l * 0.18),
+            ],
+            widths=[w * 0.12, w * 0.1],
+            z_depth=1.0,
+            foreground=True,
+            color_shift=0.1 + t * 0.1,
+            has_rim_light=False,
+            side=x_offset / w,
+        ))
+
+    return masses
+
+
+def _generate_long_masses(cx: float, ty: float, w: float, l: float,
+                          rng: random.Random) -> List[HairMass]:
+    """Generate long flowing anime hair masses."""
+    masses = []
+    extended_l = l * 1.4
+
+    # Back mass (very long)
+    masses.append(HairMass(
+        spine=[
+            (cx, ty + l * 0.1),
+            (cx, ty + l * 0.4),
+            (cx, ty + extended_l * 0.7),
+            (cx, ty + extended_l),
+        ],
+        widths=[w * 0.9, w * 1.0, w * 0.95, w * 0.75],
+        z_depth=-1.0,
+        foreground=False,
+        color_shift=-0.2,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Left flowing mass
+    masses.append(HairMass(
+        spine=[
+            (cx - w * 0.35, ty + l * 0.05),
+            (cx - w * 0.5, ty + l * 0.4),
+            (cx - w * 0.55, ty + extended_l * 0.7),
+            (cx - w * 0.5, ty + extended_l),
+        ],
+        widths=[w * 0.25, w * 0.32, w * 0.3, w * 0.22],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=-0.1,
+        has_rim_light=True,
+        side=-1.0,
+    ))
+
+    # Right flowing mass
+    masses.append(HairMass(
+        spine=[
+            (cx + w * 0.35, ty + l * 0.05),
+            (cx + w * 0.5, ty + l * 0.4),
+            (cx + w * 0.55, ty + extended_l * 0.7),
+            (cx + w * 0.5, ty + extended_l),
+        ],
+        widths=[w * 0.25, w * 0.32, w * 0.3, w * 0.22],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=0.1,
+        has_rim_light=True,
+        side=1.0,
+    ))
+
+    # Soft bangs
+    masses.append(HairMass(
+        spine=[(cx - w * 0.1, ty), (cx - w * 0.15, ty + l * 0.2)],
+        widths=[w * 0.2, w * 0.15],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=-0.3,
+    ))
+
+    masses.append(HairMass(
+        spine=[(cx + w * 0.1, ty), (cx + w * 0.15, ty + l * 0.2)],
+        widths=[w * 0.2, w * 0.15],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=0.3,
+    ))
+
+    return masses
+
+
+def _generate_short_masses(cx: float, ty: float, w: float, l: float,
+                           rng: random.Random) -> List[HairMass]:
+    """Generate short anime hair masses."""
+    short_l = l * 0.5
+    masses = []
+
+    # Back mass (short)
+    masses.append(HairMass(
+        spine=[(cx, ty + short_l * 0.1), (cx, ty + short_l * 0.6)],
+        widths=[w * 0.85, w * 0.7],
+        z_depth=-1.0,
+        foreground=False,
+        color_shift=-0.2,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Side tufts
+    masses.append(HairMass(
+        spine=[(cx - w * 0.35, ty + short_l * 0.1), (cx - w * 0.4, ty + short_l * 0.5)],
+        widths=[w * 0.2, w * 0.15],
+        z_depth=-0.3,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=-1.0,
+    ))
+
+    masses.append(HairMass(
+        spine=[(cx + w * 0.35, ty + short_l * 0.1), (cx + w * 0.4, ty + short_l * 0.5)],
+        widths=[w * 0.2, w * 0.15],
+        z_depth=-0.3,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=1.0,
+    ))
+
+    # Messy bangs
+    for i in range(3):
+        t = (i + 0.5) / 3
+        x_off = (t - 0.5) * w * 0.4
+        masses.append(HairMass(
+            spine=[(cx + x_off, ty), (cx + x_off + rng.uniform(-3, 3), ty + short_l * 0.35)],
+            widths=[w * 0.12, w * 0.08],
+            z_depth=1.0,
+            foreground=True,
+            color_shift=0.1,
+            has_rim_light=False,
+            side=x_off / w,
+        ))
+
+    return masses
+
+
+def _generate_ponytail_masses(cx: float, ty: float, w: float, l: float,
+                               rng: random.Random) -> List[HairMass]:
+    """Generate ponytail anime hair masses."""
+    masses = []
+    gather_y = ty + l * 0.15
+    tail_l = l * 1.2
+
+    # Swept back sides
+    masses.append(HairMass(
+        spine=[
+            (cx - w * 0.35, ty + l * 0.02),
+            (cx - w * 0.2, gather_y),
+            (cx, gather_y + l * 0.05),
+        ],
+        widths=[w * 0.2, w * 0.15, w * 0.08],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=-0.1,
+        has_rim_light=True,
+        side=-0.5,
+    ))
+
+    masses.append(HairMass(
+        spine=[
+            (cx + w * 0.35, ty + l * 0.02),
+            (cx + w * 0.2, gather_y),
+            (cx, gather_y + l * 0.05),
+        ],
+        widths=[w * 0.2, w * 0.15, w * 0.08],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=0.1,
+        has_rim_light=True,
+        side=0.5,
+    ))
+
+    # Ponytail mass
+    masses.append(HairMass(
+        spine=[
+            (cx, gather_y),
+            (cx, gather_y + tail_l * 0.35),
+            (cx, gather_y + tail_l * 0.7),
+            (cx, gather_y + tail_l),
+        ],
+        widths=[w * 0.25, w * 0.3, w * 0.28, w * 0.18],
+        z_depth=-0.8,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Hair tie
+    masses.append(HairMass(
+        spine=[(cx - w * 0.08, gather_y), (cx + w * 0.08, gather_y)],
+        widths=[w * 0.06, w * 0.06],
+        z_depth=-0.7,
+        foreground=False,
+        color_shift=-0.5,
+        has_rim_light=False,
+        side=0.0,
+    ))
+
+    # Light bangs
+    masses.append(HairMass(
+        spine=[(cx, ty), (cx, ty + l * 0.12)],
+        widths=[w * 0.25, w * 0.2],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=0.0,
+    ))
+
+    return masses
+
+
+def _generate_bun_masses(cx: float, ty: float, w: float, l: float,
+                         rng: random.Random) -> List[HairMass]:
+    """Generate bun anime hair masses."""
+    masses = []
+    bun_y = ty - w * 0.15
+    bun_r = w * 0.25
+
+    # Bun mass (circular)
+    bun_points = []
+    bun_widths = []
+    for i in range(8):
+        angle = (i / 8) * 2 * math.pi - math.pi / 2
+        bun_points.append((
+            cx + bun_r * 0.8 * math.cos(angle),
+            bun_y + bun_r * 0.5 * math.sin(angle)
+        ))
+        bun_widths.append(bun_r * 0.4)
+
+    masses.append(HairMass(
+        spine=bun_points,
+        widths=bun_widths,
+        z_depth=-0.2,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Swept up sides
+    masses.append(HairMass(
+        spine=[
+            (cx - w * 0.4, ty + l * 0.1),
+            (cx - w * 0.25, ty),
+            (cx - bun_r * 0.5, bun_y + bun_r * 0.3),
+        ],
+        widths=[w * 0.18, w * 0.15, w * 0.1],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=-0.1,
+        has_rim_light=True,
+        side=-0.8,
+    ))
+
+    masses.append(HairMass(
+        spine=[
+            (cx + w * 0.4, ty + l * 0.1),
+            (cx + w * 0.25, ty),
+            (cx + bun_r * 0.5, bun_y + bun_r * 0.3),
+        ],
+        widths=[w * 0.18, w * 0.15, w * 0.1],
+        z_depth=-0.5,
+        foreground=False,
+        color_shift=0.1,
+        has_rim_light=True,
+        side=0.8,
+    ))
+
+    # Light bangs
+    masses.append(HairMass(
+        spine=[(cx - w * 0.08, ty + l * 0.02), (cx - w * 0.12, ty + l * 0.15)],
+        widths=[w * 0.12, w * 0.08],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=-0.3,
+    ))
+
+    masses.append(HairMass(
+        spine=[(cx + w * 0.08, ty + l * 0.02), (cx + w * 0.12, ty + l * 0.15)],
+        widths=[w * 0.12, w * 0.08],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=0.3,
+    ))
+
+    return masses
+
+
+def _generate_curly_masses(cx: float, ty: float, w: float, l: float,
+                           rng: random.Random) -> List[HairMass]:
+    """Generate curly anime hair masses (volumetric curls)."""
+    masses = []
+
+    # Large back volume
+    masses.append(HairMass(
+        spine=[
+            (cx, ty + l * 0.05),
+            (cx, ty + l * 0.35),
+            (cx, ty + l * 0.65),
+            (cx, ty + l * 0.9),
+        ],
+        widths=[w * 1.0, w * 1.15, w * 1.1, w * 0.9],
+        z_depth=-1.0,
+        foreground=False,
+        color_shift=-0.2,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Curly side masses
+    for side in [-1, 1]:
+        masses.append(HairMass(
+            spine=[
+                (cx + side * w * 0.4, ty + l * 0.1),
+                (cx + side * w * 0.55, ty + l * 0.35),
+                (cx + side * w * 0.5, ty + l * 0.6),
+                (cx + side * w * 0.55, ty + l * 0.85),
+            ],
+            widths=[w * 0.25, w * 0.3, w * 0.28, w * 0.22],
+            z_depth=-0.4,
+            foreground=False,
+            color_shift=side * 0.1,
+            has_rim_light=True,
+            side=side,
+        ))
+
+    # Bouncy bangs
+    for i in range(3):
+        t = (i + 0.5) / 3
+        x_off = (t - 0.5) * w * 0.35
+        curl_offset = rng.uniform(-2, 2)
+        masses.append(HairMass(
+            spine=[
+                (cx + x_off, ty),
+                (cx + x_off + curl_offset, ty + l * 0.15),
+                (cx + x_off, ty + l * 0.25),
+            ],
+            widths=[w * 0.12, w * 0.14, w * 0.1],
+            z_depth=1.0,
+            foreground=True,
+            color_shift=0.15,
+            has_rim_light=False,
+            side=x_off / w,
+        ))
+
+    return masses
+
+
+def _generate_braided_masses(cx: float, ty: float, w: float, l: float,
+                              rng: random.Random) -> List[HairMass]:
+    """Generate braided anime hair masses."""
+    masses = []
+    braid_l = l * 1.1
+
+    # Back base hair
+    masses.append(HairMass(
+        spine=[(cx, ty + l * 0.1), (cx, ty + l * 0.3)],
+        widths=[w * 0.7, w * 0.5],
+        z_depth=-1.0,
+        foreground=False,
+        color_shift=-0.2,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Braid (simplified as single thick mass with segments)
+    braid_width = w * 0.2
+    masses.append(HairMass(
+        spine=[
+            (cx, ty + l * 0.25),
+            (cx + braid_width * 0.3, ty + l * 0.45),
+            (cx - braid_width * 0.3, ty + l * 0.65),
+            (cx + braid_width * 0.2, ty + l * 0.85),
+            (cx, ty + braid_l),
+        ],
+        widths=[braid_width, braid_width * 1.1, braid_width * 1.1, braid_width, braid_width * 0.7],
+        z_depth=-0.6,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=0.0,
+    ))
+
+    # Side wisps
+    masses.append(HairMass(
+        spine=[(cx - w * 0.35, ty + l * 0.05), (cx - w * 0.38, ty + l * 0.25)],
+        widths=[w * 0.12, w * 0.08],
+        z_depth=-0.3,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=-0.8,
+    ))
+
+    masses.append(HairMass(
+        spine=[(cx + w * 0.35, ty + l * 0.05), (cx + w * 0.38, ty + l * 0.25)],
+        widths=[w * 0.12, w * 0.08],
+        z_depth=-0.3,
+        foreground=False,
+        color_shift=0.0,
+        has_rim_light=True,
+        side=0.8,
+    ))
+
+    # Light bangs
+    masses.append(HairMass(
+        spine=[(cx, ty), (cx, ty + l * 0.15)],
+        widths=[w * 0.22, w * 0.16],
+        z_depth=1.0,
+        foreground=True,
+        color_shift=0.15,
+        has_rim_light=False,
+        side=0.0,
+    ))
+
+    return masses
+
+
+def render_hair_mass(canvas: Canvas, mass: HairMass,
+                     color_ramp: List[Color],
+                     light_direction: Tuple[float, float] = (1.0, -1.0),
+                     rim_color: Tuple[int, int, int] = (180, 200, 255),
+                     rim_intensity: float = 0.4) -> None:
+    """
+    Render a single volumetric hair mass with anime-style shading.
+
+    Features:
+    - Flat color blocking with limited palette
+    - Form shadows based on curve normals
+    - Rim lighting on back-facing edges
+    - Clean silhouette edges
+    """
+    if len(mass.spine) < 2 or len(mass.widths) < 2:
+        return
+
+    ramp_len = len(color_ramp)
+    mid_idx = ramp_len // 2
+
+    # Determine base color from mass properties
+    color_idx = mid_idx + int(mass.color_shift * 2)
+    color_idx = max(0, min(ramp_len - 1, color_idx))
+
+    shadow_idx = max(0, color_idx - 2)
+    highlight_idx = min(ramp_len - 1, color_idx + 2)
+
+    # Normalize light direction
+    lx, ly = light_direction
+    l_mag = math.sqrt(lx * lx + ly * ly)
+    if l_mag > 0:
+        lx, ly = lx / l_mag, ly / l_mag
+
+    # Sample along spine with interpolation
+    steps = max(30, int(len(mass.spine) * 15))
+
+    for i in range(steps):
+        t = i / (steps - 1)
+
+        # Interpolate position along spine
+        pos = _interpolate_spine(mass.spine, t)
+        width = _interpolate_width(mass.widths, t, len(mass.spine))
+
+        # Get tangent for perpendicular
+        tangent = _get_spine_tangent(mass.spine, t)
+        perp = (-tangent[1], tangent[0])
+
+        # Normalize perpendicular
+        p_mag = math.sqrt(perp[0] ** 2 + perp[1] ** 2)
+        if p_mag > 0:
+            perp = (perp[0] / p_mag, perp[1] / p_mag)
+
+        # Draw width across the mass
+        half_w = width / 2
+        x1 = pos[0] - perp[0] * half_w
+        y1 = pos[1] - perp[1] * half_w
+        x2 = pos[0] + perp[0] * half_w
+        y2 = pos[1] + perp[1] * half_w
+
+        dx = x2 - x1
+        dy = y2 - y1
+        line_len = math.sqrt(dx * dx + dy * dy)
+        line_steps = max(int(line_len * 1.5), 1)
+
+        for j in range(line_steps + 1):
+            lt = j / line_steps if line_steps > 0 else 0.5
+            px = int(x1 + dx * lt)
+            py = int(y1 + dy * lt)
+
+            if not (0 <= px < canvas.width and 0 <= py < canvas.height):
+                continue
+
+            # Determine shading based on position across width
+            edge_dist = abs(lt - 0.5) * 2  # 0 at center, 1 at edges
+            center_factor = 1 - edge_dist
+
+            # Light calculation
+            dot = perp[0] * lx + perp[1] * ly
+
+            # Choose color based on lighting and position
+            if dot < -0.3:
+                # Shadow side
+                used_idx = shadow_idx
+            elif dot > 0.3 and center_factor > 0.5:
+                # Highlight
+                used_idx = highlight_idx
+            else:
+                used_idx = color_idx
+
+            color = color_ramp[used_idx]
+
+            # Apply rim lighting at edges
+            if mass.has_rim_light and edge_dist > 0.75:
+                # Check if this edge faces away from light (rim light condition)
+                edge_side = 1 if lt > 0.5 else -1
+                rim_facing = edge_side * mass.side
+
+                if rim_facing < 0:  # Edge faces away from primary light
+                    rim_blend = (edge_dist - 0.75) / 0.25 * rim_intensity
+                    rim_blend = min(1.0, rim_blend)
+                    r = int(color[0] * (1 - rim_blend) + rim_color[0] * rim_blend)
+                    g = int(color[1] * (1 - rim_blend) + rim_color[1] * rim_blend)
+                    b = int(color[2] * (1 - rim_blend) + rim_color[2] * rim_blend)
+                    color = (r, g, b, 255)
+
+            # Anti-aliasing at edges
+            alpha = 255
+            if edge_dist > 0.85:
+                alpha = int(255 * (1.0 - edge_dist) / 0.15)
+                alpha = max(0, min(255, alpha))
+
+            if alpha > 0:
+                if alpha < 255:
+                    color = (*color[:3], alpha)
+                canvas.set_pixel(px, py, color)
+
+
+def _interpolate_spine(spine: List[Tuple[float, float]], t: float) -> Tuple[float, float]:
+    """Interpolate position along spine at parameter t."""
+    if len(spine) < 2:
+        return spine[0] if spine else (0, 0)
+
+    # Find segment
+    segment_t = t * (len(spine) - 1)
+    idx = int(segment_t)
+    idx = max(0, min(len(spine) - 2, idx))
+    local_t = segment_t - idx
+
+    p0 = spine[idx]
+    p1 = spine[idx + 1]
+
+    return (
+        p0[0] + (p1[0] - p0[0]) * local_t,
+        p0[1] + (p1[1] - p0[1]) * local_t
+    )
+
+
+def _interpolate_width(widths: List[float], t: float, spine_len: int) -> float:
+    """Interpolate width at parameter t."""
+    if len(widths) < 2:
+        return widths[0] if widths else 1.0
+
+    segment_t = t * (len(widths) - 1)
+    idx = int(segment_t)
+    idx = max(0, min(len(widths) - 2, idx))
+    local_t = segment_t - idx
+
+    return widths[idx] + (widths[idx + 1] - widths[idx]) * local_t
+
+
+def _get_spine_tangent(spine: List[Tuple[float, float]], t: float) -> Tuple[float, float]:
+    """Get tangent vector at parameter t along spine."""
+    if len(spine) < 2:
+        return (0, 1)
+
+    # Use finite difference
+    dt = 0.01
+    t0 = max(0, t - dt)
+    t1 = min(1, t + dt)
+
+    p0 = _interpolate_spine(spine, t0)
+    p1 = _interpolate_spine(spine, t1)
+
+    dx = p1[0] - p0[0]
+    dy = p1[1] - p0[1]
+
+    mag = math.sqrt(dx * dx + dy * dy)
+    if mag > 0:
+        return (dx / mag, dy / mag)
+    return (0, 1)
+
+
+def render_anime_hair(canvas: Canvas, style: HairStyle, center_x: float, top_y: float,
+                      width: float, length: float, color_ramp: List[Color],
+                      light_direction: Tuple[float, float] = (1.0, -1.0),
+                      rim_color: Tuple[int, int, int] = (180, 200, 255),
+                      rim_intensity: float = 0.4,
+                      seed: Optional[int] = None,
+                      foreground_only: bool = False) -> None:
+    """
+    Render anime-style volumetric hair.
+
+    This is the main entry point for anime hair rendering, using
+    large volumetric masses instead of individual strands.
+
+    Args:
+        canvas: Target canvas
+        style: Hair style
+        center_x: Horizontal center
+        top_y: Top of hair area
+        width: Hair width
+        length: Hair length
+        color_ramp: 6-color anime palette (dark to light)
+        light_direction: Primary light direction
+        rim_color: Color for rim lighting
+        rim_intensity: Rim light strength (0.0-1.0)
+        seed: Random seed
+        foreground_only: If True, only render foreground (bangs) masses
+    """
+    masses = generate_anime_hair_masses(style, center_x, top_y, width, length, seed)
+
+    for mass in masses:
+        if foreground_only and not mass.foreground:
+            continue
+        if not foreground_only and mass.foreground:
+            continue
+
+        render_hair_mass(
+            canvas, mass, color_ramp, light_direction,
+            rim_color, rim_intensity
+        )
