@@ -130,6 +130,7 @@ class PortraitConfig:
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
     eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
     eyebrow_thickness: int = 2  # 1-4 pixels thick
+    eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
 
     # Eyebags
     has_eyebags: bool = False
@@ -758,17 +759,20 @@ class PortraitGenerator:
         return self
 
     def set_eyebrows(self, arch: float = 0.3, angle: float = 0.0,
-                      thickness: int = 2) -> 'PortraitGenerator':
-        """Set eyebrow shape.
+                      thickness: int = 2,
+                      color: Optional[str] = None) -> 'PortraitGenerator':
+        """Set eyebrow shape and color.
 
         Args:
             arch: Arch height (0.0-1.0, default 0.3)
             angle: Angle tilt (-0.5 to 0.5, negative=sad, positive=angry)
             thickness: Thickness in pixels (1-4, default 2)
+            color: Color name (None = use hair color)
         """
         self.config.eyebrow_arch = max(0.0, min(1.0, arch))
         self.config.eyebrow_angle = max(-0.5, min(0.5, angle))
         self.config.eyebrow_thickness = max(1, min(4, thickness))
+        self.config.eyebrow_color = color
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -2617,8 +2621,19 @@ class PortraitGenerator:
         brow_width = fw // 6
         half_width = brow_width // 2
 
-        # Eyebrow color (darker than hair)
-        brow_color = self._hair_ramp[0]  # Darkest hair color
+        # Eyebrow color (default to darker than hair)
+        custom_brow_color = getattr(self.config, 'eyebrow_color', None)
+        if custom_brow_color and custom_brow_color in HAIR_COLORS:
+            brow_base = HAIR_COLORS[custom_brow_color]
+            # Create a darker version for eyebrows
+            brow_color = (
+                max(0, brow_base[0] - 20),
+                max(0, brow_base[1] - 20),
+                max(0, brow_base[2] - 20),
+                255
+            )
+        else:
+            brow_color = self._hair_ramp[0]  # Darkest hair color
 
         # Get config values
         arch_amount = self.config.eyebrow_arch
