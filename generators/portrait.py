@@ -103,6 +103,8 @@ class PortraitConfig:
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
+    has_waterline: bool = False
+    waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
@@ -684,6 +686,17 @@ class PortraitGenerator:
             intensity: Brightness from 0.0 (none) to 1.0 (bright)
         """
         self.config.inner_corner_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
+        """
+        Add color to the waterline (inner eyelid rim).
+
+        Args:
+            color: Waterline color - nude (brightening), white (larger eyes), black (tightline)
+        """
+        self.config.has_waterline = True
+        self.config.waterline_color = color
         return self
 
     def set_eyeliner(self, style: str = "thin",
@@ -2742,6 +2755,52 @@ class PortraitGenerator:
                         px = ex + dx
                         canvas.set_pixel(px, py, (*shadow_color, alpha))
 
+    def _render_waterline(self, canvas: Canvas) -> None:
+        """Render waterline (inner rim of lower eyelid)."""
+        if not self.config.has_waterline:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+
+        # Waterline colors
+        color_name = (self.config.waterline_color or "nude").lower()
+        if color_name == "white":
+            waterline_color = (245, 240, 235, 180)  # Bright white
+        elif color_name == "black":
+            waterline_color = (25, 20, 25, 200)  # Dark tightline
+        else:  # nude
+            waterline_color = (220, 180, 170, 150)  # Nude/flesh tone
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+
+            # Apply eye tilt offset
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            # Waterline runs along bottom inner edge of eye
+            for dx in range(-eye_width + 2, eye_width - 1):
+                # Ellipse equation for lower lid
+                nx = dx / eye_width if eye_width > 0 else 0
+                if nx * nx > 1.0:
+                    continue
+                bottom_y = math.sqrt(max(0, 1.0 - nx * nx)) * eye_height * 0.8
+                py = ey + int(bottom_y)
+
+                # Fade at edges
+                edge_fade = 1.0 - abs(nx) * 0.3
+                alpha = int(waterline_color[3] * edge_fade)
+                if alpha > 0:
+                    canvas.set_pixel(ex + dx, py, (*waterline_color[:3], alpha))
+
     def _render_nose(self, canvas: Canvas) -> None:
         """Render nose with subtle shading based on nose type."""
         cx, cy = self._get_face_center()
@@ -3796,6 +3855,7 @@ class PortraitGenerator:
         self._render_eyes(canvas)
         self._render_eyelashes(canvas)
         self._render_eyeliner(canvas)
+        self._render_waterline(canvas)  # Inner rim of lower eyelid
         self._render_eyebrows(canvas)
         self._render_scar(canvas)
         self._render_piercings(canvas)
