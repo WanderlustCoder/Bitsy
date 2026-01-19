@@ -191,6 +191,7 @@ class PortraitConfig:
     wrinkle_intensity: float = 0.5  # 0.0 to 1.0, controls visibility
     wrinkle_areas: str = "all"  # all, forehead, eyes, mouth
     forehead_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (independent of wrinkles)
+    crows_feet: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (eye corner wrinkles)
 
     # Nasolabial folds (smile/laugh lines)
     nasolabial_depth: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent
@@ -1159,6 +1160,16 @@ class PortraitGenerator:
             intensity: Line visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
         """
         self.config.forehead_lines = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_crows_feet(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set crow's feet (eye corner wrinkles) visibility.
+
+        Args:
+            intensity: Line visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.crows_feet = max(0.0, min(1.0, intensity))
         return self
 
     def set_nasolabial_folds(self, depth: float = 0.5) -> 'PortraitGenerator':
@@ -2848,6 +2859,60 @@ class PortraitGenerator:
                 alpha = int(max_alpha * x_fade * (0.9 - 0.15 * i))  # Fainter upper lines
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, line_y + wave, (*line_color[:3], alpha))
+
+    def _render_crows_feet(self, canvas: Canvas) -> None:
+        """Render crow's feet (eye corner wrinkles)."""
+        intensity = getattr(self.config, 'crows_feet', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+
+        # Line color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        line_idx = max(0, mid_idx - 2)
+        line_color = self._skin_ramp[line_idx]
+        max_alpha = int(20 + 40 * intensity)
+
+        # Number of lines (2-4 based on intensity)
+        num_lines = 2 if intensity < 0.5 else (3 if intensity < 0.8 else 4)
+        line_length = max(3, eye_width // 2)
+
+        for side in (-1, 1):
+            # Outer corner of eye
+            corner_x = cx + side * (eye_spacing + eye_width // 2 + 1)
+
+            # Apply eye tilt offset
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            corner_y = eye_y - side * tilt_offset
+
+            # Draw radiating lines from corner
+            for i in range(num_lines):
+                # Angle from horizontal (spread outward)
+                angle_offset = (i - (num_lines - 1) / 2) * 0.25  # ~15 degrees spread
+                base_angle = 0.1 if side > 0 else math.pi - 0.1  # Slight downward angle
+
+                for step in range(line_length):
+                    t = step / line_length
+                    # Lines curve slightly downward
+                    angle = base_angle + angle_offset - t * 0.15
+                    dx = int(math.cos(angle) * step * side)
+                    dy = int(math.sin(angle) * step + step * 0.3)  # Downward bias
+
+                    # Fade toward ends
+                    fade = 1.0 - t ** 1.5
+                    alpha = int(max_alpha * fade * (1.0 - 0.15 * i))
+                    if alpha > 0:
+                        px = corner_x + dx
+                        py = corner_y + dy
+                        canvas.set_pixel(px, py, (*line_color[:3], alpha))
 
     def _render_nasolabial_folds(self, canvas: Canvas) -> None:
         """Render nasolabial folds (smile/laugh lines) independently of wrinkles."""
@@ -4713,6 +4778,7 @@ class PortraitGenerator:
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_forehead_lines(canvas)  # Forehead expression lines
+        self._render_crows_feet(canvas)  # Eye corner wrinkles
         self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
         self._render_eyebags(canvas)
         self._render_freckles(canvas)
