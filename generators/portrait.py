@@ -9099,6 +9099,23 @@ class PortraitGenerator:
         )
 
         # --- Post-processing ---
+
+        # Build limited palette from all ramps used
+        anime_palette = []
+        anime_palette.append(bg_color)  # Background
+        anime_palette.extend(skin_ramp)  # Skin colors
+        anime_palette.extend(hair_ramp)  # Hair colors
+        anime_palette.extend(eye_ramp)   # Eye colors
+        # Add some standard colors
+        anime_palette.append((250, 245, 240, 255))  # Sclera white
+        anime_palette.append((20, 15, 25, 255))     # Eyelash black
+        anime_palette.append((255, 255, 255, 255))  # Catchlight white
+        if self.config.rim_light_enabled and self.config.rim_light_color:
+            anime_palette.append((*self.config.rim_light_color, 255))
+
+        # Enforce palette to limit colors
+        enforce_palette(canvas, anime_palette)
+
         if self.config.outline_mode == "thin":
             apply_outline(canvas, (*self.config.outline_color, 255), 1)
         elif self.config.outline_mode == "thick":
