@@ -102,6 +102,7 @@ class PortraitConfig:
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
     smile_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep nasolabial folds
     forehead_size: str = "normal"  # normal, large, small
+    forehead_height: float = 1.0  # 0.8 = short, 1.0 = normal, 1.2 = tall forehead
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
     ear_cartilage: float = 0.0  # 0.0 = none, 0.5 = subtle inner structure, 1.0 = defined
@@ -751,6 +752,18 @@ class PortraitGenerator:
             size: One of 'normal', 'large', 'small'
         """
         self.config.forehead_size = size
+        return self
+
+    def set_forehead_height(self, height: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set forehead height multiplier.
+
+        Controls the vertical size of the forehead area.
+
+        Args:
+            height: Height multiplier (0.8 = short, 1.0 = normal, 1.2 = tall)
+        """
+        self.config.forehead_height = max(0.8, min(1.2, height))
         return self
 
     def set_ears(self, ear_type: str = "normal", size: float = 1.0) -> 'PortraitGenerator':
@@ -2096,11 +2109,23 @@ class PortraitGenerator:
     def _get_forehead_tuning(self, fh: int) -> Tuple[int, int, float]:
         """Return center shift, eye shift, and upper scale for forehead sizing."""
         size = (self.config.forehead_size or "normal").lower()
+        height_mult = getattr(self.config, 'forehead_height', 1.0)
+
+        # Base values from size preset
         if size == "large":
-            return int(fh * 0.02), int(fh * 0.06), 0.88
-        if size == "small":
-            return -int(fh * 0.02), -int(fh * 0.05), 1.12
-        return 0, 0, 1.0
+            center_shift, eye_shift, scale = int(fh * 0.02), int(fh * 0.06), 0.88
+        elif size == "small":
+            center_shift, eye_shift, scale = -int(fh * 0.02), -int(fh * 0.05), 1.12
+        else:
+            center_shift, eye_shift, scale = 0, 0, 1.0
+
+        # Apply height multiplier adjustment
+        if height_mult != 1.0:
+            height_adjust = (height_mult - 1.0)  # -0.2 to +0.2
+            eye_shift += int(fh * height_adjust * 0.1)  # Move eyes
+            scale = scale * (1.0 - height_adjust * 0.2)  # Adjust upper scale
+
+        return center_shift, eye_shift, scale
 
     def _get_eye_y(self, cy: int, fh: int) -> int:
         """Calculate eye baseline position with forehead sizing."""
