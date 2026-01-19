@@ -128,6 +128,7 @@ class PortraitConfig:
     eye_spacing: float = 1.0  # 0.8 = close-set, 1.0 = normal, 1.2 = wide-set eyes
     pupil_size: float = 1.0  # 0.7-1.5, multiplier for pupil size
     iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
+    iris_brightness: float = 1.0  # 0.5 = dark/muted, 1.0 = normal, 1.5 = bright/vivid
     catchlight_style: str = "double"  # none, single, double, sparkle
     catchlight_brightness: float = 1.0  # 0.5 = dim, 1.0 = normal, 1.5 = bright
     catchlight_size: float = 1.0  # 0.5 = small, 1.0 = normal, 1.5 = large
@@ -176,6 +177,7 @@ class PortraitConfig:
     nose_alar_width: float = 1.0  # 0.7 = narrow wings, 1.0 = normal, 1.3 = wide nostril wings
     nose_deviation: float = 0.0  # -1.0 = deviated left, 0.0 = straight, 1.0 = deviated right
     under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
+    nose_shadow_depth: float = 0.5  # 0.0 = flat/no shadow, 0.5 = normal, 1.0 = deep/prominent shadow
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
     has_lipstick: bool = False
@@ -185,6 +187,7 @@ class PortraitConfig:
     lip_parting: float = 0.0  # 0.0 = closed, 0.3 = slightly parted, 1.0 = open/showing teeth
     upper_lip_fullness: float = 0.5  # 0.0 = thin upper lip, 0.5 = balanced, 1.0 = full upper lip (pout)
     lip_fullness_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable asymmetry
+    lip_asymmetry: float = 0.0  # 0.0 = symmetric, 0.5 = subtle asymmetry, 1.0 = noticeable asymmetry
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
     mouth_vertical_position: float = 0.0  # -0.2 = higher mouth, 0.0 = normal, 0.2 = lower mouth
@@ -1587,6 +1590,11 @@ class PortraitGenerator:
         self.config.under_nose_shadow = max(0.0, min(1.0, intensity))
         return self
 
+    def set_nose_shadow_depth(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """Set nose shadow depth for 3D definition."""
+        self.config.nose_shadow_depth = max(0.0, min(1.0, depth))
+        return self
+
     def set_lips(self, shape: LipShape, color: str = "natural") -> 'PortraitGenerator':
         """Set lip shape and color."""
         self.config.lip_shape = shape
@@ -1687,6 +1695,11 @@ class PortraitGenerator:
             amount: Asymmetry amount (0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable)
         """
         self.config.lip_fullness_asymmetry = max(0.0, min(1.0, amount))
+        return self
+
+    def set_lip_asymmetry(self, asymmetry: float = 0.0) -> 'PortraitGenerator':
+        """Set lip asymmetry for a more natural, imperfect look."""
+        self.config.lip_asymmetry = max(0.0, min(1.0, asymmetry))
         return self
 
     def set_mouth_corners(self, corners: float = 0.0) -> 'PortraitGenerator':
@@ -3004,6 +3017,8 @@ class PortraitGenerator:
         # Nose position
         nose_y = cy + fh // 10
         lx, _ = self.config.light_direction
+        depth = max(0.0, min(1.0, getattr(self.config, 'nose_shadow_depth', 0.5)))
+        depth_mult = depth / 0.5 if depth > 0.0 else 0.0
 
         # Shadow on opposite side of light
         shadow_x = cx + (3 if lx < 0 else -3)
@@ -3011,7 +3026,8 @@ class PortraitGenerator:
 
         # Small shadow stroke
         for dy in range(-2, 4):
-            alpha = 60 - abs(dy) * 10
+            base_alpha = 60 - abs(dy) * 10
+            alpha = int(min(255, base_alpha * depth_mult))
             if alpha > 0:
                 canvas.set_pixel(shadow_x, nose_y + dy, (*shadow_color[:3], alpha))
 
