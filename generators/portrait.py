@@ -75,6 +75,7 @@ class PortraitConfig:
 
     # Skin
     skin_tone: str = "light"  # light, medium, tan, dark, pale
+    skin_undertone: str = "neutral"  # warm, cool, neutral
 
     # Hair
     hair_style: HairStyle = HairStyle.WAVY
@@ -476,9 +477,16 @@ class PortraitGenerator:
         self._eye_ramp: List[Color] = []
         self._lip_ramp: List[Color] = []
 
-    def set_skin(self, tone: str) -> 'PortraitGenerator':
-        """Set skin tone."""
+    def set_skin(self, tone: str, undertone: str = "neutral") -> 'PortraitGenerator':
+        """
+        Set skin tone and undertone.
+
+        Args:
+            tone: Skin tone (light, medium, tan, dark, pale, olive, brown)
+            undertone: Undertone (warm, cool, neutral)
+        """
         self.config.skin_tone = tone
+        self.config.skin_undertone = undertone
         return self
 
     def set_face_shape(self, shape: str = "oval") -> 'PortraitGenerator':
@@ -900,8 +908,25 @@ class PortraitGenerator:
 
     def _prepare_ramps(self) -> None:
         """Pre-compute color ramps based on configuration."""
-        # Skin ramp
+        # Skin ramp with undertone adjustment
         skin_base = SKIN_TONES.get(self.config.skin_tone, SKIN_TONES["light"])
+        undertone = getattr(self.config, 'skin_undertone', 'neutral').lower()
+
+        # Apply undertone color shift
+        r, g, b = skin_base
+        if undertone == "warm":
+            # Shift toward yellow/orange
+            r = min(255, r + 8)
+            g = min(255, g + 4)
+            b = max(0, b - 6)
+        elif undertone == "cool":
+            # Shift toward pink/blue
+            r = max(0, r - 4)
+            g = max(0, g - 2)
+            b = min(255, b + 8)
+        # neutral = no shift
+
+        skin_base = (r, g, b)
         self._skin_ramp = create_skin_ramp(
             (*skin_base, 255),
             levels=self.config.shading_levels
