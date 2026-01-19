@@ -136,6 +136,7 @@ class PortraitConfig:
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
+    epicanthic_fold: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced fold covering inner corner
     tear_duct: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible pink caruncle
     eye_crease: float = 0.0  # 0.0 = none/monolid, 0.5 = subtle, 1.0 = defined crease
     eye_socket_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined depth
@@ -1193,6 +1194,19 @@ class PortraitGenerator:
             intensity: Brightness from 0.0 (none) to 1.0 (bright)
         """
         self.config.inner_corner_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_epicanthic_fold(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set epicanthic fold intensity (skin fold covering inner eye corner).
+
+        Common in East Asian eyes, this fold partially covers the inner
+        eye corner and caruncle.
+
+        Args:
+            intensity: Fold prominence (0.0 = none, 0.5 = subtle, 1.0 = pronounced)
+        """
+        self.config.epicanthic_fold = max(0.0, min(1.0, intensity))
         return self
 
     def set_tear_duct(self, visibility: float = 0.5) -> 'PortraitGenerator':
@@ -5707,6 +5721,40 @@ class PortraitGenerator:
                     canvas.set_pixel(caruncle_x, caruncle_y + 1, (*caruncle_color, int(caruncle_alpha * 0.6)))
                 if tear_duct_vis > 0.6:
                     canvas.set_pixel(caruncle_x - side, caruncle_y, (*caruncle_color, int(caruncle_alpha * 0.4)))
+
+            # Layer 7b: Epicanthic fold (skin fold covering inner eye corner)
+            epicanthic = getattr(self.config, 'epicanthic_fold', 0.0)
+            if epicanthic > 0.0:
+                # Fold covers inner corner, extending from upper lid
+                fold_x = ex - side * (eye_width - 1)
+                fold_y = ey
+
+                # Skin-colored fold
+                mid_idx = len(self._skin_ramp) // 2
+                fold_color = self._skin_ramp[mid_idx]
+                shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+                fold_size = max(2, int(2 + 2 * epicanthic))
+                fold_alpha = int(150 + 105 * epicanthic)
+
+                # Draw triangular fold covering inner corner
+                for dy in range(-fold_size, fold_size + 1):
+                    # Fold tapers as it extends away from corner
+                    width_at_y = max(1, int(fold_size * (1 - abs(dy) / (fold_size + 1))))
+                    y_fade = 1.0 - abs(dy) / (fold_size + 1)
+
+                    for dx in range(width_at_y):
+                        px = fold_x + side * dx  # Fold extends toward center of face
+                        py = fold_y + dy
+
+                        x_fade = 1.0 - dx / (width_at_y + 1)
+                        alpha = int(fold_alpha * x_fade * y_fade)
+
+                        # Shadow on the fold edge for depth
+                        if dx == 0 and abs(dy) < fold_size:
+                            canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+                        elif alpha > 20:
+                            canvas.set_pixel(px, py, (*fold_color[:3], alpha))
 
             # Layer 8: Eye crease (fold above eye)
             eye_crease_depth = getattr(self.config, 'eye_crease', 0.0)
