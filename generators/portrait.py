@@ -158,6 +158,7 @@ class PortraitConfig:
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
+    nose_length: float = 1.0  # 0.8 = short nose, 1.0 = normal, 1.2 = long nose
     nose_bridge_width: float = 1.0  # 0.7-1.3, multiplier for nose bridge width
     nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
     nose_tip_shape: str = "rounded"  # rounded, pointed, bulbous, upturned
@@ -1643,6 +1644,11 @@ class PortraitGenerator:
             depth: Shadow depth (0.0 = none, 0.5 = normal, 1.0 = deep shadow at corners)
         """
         self.config.lip_corner_shadow = max(0.0, min(1.0, depth))
+        return self
+
+    def set_lip_corner_crease(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """Set lip corner crease intensity (0.0 = none, 0.5 = subtle, 1.0 = prominent)."""
+        self.config.lip_corner_crease = max(0.0, min(1.0, intensity))
         return self
 
     def set_vermillion_border(self, intensity: float = 0.0) -> 'PortraitGenerator':
@@ -7185,6 +7191,7 @@ class PortraitGenerator:
                     cupid_width=cupid_bow_width,
                     cupid_depth=cupid_bow_depth,
                 )
+            self._render_lip_corner_crease(canvas, cx, lip_y, lip_width, lip_height)
             return
 
         upper_scale = 0.5
@@ -7296,6 +7303,7 @@ class PortraitGenerator:
                     canvas.set_pixel(cx + dx, lip_y + lower_curve + 1, (*pout_shadow[:3], alpha))
 
         # Render lip corner shadows
+        self._render_lip_corner_crease(canvas, cx, lip_y, lip_width, lip_height)
         self._render_lip_corner_shadow(canvas, cx, lip_y, lip_width, lip_height)
 
         # Render lip liner if enabled
@@ -7364,6 +7372,37 @@ class PortraitGenerator:
             if alpha > 3:
                 # Use lip highlight color
                 canvas.set_pixel(cx + dx, highlight_y, (255, 230, 225, alpha))
+
+    def _render_lip_corner_crease(self, canvas: Canvas, cx: int, lip_y: int,
+                                  lip_width: int, lip_height: int) -> None:
+        """Render subtle creases extending from the mouth corners."""
+        intensity = getattr(self.config, 'lip_corner_crease', 0.0)
+        if intensity <= 0.0:
+            return
+
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        crease_color = self._skin_ramp[shade_idx]
+        max_alpha = int(20 + 60 * intensity)
+        line_len = max(2, int(lip_height * (0.8 + 0.6 * intensity)))
+
+        mouth_corners = getattr(self.config, 'mouth_corners', 0.0)
+        max_corner_shift = max(1, lip_height // 2)
+        corner_offset = int(-mouth_corners * max_corner_shift)
+        vertical_dir = 0.2 - 0.4 * mouth_corners
+
+        for side in (-1, 1):
+            corner_x = cx + side * (lip_width + 1)
+            corner_y = lip_y + corner_offset
+            for step in range(1, line_len + 1):
+                t = step / max(1, line_len)
+                dx = side * step
+                dy = int(round(vertical_dir * step))
+                alpha = int(max_alpha * (1.0 - 0.6 * t))
+                if alpha > 2:
+                    canvas.set_pixel(corner_x + dx, corner_y + dy, (*crease_color[:3], alpha))
+                    if intensity > 0.6 and step % 2 == 0:
+                        canvas.set_pixel(corner_x + dx, corner_y + dy + 1, (*crease_color[:3], alpha // 2))
 
     def _render_lip_corner_shadow(self, canvas: Canvas, cx: int, lip_y: int,
                                   lip_width: int, lip_height: int) -> None:
