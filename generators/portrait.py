@@ -95,6 +95,7 @@ class PortraitConfig:
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
+    chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
@@ -642,6 +643,19 @@ class PortraitGenerator:
             depth: Dimple depth (0.0 = none, 0.5 = subtle, 1.0 = pronounced)
         """
         self.config.chin_dimple = max(0.0, min(1.0, depth))
+        return self
+
+    def set_chin_crease(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set horizontal chin crease/fold.
+
+        Creates a horizontal fold line across the chin area,
+        often visible when speaking or in certain expressions.
+
+        Args:
+            intensity: Crease depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.chin_crease = max(0.0, min(1.0, intensity))
         return self
 
     def set_forehead(self, size: str = "normal") -> 'PortraitGenerator':
@@ -2632,6 +2646,42 @@ class PortraitGenerator:
                     canvas.set_pixel(cx - dimple_width - 1, y, (*highlight_color[:3], alpha))
                     # Right edge highlight
                     canvas.set_pixel(cx + dimple_width + 1, y, (*highlight_color[:3], alpha))
+
+    def _render_chin_crease(self, canvas: Canvas) -> None:
+        """Render horizontal chin crease/fold."""
+        intensity = getattr(self.config, 'chin_crease', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Chin crease position: horizontal line across lower chin
+        chin_y = cy + fh // 2 - fh // 10  # Above chin bottom
+        crease_width = max(3, fw // 5)
+
+        # Shadow and highlight colors
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 1)]
+
+        max_shadow_alpha = int(20 + 40 * intensity)
+        max_highlight_alpha = int(15 + 30 * intensity)
+
+        # Draw crease shadow line
+        for dx in range(-crease_width, crease_width + 1):
+            edge_fade = 1.0 - (abs(dx) / crease_width) ** 1.5
+            alpha = int(max_shadow_alpha * edge_fade)
+            if alpha > 5:
+                canvas.set_pixel(cx + dx, chin_y, (*shadow_color[:3], alpha))
+
+        # Draw highlight line just below (creates fold illusion)
+        if intensity > 0.3:
+            for dx in range(-crease_width + 1, crease_width):
+                edge_fade = 1.0 - (abs(dx) / crease_width) ** 1.5
+                alpha = int(max_highlight_alpha * edge_fade)
+                if alpha > 5:
+                    canvas.set_pixel(cx + dx, chin_y + 1, (*highlight_color[:3], alpha))
 
     def _render_highlight(self, canvas: Canvas) -> None:
         """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
@@ -6009,6 +6059,7 @@ class PortraitGenerator:
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
+        self._render_chin_crease(canvas)  # Horizontal chin fold
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_forehead_lines(canvas)  # Forehead expression lines
         self._render_crows_feet(canvas)  # Eye corner wrinkles
