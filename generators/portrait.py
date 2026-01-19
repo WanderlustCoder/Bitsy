@@ -134,6 +134,7 @@ class PortraitConfig:
     sclera_tint: str = "normal"  # normal, yellow (aged), blue (bright), red (tired/bloodshot)
     sclera_tint_intensity: float = 0.0  # 0.0 = no tint, 0.5 = subtle, 1.0 = noticeable
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
+    iris_ring_color: Optional[str] = None  # None = darker iris, or "blue", "green", "gold", "brown" for colored rings
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
     epicanthic_fold: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced fold covering inner corner
@@ -1217,6 +1218,11 @@ class PortraitGenerator:
             intensity: Reflection brightness (0.0 = none, 0.5 = subtle, 1.0 = bright)
         """
         self.config.iris_reflection = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_iris_ring_color(self, color: Optional[str] = None) -> 'PortraitGenerator':
+        """Set limbal ring color (None = darker iris, or 'blue', 'green', 'gold', 'brown')."""
+        self.config.iris_ring_color = color
         return self
 
     def set_sclera_tint(self, tint: str = "normal", intensity: float = 0.5) -> 'PortraitGenerator':
@@ -5798,7 +5804,19 @@ class PortraitGenerator:
             limbal_strength = getattr(self.config, 'limbal_ring', 0.3)
             if limbal_strength > 0.0:
                 limbal_alpha = int(80 + 120 * limbal_strength)  # 80-200 alpha
-                limbal_color = (20, 25, 30, limbal_alpha)  # Dark gray-blue
+                limbal_ring_color = getattr(self.config, 'iris_ring_color', None)
+                limbal_palette = {
+                    "blue": (60, 110, 170),
+                    "green": (80, 140, 95),
+                    "gold": (190, 150, 70),
+                    "brown": (110, 70, 50),
+                }
+                limbal_base = None
+                if limbal_ring_color:
+                    limbal_base = limbal_palette.get(limbal_ring_color.lower())
+                if limbal_base is None:
+                    limbal_base = tuple(max(0, int(c * 0.6)) for c in iris_outer[:3])
+                limbal_color = (*limbal_base, limbal_alpha)
                 ring_width = max(1, int(iris_radius * 0.15))
                 # Draw ring at outer edge of iris
                 for ring_r in range(iris_radius - ring_width, iris_radius + 1):
