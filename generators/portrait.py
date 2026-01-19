@@ -89,6 +89,7 @@ class PortraitConfig:
     hair_volume: float = 1.0  # 0.7-1.5, multiplier for hair width/fullness
     hair_parting: str = "none"  # none, left, right, center
     has_hair_highlights: bool = False
+    hair_shine: float = 0.0  # 0.0 = matte, 0.5 = subtle sheen, 1.0 = glossy shine streak
     highlight_color: str = "blonde"  # color for highlights/streaks
     highlight_intensity: float = 0.3  # 0.0-1.0, proportion of hair highlighted
 
@@ -1028,6 +1029,19 @@ class PortraitGenerator:
         self.config.has_hair_highlights = True
         self.config.highlight_color = color
         self.config.highlight_intensity = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_hair_shine(self, shine: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set hair shine/gloss level.
+
+        Adds a glossy light streak to the hair, creating a
+        healthy, well-conditioned appearance.
+
+        Args:
+            shine: Shine level (0.0 = matte, 0.5 = subtle, 1.0 = glossy)
+        """
+        self.config.hair_shine = max(0.0, min(1.0, shine))
         return self
 
     def set_eyes(self, shape: EyeShape, color: str,
@@ -7566,6 +7580,47 @@ class PortraitGenerator:
             light_direction=self.config.light_direction
         )
 
+    def _render_hair_shine(self, canvas: Canvas) -> None:
+        """Render hair shine/gloss highlight streak."""
+        shine = getattr(self.config, 'hair_shine', 0.0)
+        if shine <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Hair region
+        hair_top = cy - fh // 2 - fh // 6
+        volume_mult = getattr(self.config, 'hair_volume', 1.0)
+        hair_width = int(fw * 0.8 * volume_mult)
+
+        # Shine streak parameters
+        shine_color = (255, 255, 250)  # Bright white/cream
+        max_alpha = int(30 + 60 * shine)
+        streak_width = max(3, hair_width // 4)
+        streak_height = max(5, fh // 4)
+
+        # Position shine streak on one side of head (based on light direction)
+        lx, _ = self.config.light_direction
+        shine_x_offset = int(-lx * hair_width // 4)  # Opposite to light
+        shine_cx = cx + shine_x_offset
+        shine_y = hair_top + fh // 8
+
+        # Render curved shine streak
+        for dy in range(streak_height):
+            t = dy / streak_height
+            streak_w_at_y = int(streak_width * (1 - (2 * t - 1) ** 2))  # Wider in middle
+            y_alpha = (1 - abs(2 * t - 1) ** 2)  # Fade at top and bottom
+
+            for dx in range(-streak_w_at_y // 2, streak_w_at_y // 2 + 1):
+                x_alpha = 1 - (abs(dx) / (streak_w_at_y / 2 + 1)) ** 2 if streak_w_at_y > 0 else 1
+                alpha = int(max_alpha * y_alpha * x_alpha)
+                if alpha > 5:
+                    px = shine_cx + dx
+                    py = shine_y + dy
+                    if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                        canvas.set_pixel(px, py, (*shine_color, alpha))
+
     def _render_earrings(self, canvas: Canvas) -> None:
         """Render earrings if configured."""
         if not self.config.has_earrings:
@@ -8038,6 +8093,7 @@ class PortraitGenerator:
         self._render_face_tattoo(canvas)
         self._render_glasses(canvas)  # Glasses over eyes
         self._render_bangs(canvas)  # Front hair over forehead
+        self._render_hair_shine(canvas)  # Hair shine/gloss streak
         self._render_hair_accessory(canvas)  # Hair accessories on top
 
         return canvas
