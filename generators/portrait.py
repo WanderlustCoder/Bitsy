@@ -154,6 +154,7 @@ class PortraitConfig:
     nasal_bridge_definition: float = 0.5  # 0.0 = flat/wide bridge, 0.5 = normal, 1.0 = sharp/narrow
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     nostril_flare: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide/flared nostrils
+    nose_alar_width: float = 1.0  # 0.7 = narrow wings, 1.0 = normal, 1.3 = wide nostril wings
     under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
@@ -1286,6 +1287,18 @@ class PortraitGenerator:
             flare: Width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = flared)
         """
         self.config.nostril_flare = max(0.7, min(1.3, flare))
+        return self
+
+    def set_nose_alar_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set nose alar (nostril wing) width.
+
+        Controls the visible width of the nostril wings from the front.
+
+        Args:
+            width: Width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = wide)
+        """
+        self.config.nose_alar_width = max(0.7, min(1.3, width))
         return self
 
     def set_under_nose_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -6187,9 +6200,13 @@ class PortraitGenerator:
 
             nostril_y = nose_y + n_height
             nostril_flare = getattr(self.config, 'nostril_flare', 1.0)
+            alar_width = getattr(self.config, 'nose_alar_width', 1.0)
             nostril_offset = int(max(2, n_width) * nostril_flare)
             nostril_alpha = int(30 + 50 * nostril_def)
             nostril_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+            # Alar width affects how many pixels wide the nostril wing appears
+            wing_extra = int((alar_width - 1.0) * 2) if alar_width != 1.0 else 0
 
             for side in (-1, 1):
                 nx = cx + side * nostril_offset
@@ -6200,6 +6217,13 @@ class PortraitGenerator:
                     canvas.set_pixel(nx, nostril_y - 1, (*nostril_color[:3], int(nostril_alpha * 0.6)))
                 if nostril_def > 0.6:
                     canvas.set_pixel(nx + side, nostril_y, (*nostril_color[:3], int(nostril_alpha * 0.4)))
+                # Wider alar wings
+                if wing_extra > 0:
+                    for w in range(1, wing_extra + 1):
+                        wing_alpha = int(nostril_alpha * (0.5 - w * 0.15))
+                        if wing_alpha > 5:
+                            canvas.set_pixel(nx + side * w, nostril_y, (*nostril_color[:3], wing_alpha))
+                            canvas.set_pixel(nx + side * w, nostril_y - 1, (*nostril_color[:3], int(wing_alpha * 0.6)))
 
         # Nose bridge highlight
         bridge_intensity = getattr(self.config, 'nose_bridge_highlight', 0.0)
