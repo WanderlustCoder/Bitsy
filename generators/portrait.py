@@ -5381,7 +5381,10 @@ class PortraitGenerator:
         eye_spacing = self._get_eye_spacing(fw)
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = int(fw // 6 * size_mult)
-        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+        # Eye roundness affects height-to-width ratio (0.4-0.8 range)
+        roundness = getattr(self.config, 'eye_roundness', 0.5)
+        height_ratio = 0.4 + roundness * 0.4  # 0.0 = narrow/almond, 1.0 = round/wide
+        eye_height = int(eye_width * height_ratio * self.config.eye_openness)
         tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         for side in [-1, 1]:  # Left (-1) and right (1) eye
