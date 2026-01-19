@@ -102,9 +102,10 @@ class PortraitConfig:
     head_tilt: float = 0.0  # -0.3 = tilted right, 0.0 = straight, 0.3 = tilted left
     temple_width: float = 1.0  # 0.8 = narrow temples, 1.0 = normal, 1.2 = wide/broad temples
     jaw_angle: float = 0.0  # 0.0 = soft/rounded, 0.5 = defined, 1.0 = sharp/angular jawline
-    jaw_width: float = 1.0  # 0.8 = narrow jaw, 1.0 = normal, 1.2 = wide/square jaw
+    jaw_width: float = 1.0  # 0.7 = narrow jaw, 1.0 = normal, 1.3 = wide/square jaw
     face_taper: float = 0.0  # -0.5 = U-shaped/broad lower face, 0.0 = normal, 0.5 = V-shaped/narrow chin
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
+    chin_shape: float = 0.5  # 0.0 = pointed/V-shape, 0.5 = normal, 1.0 = rounded/U-shape
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
     mentolabial_fold: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep groove under lower lip
@@ -771,17 +772,8 @@ class PortraitGenerator:
         return self
 
     def set_jaw_width(self, width: float = 1.0) -> 'PortraitGenerator':
-        """
-        Set jaw width multiplier.
-
-        Controls the width of the lower face/jaw area.
-        Lower values create V-shaped faces, higher values
-        create square/wide jaws.
-
-        Args:
-            width: Jaw width multiplier (0.8 = narrow, 1.0 = normal, 1.2 = wide)
-        """
-        self.config.jaw_width = max(0.8, min(1.2, width))
+        """Set jaw width multiplier. Controls how wide/square the jaw appears."""
+        self.config.jaw_width = max(0.7, min(1.3, width))
         return self
 
     def set_jaw_angle(self, definition: float = 0.5) -> 'PortraitGenerator':
