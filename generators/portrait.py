@@ -100,6 +100,7 @@ class PortraitConfig:
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
+    chin_projection: float = 1.0  # 0.7 = recessed chin, 1.0 = normal, 1.3 = prominent/strong chin
     smile_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep nasolabial folds
     forehead_size: str = "normal"  # normal, large, small
     forehead_height: float = 1.0  # 0.8 = short, 1.0 = normal, 1.2 = tall forehead
@@ -731,6 +732,18 @@ class PortraitGenerator:
             intensity: Crease depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.chin_crease = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_chin_projection(self, projection: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set chin projection (how forward/prominent the chin appears).
+
+        Controls whether the chin looks recessed or strong/prominent.
+
+        Args:
+            projection: Projection level (0.7 = recessed, 1.0 = normal, 1.3 = prominent)
+        """
+        self.config.chin_projection = max(0.7, min(1.3, projection))
         return self
 
     def set_smile_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -3110,6 +3123,46 @@ class PortraitGenerator:
                 alpha = int(max_highlight_alpha * edge_fade)
                 if alpha > 5:
                     canvas.set_pixel(cx + dx, chin_y + 1, (*highlight_color[:3], alpha))
+
+    def _render_chin_projection(self, canvas: Canvas) -> None:
+        """Render chin projection effect (prominent vs recessed chin)."""
+        projection = getattr(self.config, 'chin_projection', 1.0)
+        if abs(projection - 1.0) < 0.05:  # Near normal, skip
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        chin_y = cy + fh // 2 - 3
+        chin_width = max(4, fw // 4)
+        chin_height = max(3, fh // 8)
+
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 2)]
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+        if projection > 1.0:
+            # Prominent chin: add highlight on front surface
+            intensity = (projection - 1.0) / 0.3  # 0-1 range
+            max_alpha = int(20 + 35 * intensity)
+            for dx in range(-chin_width, chin_width + 1):
+                x_fade = 1.0 - (abs(dx) / chin_width) ** 1.5
+                for dy in range(chin_height):
+                    y_fade = 1.0 - dy / chin_height
+                    alpha = int(max_alpha * x_fade * y_fade)
+                    if alpha > 3:
+                        canvas.set_pixel(cx + dx, chin_y + dy, (*highlight_color[:3], alpha))
+        else:
+            # Recessed chin: add shadow on chin area
+            intensity = (1.0 - projection) / 0.3  # 0-1 range
+            max_alpha = int(20 + 40 * intensity)
+            for dx in range(-chin_width, chin_width + 1):
+                x_fade = 1.0 - (abs(dx) / chin_width) ** 1.5
+                for dy in range(chin_height):
+                    y_fade = 1.0 - dy / chin_height
+                    alpha = int(max_alpha * x_fade * y_fade)
+                    if alpha > 3:
+                        canvas.set_pixel(cx + dx, chin_y + dy, (*shadow_color[:3], alpha))
 
     def _render_smile_lines(self, canvas: Canvas) -> None:
         """Render curved smile lines from nose sides to mouth corners."""
@@ -6995,6 +7048,7 @@ class PortraitGenerator:
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
         self._render_chin_crease(canvas)  # Horizontal chin fold
+        self._render_chin_projection(canvas)  # Prominent/recessed chin shading
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_forehead_lines(canvas)  # Forehead expression lines
         self._render_crows_feet(canvas)  # Eye corner wrinkles
