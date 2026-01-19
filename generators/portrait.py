@@ -143,6 +143,7 @@ class PortraitConfig:
     eye_spacing_adjust: float = 0.0  # -0.3 = close-set eyes, 0.0 = normal, 0.3 = wide-set eyes
     orbital_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined rim light
     eye_depth: float = 0.0  # -0.5 = protruding, 0.0 = normal, 0.5 = deep-set
+    eye_bag_puffiness: float = 0.0  # 0.0 = flat, 0.5 = subtle bags, 1.0 = prominent puffy bags
     hooded_eyes: float = 0.0  # 0.0 = open lid, 0.5 = partially hooded, 1.0 = fully hooded (lid hidden)
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
@@ -201,6 +202,7 @@ class PortraitConfig:
     expression: str = "neutral"  # neutral, happy, sad, surprised, etc.
     eye_openness: float = 1.0  # 0.0 = closed, 1.0 = fully open
     eye_roundness: float = 0.5  # 0.0 = narrow/almond, 0.5 = neutral, 1.0 = round/wide
+    eyelid_tightness: float = 0.5  # 0.0 = relaxed/droopy, 0.5 = normal, 1.0 = tight/alert
     gaze_direction: Tuple[float, float] = (0.0, 0.0)  # pupil offset
 
     # Eyeliner
@@ -1256,6 +1258,11 @@ class PortraitGenerator:
         self.config.eye_roundness = max(0.0, min(1.0, roundness))
         return self
 
+    def set_eyelid_tightness(self, tightness: float = 0.5) -> 'PortraitGenerator':
+        """Set eyelid tightness (0.0 = relaxed/droopy, 0.5 = normal, 1.0 = tight/alert)."""
+        self.config.eyelid_tightness = max(0.0, min(1.0, tightness))
+        return self
+
     def set_eye_socket_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
         """
         Set eye socket shadow depth for more defined eye area.
@@ -1286,6 +1293,11 @@ class PortraitGenerator:
             depth: Depth level (-0.5 = protruding, 0.0 = normal, 0.5 = deep-set)
         """
         self.config.eye_depth = max(-0.5, min(0.5, depth))
+        return self
+
+    def set_eye_bag_puffiness(self, puffiness: float = 0.5) -> 'PortraitGenerator':
+        """Set under-eye bag puffiness (0.0 = flat, 0.5 = subtle, 1.0 = puffy)."""
+        self.config.eye_bag_puffiness = max(0.0, min(1.0, puffiness))
         return self
 
     def set_hooded_eyes(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -4995,6 +5007,53 @@ class PortraitGenerator:
                         if alpha > 0:
                             canvas.set_pixel(px, py, (*base_color[:3], alpha))
 
+    def _render_eye_bags(self, canvas: Canvas) -> None:
+        """Render under-eye puffiness with subtle highlight and shadow."""
+        puffiness = getattr(self.config, 'eye_bag_puffiness', 0.0)
+        if puffiness <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+        eye_width = fw // 6
+        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+
+        bag_width = max(2, int(eye_width * (0.45 + 0.25 * puffiness)))
+        bag_height = max(1, int(eye_height * (0.25 + 0.2 * puffiness)))
+        bag_offset_y = max(1, int(eye_height * 0.6))
+
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_idx = min(len(self._skin_ramp) - 1, mid_idx + 1)
+        shadow_idx = max(0, mid_idx - 1)
+        highlight_color = self._skin_ramp[highlight_idx]
+        shadow_color = self._skin_ramp[shadow_idx]
+
+        max_alpha = int(18 + 40 * puffiness)
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+            bag_y = eye_y + bag_offset_y
+
+            for dy in range(-bag_height, bag_height + 1):
+                for dx in range(-bag_width, bag_width + 1):
+                    nx = dx / bag_width if bag_width > 0 else 0
+                    ny = dy / bag_height if bag_height > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 0.8
+                        if dy < 0:
+                            color = highlight_color
+                            alpha = int(max_alpha * falloff * 0.7)
+                        else:
+                            color = shadow_color
+                            alpha = int(max_alpha * falloff)
+                        if alpha > 3:
+                            canvas.set_pixel(ex + dx, bag_y + dy, (*color[:3], alpha))
+
 
     def _render_tear_trough(self, canvas: Canvas) -> None:
         """Render tear trough (infraorbital groove from inner eye to cheek)."""
@@ -5479,7 +5538,10 @@ class PortraitGenerator:
         eye_width = int(fw // 6 * size_mult)
         # Eye roundness affects height-to-width ratio (0.4-0.8 range)
         roundness = getattr(self.config, 'eye_roundness', 0.5)
+        tightness = getattr(self.config, 'eyelid_tightness', 0.5)
         height_ratio = 0.4 + roundness * 0.4  # 0.0 = narrow/almond, 1.0 = round/wide
+        height_ratio += (0.5 - tightness) * 0.12  # looser = rounder/droopier, tighter = more almond
+        height_ratio = max(0.3, min(0.85, height_ratio))
         eye_height = int(eye_width * height_ratio * self.config.eye_openness)
         tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
@@ -5490,7 +5552,8 @@ class PortraitGenerator:
             # Positive tilt = outer corners up (cat-eye), negative = outer corners down
             tilt = getattr(self.config, 'eye_tilt', 0.0)
             tilt_offset = int(tilt * eye_width * 0.5)
-            ey = eye_y - side * tilt_offset  # Adjusted eye Y for this eye
+            tightness_offset = int((0.5 - tightness) * eye_height * 0.2)
+            ey = eye_y - side * tilt_offset + tightness_offset  # Adjusted eye Y for this eye
 
             # Apply face asymmetry for more natural appearance
             asymmetry = getattr(self.config, 'face_asymmetry', 0.0)
@@ -8245,6 +8308,7 @@ class PortraitGenerator:
         self._render_tear_trough(canvas)  # Tear trough (infraorbital groove)
         self._render_under_eye_highlight(canvas)  # Concealer/brightening effect
         self._render_malar_bags(canvas)  # Under-eye puffiness/festoons
+        self._render_eye_bags(canvas)  # Under-eye bag puffiness
         self._render_freckles(canvas)
         self._render_moles(canvas)
         self._render_beauty_mark(canvas)
