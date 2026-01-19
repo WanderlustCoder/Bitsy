@@ -100,15 +100,16 @@ class PortraitConfig:
     face_height: float = 1.0  # 0.8 = short/compact face, 1.0 = normal, 1.2 = long/elongated face
     face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
     head_tilt: float = 0.0  # -0.3 = tilted right, 0.0 = straight, 0.3 = tilted left
-    jaw_width: float = 1.0  # 0.8 = narrow/V-shaped, 1.0 = normal, 1.2 = wide/square jaw
     temple_width: float = 1.0  # 0.8 = narrow temples, 1.0 = normal, 1.2 = wide/broad temples
     jaw_angle: float = 0.0  # 0.0 = soft/rounded, 0.5 = defined, 1.0 = sharp/angular jawline
+    jaw_width: float = 1.0  # 0.8 = narrow jaw, 1.0 = normal, 1.2 = wide/square jaw
     face_taper: float = 0.0  # -0.5 = U-shaped/broad lower face, 0.0 = normal, 0.5 = V-shaped/narrow chin
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
     mentolabial_fold: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep groove under lower lip
     chin_projection: float = 1.0  # 0.7 = recessed chin, 1.0 = normal, 1.3 = prominent/strong chin
+    chin_width: float = 1.0  # 0.7 = narrow/pointed chin, 1.0 = normal, 1.3 = wide/square chin
     smile_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep nasolabial folds
     bunny_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible nose scrunch wrinkles
     forehead_size: str = "normal"  # normal, large, small
