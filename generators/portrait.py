@@ -104,6 +104,7 @@ class PortraitConfig:
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
+    mentolabial_fold: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep groove under lower lip
     chin_projection: float = 1.0  # 0.7 = recessed chin, 1.0 = normal, 1.3 = prominent/strong chin
     smile_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep nasolabial folds
     forehead_size: str = "normal"  # normal, large, small
@@ -789,6 +790,18 @@ class PortraitGenerator:
             intensity: Crease depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.chin_crease = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_mentolabial_fold(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set mentolabial fold depth (groove between lower lip and chin).
+
+        Creates a horizontal shadow line directly below the lower lip.
+
+        Args:
+            depth: Fold depth (0.0 = none, 0.5 = subtle, 1.0 = deep)
+        """
+        self.config.mentolabial_fold = max(0.0, min(1.0, depth))
         return self
 
     def set_chin_projection(self, projection: float = 1.0) -> 'PortraitGenerator':
@@ -3422,6 +3435,48 @@ class PortraitGenerator:
                 alpha = int(max_highlight_alpha * edge_fade)
                 if alpha > 5:
                     canvas.set_pixel(cx + dx, chin_y + 1, (*highlight_color[:3], alpha))
+
+    def _render_mentolabial_fold(self, canvas: Canvas) -> None:
+        """Render mentolabial fold (groove between lower lip and chin)."""
+        depth = getattr(self.config, 'mentolabial_fold', 0.0)
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Position just below the lower lip
+        lip_y = cy + fh // 4
+        thickness = getattr(self.config, 'lip_thickness', 1.0)
+        lip_height = int(fh // 20 * thickness)
+        fold_y = lip_y + lip_height + 2
+
+        width_mult = getattr(self.config, 'lip_width', 1.0)
+        fold_width = int(fw // 6 * width_mult)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 1)]
+
+        max_shadow_alpha = int(25 + 45 * depth)
+        max_highlight_alpha = int(15 + 30 * depth)
+
+        # Shadow line (the fold itself)
+        for dx in range(-fold_width, fold_width + 1):
+            edge_fade = 1.0 - (abs(dx) / fold_width) ** 1.5
+            # Curve slightly - deeper in center
+            center_boost = 1.0 - (abs(dx) / fold_width) * 0.3
+            alpha = int(max_shadow_alpha * edge_fade * center_boost)
+            if alpha > 3:
+                canvas.set_pixel(cx + dx, fold_y, (*shadow_color[:3], alpha))
+
+        # Highlight below fold
+        if depth > 0.3:
+            for dx in range(-fold_width + 1, fold_width):
+                edge_fade = 1.0 - (abs(dx) / fold_width) ** 1.5
+                alpha = int(max_highlight_alpha * edge_fade)
+                if alpha > 3:
+                    canvas.set_pixel(cx + dx, fold_y + 1, (*highlight_color[:3], alpha))
 
     def _render_chin_projection(self, canvas: Canvas) -> None:
         """Render chin projection effect (prominent vs recessed chin)."""
@@ -7531,6 +7586,7 @@ class PortraitGenerator:
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
         self._render_chin_crease(canvas)  # Horizontal chin fold
+        self._render_mentolabial_fold(canvas)  # Groove under lower lip
         self._render_chin_projection(canvas)  # Prominent/recessed chin shading
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_forehead_lines(canvas)  # Forehead expression lines
