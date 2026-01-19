@@ -103,6 +103,8 @@ class PortraitConfig:
     pupil_size: float = 1.0  # 0.7-1.5, multiplier for pupil size
     iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
     catchlight_style: str = "double"  # none, single, double, sparkle
+    catchlight_brightness: float = 1.0  # 0.5 = dim, 1.0 = normal, 1.5 = bright
+    catchlight_size: float = 1.0  # 0.5 = small, 1.0 = normal, 1.5 = large
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
@@ -737,14 +739,20 @@ class PortraitGenerator:
         self.config.lower_lashes = max(0.0, min(1.0, lower))
         return self
 
-    def set_catchlight(self, style: str = "double") -> 'PortraitGenerator':
+    def set_catchlight(self, style: str = "double",
+                        brightness: float = 1.0,
+                        size: float = 1.0) -> 'PortraitGenerator':
         """
-        Set eye catchlight (light reflection) style.
+        Set eye catchlight (light reflection) style and intensity.
 
         Args:
             style: Catchlight style - none, single, double (default), or sparkle
+            brightness: Catchlight brightness (0.5 = dim, 1.0 = normal, 1.5 = bright)
+            size: Catchlight size multiplier (0.5 = small, 1.0 = normal, 1.5 = large)
         """
         self.config.catchlight_style = style
+        self.config.catchlight_brightness = max(0.5, min(1.5, brightness))
+        self.config.catchlight_size = max(0.5, min(1.5, size))
         return self
 
     def set_inner_corner_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -3170,27 +3178,38 @@ class PortraitGenerator:
             # Layer 4: Catchlight (light reflection)
             catchlight_style = getattr(self.config, 'catchlight_style', 'double').lower()
             if catchlight_style != "none":
-                catchlight_color = (255, 255, 255, 255)
-                cl_offset_x = int(iris_radius * 0.3)
-                cl_offset_y = int(iris_radius * 0.3)
+                brightness = getattr(self.config, 'catchlight_brightness', 1.0)
+                cl_size = getattr(self.config, 'catchlight_size', 1.0)
+
+                base_alpha = int(min(255, 180 + 75 * brightness))
+                secondary_alpha = int(min(255, 130 + 50 * brightness))
+                tertiary_alpha = int(min(255, 100 + 40 * brightness))
+                catchlight_color = (255, 255, 255, base_alpha)
+
+                cl_offset_x = int(iris_radius * 0.3 * cl_size)
+                cl_offset_y = int(iris_radius * 0.3 * cl_size)
 
                 if catchlight_style == "single":
-                    # Single large catchlight
+                    # Single large catchlight (size affects spread)
                     canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
                     canvas.set_pixel(iris_x - cl_offset_x + 1, iris_y - cl_offset_y, catchlight_color)
                     canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y + 1, catchlight_color)
+                    if cl_size > 1.0:
+                        canvas.set_pixel(iris_x - cl_offset_x + 1, iris_y - cl_offset_y + 1, (255, 255, 255, secondary_alpha))
                 elif catchlight_style == "sparkle":
                     # Multiple small sparkles
                     canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
-                    canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y - cl_offset_y + 1, (255, 255, 255, 200))
-                    canvas.set_pixel(iris_x - cl_offset_x + 2, iris_y + cl_offset_y - 2, (255, 255, 255, 160))
-                    canvas.set_pixel(iris_x + cl_offset_x, iris_y + cl_offset_y - 1, (255, 255, 255, 140))
+                    canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y - cl_offset_y + 1, (255, 255, 255, secondary_alpha))
+                    canvas.set_pixel(iris_x - cl_offset_x + 2, iris_y + cl_offset_y - 2, (255, 255, 255, tertiary_alpha))
+                    canvas.set_pixel(iris_x + cl_offset_x, iris_y + cl_offset_y - 1, (255, 255, 255, int(tertiary_alpha * 0.9)))
                 else:  # double (default)
                     # Primary catchlight
                     canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
                     canvas.set_pixel(iris_x - cl_offset_x + 1, iris_y - cl_offset_y, catchlight_color)
+                    if cl_size > 1.0:
+                        canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y + 1, (255, 255, 255, secondary_alpha))
                     # Secondary smaller catchlight
-                    canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y + cl_offset_y, (255, 255, 255, 180))
+                    canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y + cl_offset_y, (255, 255, 255, secondary_alpha))
 
             # Layer 5: Eyelid shadow (1px darker at top of eye)
             eyelid_shadow = (0, 0, 0, 40)
