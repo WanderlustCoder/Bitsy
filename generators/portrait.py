@@ -100,6 +100,7 @@ class PortraitConfig:
     pupil_size: float = 1.0  # 0.7-1.5, multiplier for pupil size
     iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
     catchlight_style: str = "double"  # none, single, double, sparkle
+    limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
@@ -623,7 +624,8 @@ class PortraitGenerator:
                  size: float = 1.0,
                  pupil_size: float = 1.0,
                  iris_size: float = 1.0,
-                 tilt: float = 0.0) -> 'PortraitGenerator':
+                 tilt: float = 0.0,
+                 limbal_ring: float = 0.3) -> 'PortraitGenerator':
         """
         Set eye shape and color.
 
@@ -636,6 +638,7 @@ class PortraitGenerator:
             pupil_size: Pupil size multiplier (0.7-1.5, default 1.0)
             iris_size: Iris size multiplier (0.7-1.3, default 1.0)
             tilt: Eye tilt angle (-0.3 to 0.3, negative=downward, positive=upward)
+            limbal_ring: Dark ring intensity around iris (0.0-1.0, 0.3 default)
         """
         self.config.eye_shape = shape
         self.config.eye_color = color
@@ -645,6 +648,7 @@ class PortraitGenerator:
         self.config.pupil_size = max(0.7, min(1.5, pupil_size))
         self.config.iris_size = max(0.7, min(1.3, iris_size))
         self.config.eye_tilt = max(-0.3, min(0.3, tilt))
+        self.config.limbal_ring = max(0.0, min(1.0, limbal_ring))
         return self
 
     def set_eyelashes(self, length: float = 0.5) -> 'PortraitGenerator':
@@ -2424,6 +2428,20 @@ class PortraitGenerator:
             iris_mid = eye_ramp[2]    # Middle
             canvas.fill_circle_aa(iris_x, iris_y, iris_radius, iris_outer)
             canvas.fill_circle_aa(iris_x, iris_y, int(iris_radius * 0.7), iris_mid)
+
+            # Limbal ring: dark ring around iris edge for definition
+            limbal_strength = getattr(self.config, 'limbal_ring', 0.3)
+            if limbal_strength > 0.0:
+                limbal_alpha = int(80 + 120 * limbal_strength)  # 80-200 alpha
+                limbal_color = (20, 25, 30, limbal_alpha)  # Dark gray-blue
+                ring_width = max(1, int(iris_radius * 0.15))
+                # Draw ring at outer edge of iris
+                for ring_r in range(iris_radius - ring_width, iris_radius + 1):
+                    # Fade opacity based on distance from outer edge
+                    ring_fade = (ring_r - (iris_radius - ring_width)) / ring_width if ring_width > 0 else 1.0
+                    ring_alpha = int(limbal_alpha * ring_fade)
+                    if ring_alpha > 5:
+                        canvas.draw_circle(iris_x, iris_y, ring_r, (*limbal_color[:3], ring_alpha))
 
             # Layer 3: Pupil
             pupil_mult = getattr(self.config, 'pupil_size', 1.0)
