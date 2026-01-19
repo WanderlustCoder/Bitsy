@@ -996,6 +996,179 @@ def render_hair_clusters(canvas: Canvas, clusters: List[HairCluster],
         render_cluster(canvas, cluster, color_ramp, light_direction)
 
 
+def _pick_curl_color(color_ramp: List[Color], base_idx: int,
+                     light_factor: float, t: float,
+                     rng: random.Random) -> Color:
+    ramp_len = len(color_ramp)
+    idx = base_idx
+
+    if light_factor > 0.55 and t < 0.35:
+        idx = min(ramp_len - 1, base_idx + 3)
+    elif light_factor > 0.25:
+        idx = min(ramp_len - 1, base_idx + 2)
+    elif light_factor < -0.45:
+        idx = max(0, base_idx - 2)
+    elif light_factor < -0.2:
+        idx = max(0, base_idx - 1)
+
+    if t > 0.65:
+        idx = max(0, idx - 1)
+
+    idx = max(0, min(ramp_len - 1, idx + rng.choice([-1, 0, 0, 1])))
+    return color_ramp[idx]
+
+
+def _draw_spiral_curl(canvas: Canvas, cx: float, cy: float,
+                      curl_radius: float, color_ramp: List[Color],
+                      base_idx: int, light_factor: float,
+                      rng: random.Random) -> None:
+    turns = rng.uniform(1.4, 2.4)
+    steps = max(12, int(turns * 14))
+    direction = rng.choice([-1, 1])
+    phase = rng.uniform(0.0, math.tau)
+
+    for i in range(steps):
+        t = i / (steps - 1)
+        angle = phase + direction * t * turns * math.tau
+        radius = curl_radius * (1.0 - 0.55 * t)
+        radius += math.sin(t * math.tau) * curl_radius * 0.08
+
+        px = cx + math.cos(angle) * radius
+        py = cy + math.sin(angle) * radius
+
+        dot_radius = max(1, int(curl_radius * (0.25 - 0.1 * t)))
+        color = _pick_curl_color(color_ramp, base_idx, light_factor, t, rng)
+        canvas.fill_circle(int(px), int(py), dot_radius, color)
+
+
+def _render_curly_hair(canvas: Canvas, center_x: float, top_y: float,
+                       width: float, length: float,
+                       color_ramp: List[Color],
+                       light_direction: Tuple[float, float] = (1.0, -1.0),
+                       seed: Optional[int] = None) -> None:
+    rng = random.Random(seed) if seed is not None else random.Random()
+
+    ramp_len = len(color_ramp)
+    base_idx = ramp_len // 2
+    shadow_idx = max(0, base_idx - 2)
+    highlight_idx = min(ramp_len - 1, base_idx + 3)
+
+    hair_height = length * 0.9
+    mass_cx = center_x
+    mass_cy = top_y + hair_height * 0.45
+    rx = width * 0.55
+    ry = hair_height * 0.6
+
+    ld_x, ld_y = light_direction
+    ld_mag = math.sqrt(ld_x * ld_x + ld_y * ld_y)
+    if ld_mag > 0:
+        ld_x /= ld_mag
+        ld_y /= ld_mag
+    else:
+        ld_x, ld_y = (1.0, -1.0)
+
+    def random_point_in_mass() -> Tuple[float, float]:
+        for _ in range(24):
+            x = rng.uniform(mass_cx - rx, mass_cx + rx)
+            y = rng.uniform(top_y, top_y + hair_height)
+            nx = (x - mass_cx) / rx
+            ny = (y - mass_cy) / ry
+            if nx * nx + ny * ny <= 1.05:
+                return x, y
+        return (
+            rng.uniform(mass_cx - rx, mass_cx + rx),
+            rng.uniform(top_y, top_y + hair_height),
+        )
+
+    curl_count = max(80, int(width * 1.5))
+    base_count = int(curl_count * 0.35)
+    mid_count = int(curl_count * 0.45)
+    top_count = max(1, curl_count - base_count - mid_count)
+
+    base_min = max(2.0, width * 0.045)
+    base_max = width * 0.09
+    mid_min = max(2.0, width * 0.035)
+    mid_max = width * 0.075
+    top_min = max(2.0, width * 0.03)
+    top_max = width * 0.06
+
+    base_color = color_ramp[shadow_idx]
+    for _ in range(base_count):
+        cx, cy = random_point_in_mass()
+        radius = rng.uniform(base_min, base_max)
+        canvas.fill_circle(int(cx), int(cy), int(radius), base_color)
+
+    for _ in range(mid_count):
+        cx, cy = random_point_in_mass()
+        radius = rng.uniform(mid_min, mid_max)
+        nx = (cx - mass_cx) / rx
+        ny = (cy - mass_cy) / ry
+        light_factor = nx * ld_x + ny * ld_y + (mass_cy - cy) / max(ry, 1.0) * 0.2
+        _draw_spiral_curl(canvas, cx, cy, radius, color_ramp, base_idx, light_factor, rng)
+
+    for _ in range(top_count):
+        cx, cy = random_point_in_mass()
+        radius = rng.uniform(top_min, top_max)
+        nx = (cx - mass_cx) / rx
+        ny = (cy - mass_cy) / ry
+        light_factor = nx * ld_x + ny * ld_y + (mass_cy - cy) / max(ry, 1.0) * 0.25
+        _draw_spiral_curl(canvas, cx, cy, radius, color_ramp, base_idx, light_factor, rng)
+
+        if light_factor > 0.35 and rng.random() > 0.6:
+            hx = cx + radius * 0.3
+            hy = cy - radius * 0.25
+            canvas.fill_circle(int(hx), int(hy), max(1, int(radius * 0.2)), color_ramp[highlight_idx])
+
+
+def render_hair(canvas: Canvas, style: HairStyle, center_x: float, top_y: float,
+                width: float, length: float, color_ramp: List[Color],
+                light_direction: Tuple[float, float] = (1.0, -1.0),
+                count: int = 20,
+                seed: Optional[int] = None,
+                include_strays: bool = True,
+                highlight_ramp: Optional[List[Color]] = None,
+                highlight_intensity: float = 0.0) -> None:
+    """
+    Render hair for a given style.
+
+    Args:
+        highlight_ramp: Optional color ramp for highlighted strands
+        highlight_intensity: 0.0-1.0, proportion of clusters to highlight
+    """
+    if style == HairStyle.CURLY:
+        _render_curly_hair(
+            canvas=canvas,
+            center_x=center_x,
+            top_y=top_y,
+            width=width,
+            length=length,
+            color_ramp=color_ramp,
+            light_direction=light_direction,
+            seed=seed,
+        )
+        return
+
+    clusters = generate_hair_clusters(style, center_x, top_y, width, length, count, seed)
+
+    if include_strays:
+        rng = random.Random(seed) if seed is not None else random.Random()
+        strays = generate_stray_strands(center_x, top_y, width, length, max(3, count // 6), rng)
+        clusters.extend(strays)
+
+    clusters.sort(key=lambda c: c.z_depth)
+
+    # Render with highlights if enabled
+    if highlight_ramp is not None and highlight_intensity > 0:
+        highlight_rng = random.Random(seed + 500 if seed else None)
+        for cluster in clusters:
+            # Randomly select clusters to highlight based on intensity
+            use_highlight = highlight_rng.random() < highlight_intensity
+            ramp = highlight_ramp if use_highlight else color_ramp
+            render_cluster(canvas, cluster, ramp, light_direction)
+    else:
+        render_hair_clusters(canvas, clusters, color_ramp, light_direction)
+
+
 def generate_bangs_clusters(center_x: float, forehead_y: float,
                             width: float, length: float,
                             count: int = 8,

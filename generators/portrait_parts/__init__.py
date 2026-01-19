@@ -11,6 +11,7 @@ Provides specialized rendering for:
 from .hair import (
     HairCluster,
     HairStyle,
+    render_hair,
     render_hair_clusters,
     render_cluster,
     generate_hair_clusters,
@@ -51,6 +52,7 @@ __all__ = [
     # Hair
     'HairCluster',
     'HairStyle',
+    'render_hair',
     'render_hair_clusters',
     'render_cluster',
     'generate_hair_clusters',

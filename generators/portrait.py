@@ -80,20 +80,36 @@ class PortraitConfig:
     hair_style: HairStyle = HairStyle.WAVY
     hair_color: str = "brown"  # brown, black, blonde, red, gray, etc.
     hair_length: float = 1.0  # 0.5 = short, 1.0 = medium, 1.5 = long
+    has_hair_highlights: bool = False
+    highlight_color: str = "blonde"  # color for highlights/streaks
+    highlight_intensity: float = 0.3  # 0.0-1.0, proportion of hair highlighted
 
     # Face
     face_shape: str = "oval"  # oval, round, heart, square
+    chin_type: str = "normal"  # normal, pointed, square, round, cleft
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
+    has_lipstick: bool = False
+    lipstick_color: str = "red"  # red, pink, nude, berry, coral, plum
+    lipstick_intensity: float = 0.7  # 0.0 to 1.0
+
+    # Teeth
+    show_teeth: bool = False
+    teeth_whiteness: float = 0.9  # 0.0-1.0, how white the teeth are
 
     # Expression
     expression: str = "neutral"  # neutral, happy, sad, surprised, etc.
     eye_openness: float = 1.0  # 0.0 = closed, 1.0 = fully open
     gaze_direction: Tuple[float, float] = (0.0, 0.0)  # pupil offset
+
+    # Eyeliner
+    has_eyeliner: bool = False
+    eyeliner_style: str = "thin"  # thin, thick, winged, smoky
+    eyeliner_color: str = "black"  # black, brown, blue, purple
 
     # Eyebrows
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
@@ -130,12 +146,24 @@ class PortraitConfig:
     has_hair_accessory: bool = False
     hair_accessory_style: str = "headband"
     hair_accessory_color: Optional[str] = None  # None = use default pink
+    has_nose_piercing: bool = False
+    nose_piercing_type: str = "stud"  # stud, ring, septum
+    has_eyebrow_piercing: bool = False
+    has_lip_piercing: bool = False
+    lip_piercing_type: str = "stud"  # stud, ring, labret
+    piercing_color: str = "silver"  # silver, gold, black
 
     # Freckles and beauty marks
     has_freckles: bool = False
     freckle_density: float = 0.5  # 0.0 to 1.0
+    has_moles: bool = False
+    mole_count: int = 3  # 1-5 moles
+    mole_positions: str = "random"  # random, cheeks, forehead
     has_beauty_mark: bool = False
     beauty_mark_position: str = "cheek"  # cheek, lip, chin
+    has_scar: bool = False
+    scar_type: str = "cheek"  # cheek, eyebrow, lip, forehead
+    scar_intensity: float = 0.5  # 0.0 to 1.0
 
     # Clothing
     clothing_style: str = "casual"
@@ -198,6 +226,22 @@ EYE_COLORS = {
     "gray": (130, 140, 150),
     "amber": (180, 130, 60),
     "violet": (120, 80, 150),
+}
+
+EYELINER_COLORS = {
+    "black": (20, 20, 25),
+    "brown": (70, 50, 40),
+    "blue": (40, 60, 120),
+    "purple": (85, 55, 125),
+}
+
+LIPSTICK_COLORS = {
+    "red": (190, 45, 60),
+    "pink": (210, 90, 130),
+    "nude": (195, 130, 110),
+    "berry": (135, 45, 80),
+    "coral": (220, 95, 75),
+    "plum": (115, 50, 90),
 }
 
 
@@ -429,12 +473,36 @@ class PortraitGenerator:
         self.config.face_shape = shape
         return self
 
+    def set_chin(self, chin_type: str = "normal") -> 'PortraitGenerator':
+        """
+        Set chin type.
+
+        Args:
+            chin_type: One of 'normal', 'pointed', 'square', 'round', 'cleft'
+        """
+        self.config.chin_type = chin_type
+        return self
+
     def set_hair(self, style: HairStyle, color: str,
                  length: float = 1.0) -> 'PortraitGenerator':
         """Set hair style and color."""
         self.config.hair_style = style
         self.config.hair_color = color
         self.config.hair_length = length
+        return self
+
+    def set_hair_highlights(self, color: str = "blonde",
+                            intensity: float = 0.3) -> 'PortraitGenerator':
+        """
+        Add highlights/streaks to hair.
+
+        Args:
+            color: Highlight color (blonde, red, gray, white, etc.)
+            intensity: Proportion of hair that's highlighted (0.0-1.0)
+        """
+        self.config.has_hair_highlights = True
+        self.config.highlight_color = color
+        self.config.highlight_intensity = max(0.0, min(1.0, intensity))
         return self
 
     def set_eyes(self, shape: EyeShape, color: str,
@@ -455,6 +523,14 @@ class PortraitGenerator:
         self.config.eye_openness = openness
         return self
 
+    def set_eyeliner(self, style: str = "thin",
+                     color: str = "black") -> 'PortraitGenerator':
+        """Add eyeliner with style and color."""
+        self.config.has_eyeliner = True
+        self.config.eyeliner_style = style
+        self.config.eyeliner_color = color
+        return self
+
     def set_nose(self, nose_type: NoseType) -> 'PortraitGenerator':
         """Set nose type."""
         self.config.nose_type = nose_type
@@ -464,6 +540,47 @@ class PortraitGenerator:
         """Set lip shape and color."""
         self.config.lip_shape = shape
         self.config.lip_color = color
+        return self
+
+    def set_nose_piercing(self, piercing_type: str = "stud",
+                          color: str = "silver") -> 'PortraitGenerator':
+        """Add a nose piercing with type and color."""
+        self.config.has_nose_piercing = True
+        self.config.nose_piercing_type = piercing_type
+        self.config.piercing_color = color
+        return self
+
+    def set_eyebrow_piercing(self, color: str = "silver") -> 'PortraitGenerator':
+        """Add an eyebrow piercing with color."""
+        self.config.has_eyebrow_piercing = True
+        self.config.piercing_color = color
+        return self
+
+    def set_lip_piercing(self, piercing_type: str = "stud",
+                         color: str = "silver") -> 'PortraitGenerator':
+        """Add a lip piercing with type and color."""
+        self.config.has_lip_piercing = True
+        self.config.lip_piercing_type = piercing_type
+        self.config.piercing_color = color
+        return self
+
+    def set_lipstick(self, color: str = "red",
+                     intensity: float = 0.7) -> 'PortraitGenerator':
+        """Add lipstick with configurable color and intensity (0.0-1.0)."""
+        self.config.has_lipstick = True
+        self.config.lipstick_color = color
+        self.config.lipstick_intensity = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
+        """
+        Show teeth (visible when smiling/happy expression).
+
+        Args:
+            whiteness: How white the teeth are (0.0-1.0)
+        """
+        self.config.show_teeth = True
+        self.config.teeth_whiteness = max(0.0, min(1.0, whiteness))
         return self
 
     def set_expression(self, expression: str,
@@ -579,6 +696,13 @@ class PortraitGenerator:
         self.config.freckle_density = max(0.0, min(1.0, density))
         return self
 
+    def set_moles(self, count: int = 3, positions: str = "random") -> 'PortraitGenerator':
+        """Add facial moles with count and positions."""
+        self.config.has_moles = True
+        self.config.mole_count = max(1, min(5, count))
+        self.config.mole_positions = positions
+        return self
+
     def set_dimples(self, depth: float = 0.5) -> 'PortraitGenerator':
         """Add cheek dimples with depth from 0.0 to 1.0."""
         self.config.has_dimples = True
@@ -617,6 +741,14 @@ class PortraitGenerator:
         """Add a beauty mark at the specified position."""
         self.config.has_beauty_mark = True
         self.config.beauty_mark_position = position
+        return self
+
+    def set_scar(self, scar_type: str = "cheek",
+                 intensity: float = 0.5) -> 'PortraitGenerator':
+        """Add a facial scar with a specified type and intensity (0.0-1.0)."""
+        self.config.has_scar = True
+        self.config.scar_type = scar_type
+        self.config.scar_intensity = max(0.0, min(1.0, intensity))
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -682,6 +814,16 @@ class PortraitGenerator:
             (*hair_base, 255),
             levels=6
         )
+
+        # Hair highlight ramp (for streaks/highlights)
+        if self.config.has_hair_highlights:
+            highlight_base = HAIR_COLORS.get(self.config.highlight_color, HAIR_COLORS["blonde"])
+            self._highlight_ramp = create_hair_ramp(
+                (*highlight_base, 255),
+                levels=6
+            )
+        else:
+            self._highlight_ramp = self._hair_ramp
 
         # Eye ramp (left eye / both if no heterochromia)
         eye_base = EYE_COLORS.get(self.config.eye_color, EYE_COLORS["brown"])
@@ -815,6 +957,7 @@ class PortraitGenerator:
 
         # Face shape parameters
         face_shape = self.config.face_shape.lower()
+        chin_type = self.config.chin_type.lower()
 
         # Per-pixel gradient shading
         for y in range(cy - ry - 1, cy + ry + 2):
@@ -855,7 +998,34 @@ class PortraitGenerator:
 
                 # else: oval (default) - no transformation needed
 
-                dist_sq = dx * dx + dy * dy
+                chin_adjust = 0.0
+                if dy > 0:
+                    chin_weight = dy
+                    if chin_type == "pointed":
+                        # Narrower, more angular chin
+                        taper = 1.0 + chin_weight * 0.6
+                        dx = dx * taper
+                        dy = dy * (1.0 + chin_weight * 0.12)
+                    elif chin_type == "square":
+                        # Wider, flatter bottom
+                        widen = max(0.7, 1.0 - chin_weight * 0.25)
+                        dx = dx * widen
+                        if chin_weight > 0.65:
+                            dy = 0.65 + (dy - 0.65) * 0.5
+                    elif chin_type == "round":
+                        # Softer, curved chin
+                        soften = max(0.8, 1.0 - chin_weight * 0.15)
+                        dx = dx * soften
+                        dy = dy * (1.0 - chin_weight * 0.08)
+                    elif chin_type == "cleft":
+                        # Slight central indent
+                        if chin_weight > 0.4:
+                            cleft_width = 0.22
+                            indent = (cleft_width - abs(dx)) / cleft_width
+                            if indent > 0:
+                                chin_adjust = indent * 0.08 * (chin_weight ** 2)
+
+                dist_sq = dx * dx + dy * dy + chin_adjust
 
                 if dist_sq > 1.0:
                     continue
@@ -1036,6 +1206,117 @@ class PortraitGenerator:
                         canvas.set_pixel(px + 1, py, freckle_color)
                     break
 
+    def _render_moles(self, canvas: Canvas) -> None:
+        """Render small moles on the face."""
+        if not self.config.has_moles:
+            return
+
+        count = max(1, min(5, self.config.mole_count))
+        positions = (self.config.mole_positions or "random").lower()
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        seed = self.config.seed
+        rng = random.Random(seed + 2400) if seed is not None else random.Random()
+
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+        eye_width = max(1, fw // 6)
+        eye_height = max(1, int(eye_width * 0.6 * max(0.3, self.config.eye_openness)))
+
+        nose_y = cy + fh // 10
+        if self.config.nose_type == NoseType.SMALL:
+            nose_height = fh // 10
+        elif self.config.nose_type == NoseType.BUTTON:
+            nose_height = fh // 9
+        elif self.config.nose_type == NoseType.POINTED:
+            nose_height = fh // 7
+        else:
+            nose_height = fh // 8
+
+        lip_y = cy + fh // 4
+        lip_width = fw // 5
+        lip_height = max(1, fh // 20)
+
+        def in_face(px: int, py: int) -> bool:
+            dx = (px - cx) / rx if rx > 0 else 0
+            dy = (py - cy) / ry if ry > 0 else 0
+            return dx * dx + dy * dy <= 1.0
+
+        def in_exclusion(px: int, py: int) -> bool:
+            for side in (-1, 1):
+                ex = cx + side * eye_spacing
+                if (ex - eye_width - 2) <= px <= (ex + eye_width + 2) and \
+                        (eye_y - eye_height - 2) <= py <= (eye_y + eye_height + 2):
+                    return True
+
+            if (cx - fw // 12) <= px <= (cx + fw // 12) and \
+                    (nose_y - 1) <= py <= (nose_y + nose_height + 2):
+                return True
+
+            if (cx - lip_width - 2) <= px <= (cx + lip_width + 2) and \
+                    (lip_y - lip_height - 2) <= py <= (lip_y + lip_height + 2):
+                return True
+
+            return False
+
+        cheek_offset = fw // 4
+        cheek_y = cy + fh // 10
+        cheek_rw = max(3, fw // 6)
+        cheek_rh = max(3, fh // 7)
+
+        forehead_y = cy - fh // 4
+        forehead_rw = max(3, fw // 5)
+        forehead_rh = max(3, fh // 8)
+
+        regions = []
+        if positions == "cheeks":
+            regions = [
+                (cx - cheek_offset, cheek_y, cheek_rw, cheek_rh),
+                (cx + cheek_offset, cheek_y, cheek_rw, cheek_rh),
+            ]
+        elif positions == "forehead":
+            regions = [(cx, forehead_y, forehead_rw, forehead_rh)]
+        else:
+            regions = [(cx, cy, rx, ry)]
+
+        placed: List[Tuple[int, int]] = []
+        attempts = 0
+        max_attempts = max(30, count * 15)
+
+        while len(placed) < count and attempts < max_attempts:
+            attempts += 1
+            rcx, rcy, rw, rh = rng.choice(regions)
+            angle = rng.random() * math.tau
+            radius = math.sqrt(rng.random())
+            px = int(rcx + math.cos(angle) * rw * radius)
+            py = int(rcy + math.sin(angle) * rh * radius)
+
+            if not in_face(px, py):
+                continue
+            if in_exclusion(px, py):
+                continue
+            if any(abs(px - mx) <= 1 and abs(py - my) <= 1 for mx, my in placed):
+                continue
+
+            base = (28, 20, 18)
+            shade = rng.randint(-8, 8)
+            r = max(0, min(255, base[0] + shade))
+            g = max(0, min(255, base[1] + shade))
+            b = max(0, min(255, base[2] + shade))
+            alpha = rng.randint(200, 245)
+            canvas.set_pixel(px, py, (r, g, b, alpha))
+
+            if rng.random() < 0.35:
+                dx, dy = rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+                sx, sy = px + dx, py + dy
+                if in_face(sx, sy) and not in_exclusion(sx, sy):
+                    canvas.set_pixel(sx, sy, (r, g, b, max(180, alpha - 20)))
+
+            placed.append((px, py))
+
     def _render_dimples(self, canvas: Canvas) -> None:
         """Render subtle cheek dimples for smiling expressions."""
         if not self.config.has_dimples:
@@ -1089,6 +1370,83 @@ class PortraitGenerator:
         canvas.set_pixel(bx, by, mark_color)
         if fw > 80:
             canvas.set_pixel(bx + 1, by, mark_color)
+
+    def _render_scar(self, canvas: Canvas) -> None:
+        """Render a subtle facial scar line."""
+        if not self.config.has_scar:
+            return
+
+        intensity = max(0.0, min(1.0, self.config.scar_intensity))
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        seed = self.config.seed
+        rng = random.Random(seed + 3000) if seed is not None else random.Random()
+
+        mid_idx = len(self._skin_ramp) // 2
+        base_idx = min(len(self._skin_ramp) - 1, mid_idx + 1)
+        base_color = self._skin_ramp[base_idx]
+        scar_color = (
+            min(255, base_color[0] + 12 + int(8 * intensity)),
+            min(255, base_color[1] + 4),
+            max(0, base_color[2] - 8),
+        )
+
+        base_alpha = int(40 + 120 * intensity)
+        thickness = 2 if intensity > 0.7 and fw >= 90 else 1
+        scar_type = (self.config.scar_type or "cheek").lower()
+        side = rng.choice([-1, 1])
+
+        def draw_line(x0: int, y0: int, x1: int, y1: int) -> None:
+            steps = max(abs(x1 - x0), abs(y1 - y0))
+            if steps == 0:
+                canvas.set_pixel(x0, y0, (*scar_color, base_alpha))
+                return
+
+            skip_prob = 0.15 * (1.0 - intensity)
+            for i in range(steps + 1):
+                t = i / steps
+                if skip_prob > 0 and rng.random() < skip_prob:
+                    continue
+                x = int(round(x0 + (x1 - x0) * t))
+                y = int(round(y0 + (y1 - y0) * t))
+                fade = math.sin(t * math.pi)
+                alpha = int(base_alpha * (0.45 + 0.55 * fade))
+                color = (*scar_color, alpha)
+                for ox in range(-thickness + 1, thickness):
+                    for oy in range(-thickness + 1, thickness):
+                        if abs(ox) + abs(oy) <= thickness - 1:
+                            canvas.set_pixel(x + ox, y + oy, color)
+
+        if scar_type == "eyebrow":
+            brow_y = cy - fh // 5
+            eye_spacing = fw // 4
+            brow_x = cx + side * eye_spacing
+            start = (brow_x - side * 2, brow_y - 2)
+            end = (brow_x + side * 3, brow_y + 6)
+        elif scar_type == "lip":
+            lip_y = cy + fh // 4
+            offset_x = side * max(3, fw // 10)
+            start = (cx + offset_x - side * 2, lip_y - 1)
+            end = (cx + offset_x + side * 1, lip_y + max(2, fh // 24))
+        elif scar_type == "forehead":
+            forehead_y = cy - fh // 3
+            length = max(6, int(fw * 0.22))
+            center_x = cx + side * fw // 10
+            start = (center_x - length // 2, forehead_y - 1)
+            end = (center_x + length // 2, forehead_y + max(1, fh // 32))
+        else:
+            cheek_y = cy + fh // 10
+            cheek_x = cx + side * fw // 5
+            dx = max(4, int(fw * 0.08))
+            dy = max(3, int(fh * 0.06))
+            start = (cheek_x - side * dx, cheek_y - dy)
+            end = (cheek_x + side * dx, cheek_y + dy)
+
+        draw_line(start[0], start[1], end[0], end[1])
 
     def _render_eyebags(self, canvas: Canvas) -> None:
         """Render subtle dark semicircles under each eye."""
@@ -1297,6 +1655,77 @@ class PortraitGenerator:
                 if canvas.get_pixel(px, py) and canvas.get_pixel(px, py)[3] > 100:
                     canvas.set_pixel(px, py, eyelid_shadow)
 
+    def _render_eyeliner(self, canvas: Canvas) -> None:
+        """Render eyeliner that follows the eye shape."""
+        if not self.config.has_eyeliner:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+        eye_width = max(1, fw // 6)
+        eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+
+        style = self.config.eyeliner_style.lower()
+        if style not in ("thin", "thick", "winged", "smoky"):
+            style = "thin"
+
+        base_color = EYELINER_COLORS.get(
+            self.config.eyeliner_color.lower(),
+            EYELINER_COLORS["black"],
+        )
+
+        thickness = 1 if style == "thin" else 2
+        if style == "smoky":
+            thickness = 3
+
+        alpha = 200
+        if style in ("thick", "winged"):
+            alpha = 230
+        elif style == "smoky":
+            alpha = 170
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+
+            for dx in range(-eye_width, eye_width + 1):
+                nx = dx / eye_width if eye_width else 0
+                if nx * nx > 1.0:
+                    continue
+                top_y = -math.sqrt(1.0 - nx * nx) * eye_height
+                py = eye_y + int(round(top_y))
+
+                for t in range(thickness):
+                    canvas.set_pixel(ex + dx, py + t, (*base_color, alpha))
+
+                if style == "smoky":
+                    for s in range(1, 3):
+                        smoke_alpha = int(alpha * (0.4 / s))
+                        if smoke_alpha > 0:
+                            canvas.set_pixel(ex + dx, py - s, (*base_color, smoke_alpha))
+
+            if style == "smoky":
+                lower_alpha = int(alpha * 0.45)
+                for dx in range(-eye_width + 1, eye_width):
+                    nx = dx / eye_width if eye_width else 0
+                    if nx * nx > 1.0:
+                        continue
+                    bottom_y = math.sqrt(1.0 - nx * nx) * eye_height
+                    py = eye_y + int(round(bottom_y))
+                    canvas.set_pixel(ex + dx, py, (*base_color, lower_alpha))
+
+            if style == "winged":
+                wing_len = max(2, int(eye_width * 0.45))
+                wing_start_x = ex + side * eye_width
+                wing_start_y = eye_y - max(1, int(eye_height * 0.3))
+                for i in range(wing_len):
+                    px = wing_start_x + side * i
+                    py = wing_start_y - int(i * 0.5)
+                    for t in range(thickness):
+                        canvas.set_pixel(px, py + t, (*base_color, alpha))
+
     def _render_nose(self, canvas: Canvas) -> None:
         """Render nose with subtle shading based on nose type."""
         cx, cy = self._get_face_center()
@@ -1403,21 +1832,49 @@ class PortraitGenerator:
         lip_width = fw // 5
         lip_height = fh // 20
         shape = self.config.lip_shape
+        lip_ramp = self._lip_ramp
+
+        if self.config.has_lipstick:
+            intensity = max(0.0, min(1.0, self.config.lipstick_intensity))
+            if intensity > 0.0:
+                lipstick_base = LIPSTICK_COLORS.get(
+                    self.config.lipstick_color.lower(),
+                    LIPSTICK_COLORS["red"]
+                )
+                lipstick_ramp = create_portrait_ramp(
+                    (*lipstick_base, 255),
+                    levels=len(self._lip_ramp)
+                )
+                vibrancy = getattr(self.config, 'color_vibrancy', 1.0)
+                if vibrancy != 1.0:
+                    lipstick_ramp = self._adjust_ramp_vibrancy(lipstick_ramp, vibrancy)
+                blended = []
+                for natural, lipstick in zip(self._lip_ramp, lipstick_ramp):
+                    nr, ng, nb = natural[:3]
+                    lr, lg, lb = lipstick[:3]
+                    alpha = natural[3] if len(natural) > 3 else 255
+                    blended.append((
+                        int(nr + (lr - nr) * intensity),
+                        int(ng + (lg - ng) * intensity),
+                        int(nb + (lb - nb) * intensity),
+                        alpha
+                    ))
+                lip_ramp = blended
 
         if shape == LipShape.NEUTRAL:
             # Keep the default rendering for neutral lips.
-            upper_lip_color = self._lip_ramp[1]
+            upper_lip_color = lip_ramp[1]
             for dx in range(-lip_width, lip_width + 1):
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
                 for dy in range(curve):
                     canvas.set_pixel(cx + dx, lip_y - dy, upper_lip_color)
 
-            lip_line_color = self._lip_ramp[0]
+            lip_line_color = lip_ramp[0]
             for dx in range(-lip_width + 2, lip_width - 1):
                 canvas.set_pixel(cx + dx, lip_y, lip_line_color)
 
-            lower_lip_color = self._lip_ramp[2]
-            highlight_color = self._lip_ramp[3]
+            lower_lip_color = lip_ramp[2]
+            highlight_color = lip_ramp[3]
             for dx in range(-lip_width + 1, lip_width):
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
                 for dy in range(1, curve + 1):
@@ -1457,7 +1914,7 @@ class PortraitGenerator:
             cupid_width = max(1, lip_width // 4)
             cupid_depth = max(1, int(lip_height * 0.35))
 
-        upper_lip_color = self._lip_ramp[1]
+        upper_lip_color = lip_ramp[1]
         for dx in range(-lip_width, lip_width + 1):
             curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale)
             if shape == LipShape.HEART and abs(dx) <= cupid_width:
@@ -1466,12 +1923,12 @@ class PortraitGenerator:
             for dy in range(curve):
                 canvas.set_pixel(cx + dx, lip_y - dy, upper_lip_color)
 
-        lip_line_color = self._lip_ramp[0]
+        lip_line_color = lip_ramp[0]
         for dx in range(-lip_width + line_inset, lip_width - line_inset + 1):
             canvas.set_pixel(cx + dx, lip_y, lip_line_color)
 
-        lower_lip_color = self._lip_ramp[2]
-        highlight_color = self._lip_ramp[3]
+        lower_lip_color = lip_ramp[2]
+        highlight_color = lip_ramp[3]
         for dx in range(-lip_width + 1, lip_width):
             curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale)
             for dy in range(1, curve + 1):
@@ -1480,6 +1937,51 @@ class PortraitGenerator:
                 else:
                     color = lower_lip_color
                 canvas.set_pixel(cx + dx, lip_y + dy, color)
+
+    def _render_teeth(self, canvas: Canvas) -> None:
+        """Render teeth visible through smile gap."""
+        if not self.config.show_teeth:
+            return
+
+        # Only show teeth for certain expressions
+        expression = (self.config.expression or "neutral").lower()
+        if expression not in ("happy", "surprised", "loving"):
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        lip_y = cy + fh // 4
+        lip_width = fw // 5
+        teeth_height = max(2, fh // 25)
+
+        # Teeth color based on whiteness
+        whiteness = self.config.teeth_whiteness
+        base_white = int(200 + 55 * whiteness)
+        teeth_color = (base_white, base_white, int(base_white * 0.95), 255)
+        gum_color = (180, 120, 120, 200)
+
+        # Draw teeth in the gap where mouth opens
+        teeth_width = int(lip_width * 0.7)
+        gap_start = lip_y + 1
+
+        # Upper teeth row
+        for dx in range(-teeth_width, teeth_width + 1):
+            # Slight curve for teeth row
+            curve = int((1 - (dx / teeth_width) ** 2) * teeth_height * 0.4)
+            for dy in range(teeth_height - curve):
+                px = cx + dx
+                py = gap_start + dy
+
+                # Draw individual teeth with gaps
+                tooth_width = max(2, teeth_width // 3)
+                within_tooth = (dx + teeth_width) % tooth_width != 0
+
+                if within_tooth:
+                    canvas.set_pixel(px, py, teeth_color)
+                else:
+                    # Slight gap between teeth
+                    canvas.set_pixel(px, py, gum_color)
 
     def _render_facial_hair(self, canvas: Canvas) -> None:
         """Render facial hair if configured."""
@@ -1558,11 +2060,98 @@ class PortraitGenerator:
                 canvas.set_pixel(px, py, brow_color)
                 canvas.set_pixel(px, py + 1, brow_color)  # 2px thick
 
+    def _render_piercings(self, canvas: Canvas) -> None:
+        """Render facial piercings if configured."""
+        if not (self.config.has_nose_piercing or self.config.has_eyebrow_piercing or self.config.has_lip_piercing):
+            return
+
+        color_key = (self.config.piercing_color or "silver").lower()
+        base_color = {
+            "silver": (200, 200, 210, 255),
+            "gold": (255, 215, 0, 255),
+            "black": (40, 40, 45, 255),
+        }.get(color_key, (200, 200, 210, 255))
+
+        highlight = (
+            min(255, base_color[0] + 40),
+            min(255, base_color[1] + 40),
+            min(255, base_color[2] + 40),
+            255,
+        )
+        shadow = (
+            max(0, base_color[0] - 30),
+            max(0, base_color[1] - 30),
+            max(0, base_color[2] - 30),
+            255,
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        if self.config.has_nose_piercing:
+            nose_y = cy + fh // 10
+            nose_height = max(4, fh // 9)
+            nostril_offset = max(2, fw // 12)
+            pierce_type = (self.config.nose_piercing_type or "stud").lower()
+            px = cx - nostril_offset
+            py = nose_y + nose_height - 1
+
+            if pierce_type == "septum":
+                ring_y = nose_y + nose_height
+                canvas.set_pixel(cx - 1, ring_y, shadow)
+                canvas.set_pixel(cx + 1, ring_y, shadow)
+                canvas.set_pixel(cx, ring_y + 1, base_color)
+                canvas.set_pixel(cx, ring_y, highlight)
+            elif pierce_type == "ring":
+                canvas.set_pixel(px, py - 1, base_color)
+                canvas.set_pixel(px, py, base_color)
+                canvas.set_pixel(px, py + 1, base_color)
+                canvas.set_pixel(px + 1, py, highlight)
+            else:
+                canvas.set_pixel(px, py, base_color)
+                canvas.set_pixel(px + 1, py, highlight)
+
+        if self.config.has_eyebrow_piercing:
+            brow_y = cy - fh // 5
+            eye_spacing = fw // 4
+            brow_width = fw // 6
+            half_width = brow_width // 2
+            side = 1
+            brow_x = cx + side * eye_spacing
+            px = brow_x + side * (half_width - 1)
+            py = brow_y + int(self.config.eyebrow_angle * 4) - 1
+
+            canvas.set_pixel(px, py, base_color)
+            canvas.set_pixel(px + side * 2, py + 1, base_color)
+            canvas.set_pixel(px + side, py, highlight)
+
+        if self.config.has_lip_piercing:
+            lip_y = cy + fh // 4
+            lip_width = fw // 5
+            pierce_type = (self.config.lip_piercing_type or "stud").lower()
+
+            if pierce_type == "labret":
+                px = cx
+                py = lip_y + max(2, fh // 18)
+                canvas.set_pixel(px, py, base_color)
+                canvas.set_pixel(px + 1, py, highlight)
+            elif pierce_type == "ring":
+                px = cx + max(2, lip_width // 2)
+                py = lip_y + 1
+                canvas.set_pixel(px, py - 1, base_color)
+                canvas.set_pixel(px, py, base_color)
+                canvas.set_pixel(px, py + 1, base_color)
+                canvas.set_pixel(px + 1, py, highlight)
+            else:
+                px = cx + max(2, lip_width // 2)
+                py = lip_y + 1
+                canvas.set_pixel(px, py, base_color)
+                canvas.set_pixel(px + 1, py, highlight)
+
     def _render_hair(self, canvas: Canvas) -> None:
         """Render back hair using bezier-based cluster system."""
         from generators.portrait_parts.hair import (
-            generate_hair_clusters, render_hair_clusters,
-            generate_stray_strands,
+            render_hair,
             HairStyle as HairStyleParts
         )
 
@@ -1588,39 +2177,27 @@ class PortraitGenerator:
         # Increased cluster count for fuller hair
         cluster_count = max(15, self.config.width // 4)
 
-        # Generate main hair clusters
-        clusters = generate_hair_clusters(
+        # Determine highlight parameters
+        highlight_ramp = None
+        highlight_intensity = 0.0
+        if self.config.has_hair_highlights:
+            highlight_ramp = self._highlight_ramp
+            highlight_intensity = self.config.highlight_intensity
+
+        render_hair(
+            canvas=canvas,
             style=hair_style,
             center_x=float(cx),
             top_y=float(hair_top),
             width=float(hair_width),
             length=float(hair_length),
-            count=cluster_count,
-            seed=self.config.seed
-        )
-
-        # Add stray strands for detail
-        stray_count = max(3, self.config.width // 20)
-        stray_rng = self.rng if self.config.seed else None
-        strays = generate_stray_strands(
-            center_x=float(cx),
-            top_y=float(hair_top),
-            width=float(hair_width),
-            length=float(hair_length),
-            count=stray_count,
-            rng=stray_rng
-        )
-        clusters.extend(strays)
-
-        # Sort all clusters by z_depth
-        clusters.sort(key=lambda c: c.z_depth)
-
-        # Render clusters
-        render_hair_clusters(
-            canvas=canvas,
-            clusters=clusters,
             color_ramp=self._hair_ramp,
-            light_direction=self.config.light_direction
+            light_direction=self.config.light_direction,
+            count=cluster_count,
+            seed=self.config.seed,
+            include_strays=True,
+            highlight_ramp=highlight_ramp,
+            highlight_intensity=highlight_intensity,
         )
 
     def _render_bangs(self, canvas: Canvas) -> None:
@@ -2081,14 +2658,19 @@ class PortraitGenerator:
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_eyebags(canvas)
         self._render_freckles(canvas)
+        self._render_moles(canvas)
         self._render_beauty_mark(canvas)
         self._render_nose(canvas)
+        self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eyes(canvas)
+        self._render_eyeliner(canvas)
+        self._render_eyebrows(canvas)
+        self._render_scar(canvas)
+        self._render_piercings(canvas)
         self._render_earrings(canvas)  # Earrings on side of face
         self._render_glasses(canvas)  # Glasses over eyes
-        self._render_eyebrows(canvas)
         self._render_bangs(canvas)  # Front hair over forehead
         self._render_hair_accessory(canvas)  # Hair accessories on top
 
