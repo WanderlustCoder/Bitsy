@@ -87,6 +87,7 @@ class PortraitConfig:
 
     # Face
     face_shape: str = "oval"  # oval, round, heart, square
+    face_width: float = 1.0  # 0.8-1.2, multiplier for face width
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
@@ -99,6 +100,7 @@ class PortraitConfig:
     has_lipstick: bool = False
     lipstick_color: str = "red"  # red, pink, nude, berry, coral, plum
     lipstick_intensity: float = 0.7  # 0.0 to 1.0
+    lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
 
     # Teeth
     show_teeth: bool = False
@@ -117,6 +119,7 @@ class PortraitConfig:
     # Eyebrows
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
     eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
+    eyebrow_thickness: int = 2  # 1-4 pixels thick
 
     # Eyebags
     has_eyebags: bool = False
@@ -485,6 +488,16 @@ class PortraitGenerator:
         self.config.face_shape = shape
         return self
 
+    def set_face_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set face width multiplier.
+
+        Args:
+            width: Multiplier for face width (0.8-1.2, default 1.0)
+        """
+        self.config.face_width = max(0.8, min(1.2, width))
+        return self
+
     def set_chin(self, chin_type: str = "normal") -> 'PortraitGenerator':
         """
         Set chin type.
@@ -609,6 +622,16 @@ class PortraitGenerator:
         self.config.lipstick_intensity = max(0.0, min(1.0, intensity))
         return self
 
+    def set_lip_thickness(self, thickness: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set lip thickness multiplier.
+
+        Args:
+            thickness: Multiplier for lip height (0.5-1.5, default 1.0)
+        """
+        self.config.lip_thickness = max(0.5, min(1.5, thickness))
+        return self
+
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
         """
         Show teeth (visible when smiling/happy expression).
@@ -665,15 +688,18 @@ class PortraitGenerator:
 
         return self
 
-    def set_eyebrows(self, arch: float = 0.3, angle: float = 0.0) -> 'PortraitGenerator':
+    def set_eyebrows(self, arch: float = 0.3, angle: float = 0.0,
+                      thickness: int = 2) -> 'PortraitGenerator':
         """Set eyebrow shape.
 
         Args:
             arch: Arch height (0.0-1.0, default 0.3)
             angle: Angle tilt (-0.5 to 0.5, negative=sad, positive=angry)
+            thickness: Thickness in pixels (1-4, default 2)
         """
         self.config.eyebrow_arch = max(0.0, min(1.0, arch))
         self.config.eyebrow_angle = max(-0.5, min(0.5, angle))
+        self.config.eyebrow_thickness = max(1, min(4, thickness))
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -994,7 +1020,8 @@ class PortraitGenerator:
     def _get_face_dimensions(self) -> Tuple[int, int]:
         """Calculate face width and height."""
         # Face takes about 60% of width, 50% of height
-        fw = int(self.config.width * 0.6)
+        width_mult = getattr(self.config, 'face_width', 1.0)
+        fw = int(self.config.width * 0.6 * width_mult)
         fh = int(self.config.height * 0.5)
         return fw, fh
 
@@ -2159,7 +2186,9 @@ class PortraitGenerator:
 
         lip_y = cy + fh // 4
         lip_width = fw // 5
-        lip_height = fh // 20
+        base_lip_height = fh // 20
+        thickness = getattr(self.config, 'lip_thickness', 1.0)
+        lip_height = int(base_lip_height * thickness)
         shape = self.config.lip_shape
         lip_ramp = self._lip_ramp
 
@@ -2386,8 +2415,10 @@ class PortraitGenerator:
                 px = brow_x + dx
                 py = brow_y - arch + angle_offset
 
-                canvas.set_pixel(px, py, brow_color)
-                canvas.set_pixel(px, py + 1, brow_color)  # 2px thick
+                # Draw eyebrow with configurable thickness
+                thickness = getattr(self.config, 'eyebrow_thickness', 2)
+                for ty in range(thickness):
+                    canvas.set_pixel(px, py + ty, brow_color)
 
     def _render_piercings(self, canvas: Canvas) -> None:
         """Render facial piercings if configured."""
