@@ -265,6 +265,7 @@ class PortraitConfig:
     # Cheekbone prominence
     cheekbone_prominence: str = "normal"  # low, normal, high, sculpted
     cheekbone_highlight: float = 0.5  # 0.0 = no highlight, 0.5 = normal, 1.0 = intense
+    cheek_hollows: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = gaunt/sunken cheeks
 
     # Clothing
     clothing_style: str = "casual"
@@ -1493,6 +1494,19 @@ class PortraitGenerator:
             intensity: Highlight intensity (0.0 = none, 0.5 = normal, 1.0 = intense)
         """
         self.config.cheekbone_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_cheek_hollows(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set cheek hollows for angular/gaunt appearance.
+
+        Creates sunken cheeks below the cheekbones for a more
+        sculpted, angular, or gaunt face structure.
+
+        Args:
+            intensity: Hollow depth (0.0 = none, 0.5 = subtle, 1.0 = gaunt)
+        """
+        self.config.cheek_hollows = max(0.0, min(1.0, intensity))
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -2994,6 +3008,57 @@ class PortraitGenerator:
                         if alpha > 0:
                             px, py = bone_cx + dx, shadow_y + dy
                             canvas.set_pixel(px, py, (*dark_skin[:3], alpha))
+
+    def _render_cheek_hollows(self, canvas: Canvas) -> None:
+        """Render sunken cheek hollows for angular/gaunt appearance."""
+        hollows = getattr(self.config, 'cheek_hollows', 0.0)
+        if hollows <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning for reference
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+
+        # Hollow position: below cheekbone, angled toward jaw
+        hollow_y = eye_y + fh // 4
+        hollow_offset = eye_spacing + fw // 16
+
+        # Get darker skin color for shadow effect
+        shadow_color = self._skin_ramp[0] if self._skin_ramp else (80, 50, 40)
+
+        # Size scales with intensity
+        rx = max(3, int(fw // 8 * (0.5 + hollows * 0.5)))
+        ry = max(4, int(fh // 6 * (0.5 + hollows * 0.5)))
+
+        # Shadow intensity scales with hollows value
+        max_alpha = int(30 + 60 * hollows)  # 30-90 range
+
+        for side in (-1, 1):
+            hollow_cx = cx + side * hollow_offset
+
+            # Elongated ellipse angled toward jaw
+            for dy in range(-ry, ry + 1):
+                # Width tapers as we go down (toward jaw)
+                taper = 1.0 - (dy + ry) / (2 * ry) * 0.4
+                local_rx = int(rx * taper)
+
+                for dx in range(-local_rx, local_rx + 1):
+                    nx = dx / local_rx if local_rx > 0 else 0
+                    ny = dy / ry if ry > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0:
+                        # Falloff from center
+                        falloff = (1.0 - dist) ** 1.2
+                        # Darker in center, lighter at edges
+                        alpha = int(max_alpha * falloff)
+                        if alpha > 5:
+                            px = hollow_cx + side * dx
+                            py = hollow_y + dy
+                            canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
 
     def _render_skin_shine(self, canvas: Canvas) -> None:
         """Render skin shine/highlight on forehead, nose, and cheeks."""
@@ -5595,6 +5660,7 @@ class PortraitGenerator:
         self._render_double_chin(canvas)  # Double chin fold
         self._render_neck_crease(canvas)  # Neck fold lines
         self._render_cheekbones(canvas)  # Cheekbone shading
+        self._render_cheek_hollows(canvas)  # Sunken cheeks for angular look
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_skin_texture(canvas)  # Subtle skin pores/texture
         self._render_ears(canvas)
