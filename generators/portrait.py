@@ -104,6 +104,7 @@ class PortraitConfig:
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
     tear_duct: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible pink caruncle
+    eye_crease: float = 0.0  # 0.0 = none/monolid, 0.5 = subtle, 1.0 = defined crease
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -716,6 +717,16 @@ class PortraitGenerator:
             visibility: How visible the pink tear duct is (0.0 = none, 0.5 = subtle, 1.0 = visible)
         """
         self.config.tear_duct = max(0.0, min(1.0, visibility))
+        return self
+
+    def set_eye_crease(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eyelid crease definition (fold above eye).
+
+        Args:
+            depth: Crease definition (0.0 = none/monolid, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.eye_crease = max(0.0, min(1.0, depth))
         return self
 
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
@@ -2780,6 +2791,31 @@ class PortraitGenerator:
                     canvas.set_pixel(caruncle_x, caruncle_y + 1, (*caruncle_color, int(caruncle_alpha * 0.6)))
                 if tear_duct_vis > 0.6:
                     canvas.set_pixel(caruncle_x - side, caruncle_y, (*caruncle_color, int(caruncle_alpha * 0.4)))
+
+            # Layer 8: Eye crease (fold above eye)
+            eye_crease_depth = getattr(self.config, 'eye_crease', 0.0)
+            if eye_crease_depth > 0.0:
+                # Crease is above the eye, following upper lid curve
+                crease_y = ey - eye_height - 1 - int(eye_crease_depth * 2)
+                crease_color = self._skin_ramp[max(0, len(self._skin_ramp) // 2 - 2)]
+                crease_alpha = int(30 + 50 * eye_crease_depth)
+
+                # Draw curved crease line
+                for dx in range(-eye_width + 1, eye_width):
+                    # Curve follows eye shape
+                    t = dx / eye_width if eye_width > 0 else 0
+                    curve_offset = int((1 - t * t) * 2)  # Slight upward curve in center
+                    px = ex + dx
+                    py = crease_y + curve_offset
+
+                    # Fade at edges
+                    edge_fade = 1.0 - abs(t) * 0.4
+                    alpha = int(crease_alpha * edge_fade)
+                    if alpha > 0:
+                        canvas.set_pixel(px, py, (*crease_color[:3], alpha))
+                        # Slight highlight below crease for depth
+                        if eye_crease_depth > 0.5:
+                            canvas.set_pixel(px, py + 1, (255, 250, 245, alpha // 3))
 
     def _render_eyelashes(self, canvas: Canvas) -> None:
         """Render eyelashes along the upper eyelid."""
