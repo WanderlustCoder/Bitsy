@@ -79,6 +79,7 @@ class PortraitConfig:
     skin_undertone_intensity: float = 1.0  # 0.0 = no undertone, 0.5 = subtle, 1.0 = full
     skin_shine: float = 0.3  # 0.0 = matte, 0.5 = natural, 1.0 = dewy/shiny
     skin_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle pores, 1.0 = visible pores
+    skin_glow: float = 0.0  # 0.0 = matte, 0.5 = subtle radiance, 1.0 = luminous/dewy skin
     face_powder: float = 0.0  # 0.0 = none, 0.5 = subtle matte, 1.0 = full matte
 
     # Hair
@@ -660,6 +661,19 @@ class PortraitGenerator:
             texture: Pore visibility (0.0 = smooth, 0.5 = subtle, 1.0 = visible pores)
         """
         self.config.skin_texture = max(0.0, min(1.0, texture))
+        return self
+
+    def set_skin_glow(self, glow: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set skin glow/radiance intensity.
+
+        Adds a subtle luminous quality to the skin, creating a
+        healthy, hydrated or dewy appearance.
+
+        Args:
+            glow: Radiance level (0.0 = matte, 0.5 = subtle, 1.0 = luminous/dewy)
+        """
+        self.config.skin_glow = max(0.0, min(1.0, glow))
         return self
 
     def set_face_powder(self, amount: float = 0.0) -> 'PortraitGenerator':
@@ -3808,6 +3822,52 @@ class PortraitGenerator:
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, lip_y, (*highlight_color, alpha))
 
+
+    def _render_skin_glow(self, canvas: Canvas) -> None:
+        """Render subtle skin glow/radiance on face high points."""
+        glow = getattr(self.config, 'skin_glow', 0.0)
+        if glow <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Glow color: soft warm white
+        glow_color = (255, 252, 248)
+        max_alpha = int(20 + 35 * glow)
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+
+        # Subtle glow on cheeks
+        cheek_y = eye_y + fh // 10
+        cheek_radius = max(4, fw // 6)
+
+        for side in (-1, 1):
+            glow_cx = cx + side * eye_spacing
+
+            for dy in range(-cheek_radius, cheek_radius + 1):
+                for dx in range(-cheek_radius, cheek_radius + 1):
+                    dist = (dx * dx + dy * dy) ** 0.5 / cheek_radius
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.5
+                        alpha = int(max_alpha * falloff * 0.7)
+                        if alpha > 3:
+                            px = glow_cx + dx
+                            py = cheek_y + dy
+                            canvas.set_pixel(px, py, (*glow_color, alpha))
+
+        # Glow on forehead
+        forehead_y = cy - fh // 4
+        forehead_radius = max(3, fw // 5)
+        for dy in range(-forehead_radius // 2, forehead_radius // 2 + 1):
+            for dx in range(-forehead_radius, forehead_radius + 1):
+                dist = ((dx / forehead_radius) ** 2 + (dy / (forehead_radius / 2)) ** 2) ** 0.5
+                if dist <= 1.0:
+                    falloff = (1.0 - dist) ** 1.5
+                    alpha = int(max_alpha * falloff * 0.5)
+                    if alpha > 3:
+                        canvas.set_pixel(cx + dx, forehead_y + dy, (*glow_color, alpha))
     def _render_freckles(self, canvas: Canvas) -> None:
         """Render freckles across nose and cheeks."""
         if not self.config.has_freckles:
@@ -7886,6 +7946,7 @@ class PortraitGenerator:
         self._render_jowls(canvas)  # Jaw corner sagging
         self._render_jawline(canvas)  # Sharp jawline definition
         self._render_highlight(canvas)  # Highlight on high points
+        self._render_skin_glow(canvas)  # Skin glow/radiance
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
         self._render_chin_crease(canvas)  # Horizontal chin fold
