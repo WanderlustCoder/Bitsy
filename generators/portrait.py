@@ -96,6 +96,7 @@ class PortraitConfig:
     face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
     face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
+    jaw_width: float = 1.0  # 0.8 = narrow/V-shaped, 1.0 = normal, 1.2 = wide/square jaw
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
@@ -105,6 +106,7 @@ class PortraitConfig:
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
     ear_cartilage: float = 0.0  # 0.0 = none, 0.5 = subtle inner structure, 1.0 = defined
     ear_size: float = 1.0  # 0.7-1.3, multiplier for ear size
+    ear_height_offset: float = 0.0  # -0.3 = low ears, 0.0 = normal, 0.3 = high ears
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
@@ -287,6 +289,7 @@ class PortraitConfig:
     # Cheekbone prominence
     cheekbone_prominence: str = "normal"  # low, normal, high, sculpted
     cheekbone_highlight: float = 0.5  # 0.0 = no highlight, 0.5 = normal, 1.0 = intense
+    cheekbone_definition: float = 0.0  # 0.0 = soft, 0.5 = defined, 1.0 = sharp/angular
     cheek_hollows: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = gaunt/sunken cheeks
 
     # Clothing
@@ -679,6 +682,20 @@ class PortraitGenerator:
         self.config.face_asymmetry = max(0.0, min(1.0, amount))
         return self
 
+    def set_jaw_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set jaw width multiplier.
+
+        Controls the width of the lower face/jaw area.
+        Lower values create V-shaped faces, higher values
+        create square/wide jaws.
+
+        Args:
+            width: Jaw width multiplier (0.8 = narrow, 1.0 = normal, 1.2 = wide)
+        """
+        self.config.jaw_width = max(0.8, min(1.2, width))
+        return self
+
     def set_chin(self, chin_type: str = "normal") -> 'PortraitGenerator':
         """
         Set chin type.
@@ -755,6 +772,16 @@ class PortraitGenerator:
             size: Size multiplier (0.7 = small, 1.0 = normal, 1.3 = large)
         """
         self.config.ear_size = max(0.7, min(1.3, size))
+        return self
+
+    def set_ear_height(self, offset: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set ear height offset.
+
+        Args:
+            offset: Vertical offset (-0.5 = low ears, 0.0 = normal, 0.5 = high ears)
+        """
+        self.config.ear_height_offset = max(-0.5, min(0.5, offset))
         return self
 
     def set_ear_lobe_detail(self, detail: float = 0.5) -> 'PortraitGenerator':
@@ -1764,6 +1791,16 @@ class PortraitGenerator:
         self.config.cheekbone_highlight = max(0.0, min(1.0, intensity))
         return self
 
+    def set_cheekbone_definition(self, definition: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set cheekbone definition for visible facial structure.
+
+        Args:
+            definition: Definition amount (0.0 = soft, 0.5 = defined, 1.0 = sharp/angular)
+        """
+        self.config.cheekbone_definition = max(0.0, min(1.0, definition))
+        return self
+
     def set_cheek_hollows(self, intensity: float = 0.5) -> 'PortraitGenerator':
         """
         Set cheek hollows for angular/gaunt appearance.
@@ -2135,6 +2172,14 @@ class PortraitGenerator:
 
                 if dy < 0:
                     dy = dy * forehead_scale
+
+                # Apply jaw width - affects lower face area
+                jaw_mult = getattr(self.config, 'jaw_width', 1.0)
+                if dy > 0.2 and jaw_mult != 1.0:
+                    # Gradual transition from mid-face to jaw
+                    jaw_influence = min(1.0, (dy - 0.2) / 0.6)
+                    width_factor = 1.0 + (jaw_mult - 1.0) * jaw_influence
+                    dx = dx / width_factor  # Inverse to widen/narrow
 
                 chin_adjust = 0.0
                 if dy > 0:
