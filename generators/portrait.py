@@ -128,6 +128,7 @@ class PortraitConfig:
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
+    lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
 
@@ -890,6 +891,16 @@ class PortraitGenerator:
             gloss: Gloss level (0.0 = matte, 0.5 = subtle, 1.0 = glossy)
         """
         self.config.lip_gloss = max(0.0, min(1.0, gloss))
+        return self
+
+    def set_lip_corner_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lip corner shadow depth.
+
+        Args:
+            depth: Shadow depth (0.0 = none, 0.5 = normal, 1.0 = deep shadow at corners)
+        """
+        self.config.lip_corner_shadow = max(0.0, min(1.0, depth))
         return self
 
     def set_cupid_bow(self, definition: float = 0.7) -> 'PortraitGenerator':
@@ -3780,6 +3791,53 @@ class PortraitGenerator:
                 alpha = int(gloss_alpha * gloss_fade)
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, lip_y + 2, (255, 255, 255, alpha))
+
+        # Render lip corner shadows
+        self._render_lip_corner_shadow(canvas, cx, lip_y, lip_width, lip_height)
+
+    def _render_lip_corner_shadow(self, canvas: Canvas, cx: int, lip_y: int,
+                                   lip_width: int, lip_height: int) -> None:
+        """Render shadows at the corners of the lips for definition."""
+        depth = getattr(self.config, 'lip_corner_shadow', 0.3)
+        if depth <= 0.0:
+            return
+
+        # Shadow color from skin ramp
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_idx = max(0, mid_idx - 2)
+        shadow_color = self._skin_ramp[shadow_idx]
+
+        max_alpha = int(25 + 50 * depth)
+        corner_radius = max(2, lip_height)
+
+        # Get mouth corner offset for expression
+        mouth_corners = getattr(self.config, 'mouth_corners', 0.0)
+        max_corner_shift = max(1, lip_height // 2)
+        corner_offset = int(mouth_corners * max_corner_shift)
+
+        for side in (-1, 1):
+            # Corner position at edge of lips
+            corner_x = cx + side * (lip_width + 1)
+            corner_y = lip_y + corner_offset
+
+            # Draw shadow in small ellipse at corner
+            for dy in range(-corner_radius // 2, corner_radius // 2 + 1):
+                for dx in range(-corner_radius, 1 if side < 0 else corner_radius + 1):
+                    if side > 0:
+                        dx_norm = dx / corner_radius if corner_radius > 0 else 0
+                    else:
+                        dx_norm = -dx / corner_radius if corner_radius > 0 else 0
+
+                    dy_norm = dy / (corner_radius // 2 + 1) if corner_radius > 0 else 0
+                    dist = dx_norm * dx_norm + dy_norm * dy_norm
+
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.5
+                        alpha = int(max_alpha * falloff)
+                        if alpha > 0:
+                            px = corner_x + dx
+                            py = corner_y + dy
+                            canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
 
     def _render_teeth(self, canvas: Canvas) -> None:
         """Render teeth visible through smile gap."""
