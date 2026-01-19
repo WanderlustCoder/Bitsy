@@ -430,6 +430,95 @@ def generate_long_clusters(center_x: float, top_y: float,
     return clusters
 
 
+def generate_braided_clusters(center_x: float, top_y: float,
+                              width: float, length: float,
+                              count: int = 18,
+                              rng: Optional[random.Random] = None) -> List[HairCluster]:
+    """
+    Generate a braided hairstyle using interwoven strand clusters.
+
+    Creates:
+    - Three primary strands that weave around each other
+    - Alternating z-depth to simulate crossings
+    - A hanging braid that can sit to one side or at the back
+    """
+    if rng is None:
+        rng = random.Random()
+
+    clusters = []
+
+    # Decide whether the braid hangs to one side or straight down the back.
+    hang_roll = rng.random()
+    if hang_roll < 0.35:
+        side = 0
+    else:
+        side = rng.choice([-1, 1])
+
+    base_x = center_x + side * width * 0.25
+    base_y = top_y + length * 0.05
+    braid_length = length * 1.15
+    braid_width = width * 0.22
+    strand_offset = braid_width * 0.45
+
+    segments = max(4, count // 3)
+    wave_cycles = 2.2
+
+    for strand_idx in range(3):
+        phase = (strand_idx / 3.0) * 2 * math.pi
+
+        for seg in range(segments):
+            t0 = seg / segments
+            t1 = (seg + 1) / segments
+            mid_t = (t0 + t1) * 0.5
+
+            # Centerline drift for a gentle side hang.
+            drift0 = side * width * 0.12 * t0
+            drift1 = side * width * 0.12 * t1
+            drift_mid = side * width * 0.12 * mid_t
+
+            # Interwoven offsets for the three strands.
+            offset0 = strand_offset * math.sin(2 * math.pi * wave_cycles * t0 + phase)
+            offset1 = strand_offset * math.sin(2 * math.pi * wave_cycles * t1 + phase)
+            offset_mid = strand_offset * math.sin(2 * math.pi * wave_cycles * mid_t + phase)
+
+            y0 = base_y + braid_length * t0
+            y1 = base_y + braid_length * t1
+
+            # Slight sway to avoid perfectly straight braid.
+            sway = math.sin(mid_t * math.pi) * width * 0.03
+
+            p0 = (base_x + drift0 + offset0 + sway, y0)
+            p1 = (base_x + drift_mid + offset_mid * 1.1 + sway, y0 + (y1 - y0) * 0.33)
+            p2 = (base_x + drift_mid + offset_mid * 0.9 + sway, y0 + (y1 - y0) * 0.66)
+            p3 = (base_x + drift1 + offset1 + sway, y1)
+
+            base_width = rng.uniform(2.3, 3.6)
+            width_profile = [
+                (0.0, base_width * 0.85),
+                (0.4, base_width),
+                (0.8, base_width * 0.75),
+                (1.0, base_width * 0.6),
+            ]
+
+            # Alternate crossings by flipping z-depth per segment and strand.
+            crossing = (seg + strand_idx) % 2 == 0
+            z_depth = 0.65 if crossing else 0.35
+            z_depth += rng.uniform(-0.05, 0.05)
+
+            is_highlight = (base_x + drift_mid + offset_mid) > center_x + width * 0.05
+
+            clusters.append(HairCluster(
+                control_points=[p0, p1, p2, p3],
+                width_profile=width_profile,
+                z_depth=z_depth,
+                color_offset=rng.uniform(-0.2, 0.2),
+                is_highlight=is_highlight,
+            ))
+
+    clusters.sort(key=lambda c: c.z_depth)
+    return clusters
+
+
 def generate_bun_clusters(center_x: float, top_y: float,
                           width: float, length: float,
                           count: int = 40,
@@ -606,6 +695,8 @@ def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
     elif style == HairStyle.PONYTAIL:
         # Use bun style for ponytail
         return generate_bun_clusters(center_x, top_y, width, length, count, rng)
+    elif style == HairStyle.BRAIDED:
+        return generate_braided_clusters(center_x, top_y, width, length, count, rng)
     elif style == HairStyle.LONG:
         return generate_long_clusters(center_x, top_y, width, length, count, rng)
     elif style == HairStyle.BUN:
