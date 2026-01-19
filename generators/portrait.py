@@ -89,7 +89,7 @@ class PortraitConfig:
     highlight_intensity: float = 0.3  # 0.0-1.0, proportion of hair highlighted
 
     # Face
-    face_shape: str = "oval"  # oval, round, heart, square
+    face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     forehead_size: str = "normal"  # normal, large, small
@@ -191,6 +191,9 @@ class PortraitConfig:
 
     # Temple shadow (adds depth to face structure)
     temple_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
+
+    # Neck shadow (chin to neck transition)
+    neck_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
 
     # Accessories
     has_glasses: bool = False
@@ -558,7 +561,7 @@ class PortraitGenerator:
         Set face shape.
 
         Args:
-            shape: One of 'oval', 'round', 'heart', 'square'
+            shape: One of 'oval', 'round', 'square', 'heart', 'oblong', 'diamond'
         """
         self.config.face_shape = shape
         return self
@@ -1118,6 +1121,16 @@ class PortraitGenerator:
         self.config.temple_shadow = max(0.0, min(1.0, intensity))
         return self
 
+    def set_neck_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set neck shadow (under chin) for depth.
+
+        Args:
+            depth: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.neck_shadow = max(0.0, min(1.0, depth))
+        return self
+
     def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
         """Add a beauty mark at the specified position."""
         self.config.has_beauty_mark = True
@@ -1433,35 +1446,49 @@ class PortraitGenerator:
 
                 # Apply face shape transformation
                 if face_shape == "round":
-                    # Round face: more circular proportions
-                    # Reduce the y-elongation effect
-                    adj_rx = rx * 0.95
-                    adj_ry = ry * 0.85
+                    # Round face: equal width/length with soft curves
+                    radius = min(rx, ry)
+                    adj_rx = radius
+                    adj_ry = radius
                     dx = (x - cx) / adj_rx if adj_rx > 0 else 0
                     dy = (y - cy) / adj_ry if adj_ry > 0 else 0
 
+                elif face_shape == "oblong":
+                    # Oblong face: longer than wide
+                    adj_rx = rx * 0.9
+                    adj_ry = ry * 1.15
+                    dx = (x - cx) / adj_rx if adj_rx > 0 else 0
+                    dy = (y - cy) / adj_ry if adj_ry > 0 else 0
+
+                elif face_shape == "diamond":
+                    # Diamond face: narrow forehead/chin, wider cheekbones
+                    abs_dy = abs(dy)
+                    cheek_factor = 1.0 + abs_dy * 0.2 - (1.0 - abs_dy) * 0.25
+                    dx = dx * max(0.7, cheek_factor)
+
                 elif face_shape == "heart":
                     # Heart face: wider forehead, narrower chin
-                    # Apply progressive narrowing toward bottom
                     if dy > 0:  # Below center
-                        chin_narrow = 1.0 + dy * 0.25  # Narrow chin by up to 25%
+                        chin_narrow = 1.0 + dy * 0.3
                         dx = dx * chin_narrow
                     else:  # Above center (forehead)
-                        forehead_wide = 1.0 + dy * 0.08  # Slightly wider forehead
+                        forehead_wide = 1.0 - dy * 0.12
                         dx = dx * forehead_wide
 
                 elif face_shape == "square":
-                    # Square face: defined jawline, straighter edges
-                    # Blend between ellipse and rectangle
+                    # Square face: angular jaw, equal width and length
+                    side = min(rx, ry)
+                    adj_rx = side
+                    adj_ry = side
+                    dx = (x - cx) / adj_rx if adj_rx > 0 else 0
+                    dy = (y - cy) / adj_ry if adj_ry > 0 else 0
                     abs_dx = abs(dx)
                     abs_dy = abs(dy)
-                    # Use superellipse approximation (squircle effect)
-                    # Higher power = more rectangular
-                    power = 2.8
-                    dx = dx * (1.0 - 0.15 * (1.0 - abs_dx ** power))
-                    dy = dy * (1.0 - 0.1 * (1.0 - abs_dy ** power))
+                    power = 3.0
+                    dx = dx * (1.0 - 0.2 * (1.0 - abs_dx ** power))
+                    dy = dy * (1.0 - 0.2 * (1.0 - abs_dy ** power))
 
-                # else: oval (default) - no transformation needed
+                # else: oval (default) - balanced proportions
 
                 if dy < 0:
                     dy = dy * forehead_scale
@@ -1867,6 +1894,39 @@ class PortraitGenerator:
                             px = temple_cx + dx
                             py = temple_y + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
+    def _render_neck_shadow(self, canvas: Canvas) -> None:
+        """Render shadow under the chin for neck transition depth."""
+        depth = getattr(self.config, 'neck_shadow', 0.0)
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Shadow color - darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 3)
+        shadow_color = self._skin_ramp[shade_idx]
+        max_alpha = int(30 + 60 * depth)
+
+        # Shadow position: under chin, at bottom of face
+        chin_y = cy + fh // 2
+        shadow_y = chin_y + 2  # Just below chin
+        shadow_height = max(2, fh // 10)
+        shadow_width = max(4, fw // 3)
+
+        for dy in range(shadow_height):
+            y = shadow_y + dy
+            # Fade as we go down
+            y_fade = 1.0 - (dy / shadow_height)
+
+            for dx in range(-shadow_width, shadow_width + 1):
+                # Horizontal fade at edges
+                x_fade = 1.0 - (abs(dx) / shadow_width) ** 2
+                alpha = int(max_alpha * y_fade * x_fade)
+                if alpha > 0:
+                    canvas.set_pixel(cx + dx, y, (*shadow_color[:3], alpha))
 
     def _render_highlight(self, canvas: Canvas) -> None:
         """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
@@ -4297,6 +4357,7 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_neck_shadow(canvas)  # Shadow under chin
         self._render_cheekbones(canvas)  # Cheekbone shading
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_ears(canvas)
