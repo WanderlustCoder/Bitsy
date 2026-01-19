@@ -189,6 +189,7 @@ class PortraitConfig:
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
+    eyebrow_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle height diff, 0.6 = noticeable
     brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
     glabella_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle depth, 1.0 = defined shadow between brows
 
@@ -1368,6 +1369,19 @@ class PortraitGenerator:
         self.config.eyebrow_hair_detail = max(0.0, min(1.0, detail))
         return self
 
+
+    def set_eyebrow_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set eyebrow asymmetry for natural appearance.
+
+        Creates subtle height differences between eyebrows
+        for a more realistic, expressive look.
+
+        Args:
+            amount: Asymmetry level (0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable)
+        """
+        self.config.eyebrow_asymmetry = max(0.0, min(1.0, amount))
+        return self
     def set_brow_bone(self, prominence: float = 0.5) -> 'PortraitGenerator':
         """
         Set brow bone/ridge prominence.
@@ -1663,6 +1677,16 @@ class PortraitGenerator:
             depth: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.neck_shadow = max(0.0, min(1.0, depth))
+        return self
+
+    def set_neck_length(self, length: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set neck length multiplier.
+
+        Args:
+            length: Multiplier for neck length (0.7 = short, 1.0 = normal, 1.3 = long)
+        """
+        self.config.neck_length = max(0.7, min(1.3, length))
         return self
 
     def set_double_chin(self, depth: float = 0.5) -> 'PortraitGenerator':
@@ -1984,6 +2008,13 @@ class PortraitGenerator:
         fw = int(self.config.width * 0.6 * width_mult)
         fh = int(self.config.height * 0.5)
         return fw, fh
+
+    def _get_neckline_y(self, cy: int, fh: int) -> int:
+        """Calculate neckline y-position based on neck length."""
+        neck_length = getattr(self.config, 'neck_length', 1.0)
+        neck_length = max(0.7, min(1.3, neck_length))
+        neck_span = max(1, int((fh // 8) * neck_length))
+        return cy + fh // 2 + neck_span
 
     def _get_hair_parting_segments(self, center_x: float,
                                    width: float) -> List[Tuple[float, float]]:
@@ -2852,7 +2883,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         chin_y = cy + fh // 2
-        neckline_y = cy + fh // 2 + fh // 8
+        neckline_y = self._get_neckline_y(cy, fh)
         neck_height = max(4, neckline_y - chin_y)
         if neck_height <= 2:
             return
@@ -6026,6 +6057,10 @@ class PortraitGenerator:
         for side in [-1, 1]:
             brow_x = cx + side * eye_spacing
 
+            # Apply eyebrow asymmetry (right eyebrow offset)
+            asymmetry = getattr(self.config, 'eyebrow_asymmetry', 0.0)
+            asymmetry_offset = int(asymmetry * 2) if side == 1 else 0  # Right brow slightly lower
+
             # Angle is mirrored for left/right eyebrows
             effective_angle = angle * side
 
@@ -6040,7 +6075,7 @@ class PortraitGenerator:
                 angle_offset = int(effective_angle * t * 4)
 
                 px = brow_x + dx
-                py = brow_y - arch + angle_offset
+                py = brow_y - arch + angle_offset + asymmetry_offset
 
                 if shape == "feathered":
                     if rng.random() < 0.15:
@@ -6426,7 +6461,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Clothing starts below the chin
-        neckline_y = cy + fh // 2 + fh // 8
+        neckline_y = self._get_neckline_y(cy, fh)
         shoulder_width = int(fw * 0.9)
 
         # Map style
@@ -6483,7 +6518,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Necklace position - at the neckline
-        neck_y = cy + fh // 2
+        neck_y = self._get_neckline_y(cy, fh)
         neck_width = fw // 2
 
         # Map style string to enum
@@ -6573,7 +6608,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Shoulder parameters
-        neckline_y = cy + fh // 2 + fh // 8
+        neckline_y = self._get_neckline_y(cy, fh)
         shoulder_width = int(self.config.width * 0.45)  # Wider shoulders
         shoulder_drop = int(self.config.height * 0.12)  # How much shoulders slope down
 
