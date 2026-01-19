@@ -105,6 +105,7 @@ class PortraitConfig:
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
     tear_duct: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible pink caruncle
     eye_crease: float = 0.0  # 0.0 = none/monolid, 0.5 = subtle, 1.0 = defined crease
+    eye_socket_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined depth
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -153,6 +154,7 @@ class PortraitConfig:
     eyebrow_thickness: int = 2  # 1-4 pixels thick
     eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
+    eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
 
     # Eyebags
     has_eyebags: bool = False
@@ -729,6 +731,16 @@ class PortraitGenerator:
         self.config.eye_crease = max(0.0, min(1.0, depth))
         return self
 
+    def set_eye_socket_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eye socket shadow depth for more defined eye area.
+
+        Args:
+            depth: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.eye_socket_shadow = max(0.0, min(1.0, depth))
+        return self
+
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
         """
         Add color to the waterline (inner eyelid rim).
@@ -928,7 +940,8 @@ class PortraitGenerator:
     def set_eyebrows(self, arch: float = 0.3, angle: float = 0.0,
                       thickness: int = 2,
                       color: Optional[str] = None,
-                      gap: float = 1.0) -> 'PortraitGenerator':
+                      gap: float = 1.0,
+                      shape: str = "natural") -> 'PortraitGenerator':
         """Set eyebrow shape, color, and gap.
 
         Args:
@@ -937,12 +950,14 @@ class PortraitGenerator:
             thickness: Thickness in pixels (1-4, default 2)
             color: Color name (None = use hair color)
             gap: Gap between eyebrows (0.7-1.3, default 1.0)
+            shape: Eyebrow shape (natural, straight, arched, curved, angular, thick, thin, feathered)
         """
         self.config.eyebrow_arch = max(0.0, min(1.0, arch))
         self.config.eyebrow_angle = max(-0.5, min(0.5, angle))
         self.config.eyebrow_thickness = max(1, min(4, thickness))
         self.config.eyebrow_color = color
         self.config.eyebrow_gap = max(0.7, min(1.3, gap))
+        self.config.eyebrow_shape = shape
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -2985,6 +3000,56 @@ class PortraitGenerator:
                     for t in range(thickness):
                         canvas.set_pixel(px, py + t, (*base_color, alpha))
 
+    def _render_eye_socket_shadow(self, canvas: Canvas) -> None:
+        """Render subtle shadow around eye socket for depth."""
+        depth = getattr(self.config, 'eye_socket_shadow', 0.0)
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+
+        # Shadow color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        shadow_color = self._skin_ramp[shade_idx]
+        max_alpha = int(25 + 50 * depth)
+
+        # Socket area is slightly larger than eye, oval shaped
+        socket_rx = eye_width + 2
+        socket_ry = eye_height + 3
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+
+            # Apply eye tilt offset
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            # Render shadow around and above eye
+            for dy in range(-socket_ry - 1, socket_ry // 2):
+                for dx in range(-socket_rx, socket_rx + 1):
+                    nx = dx / socket_rx if socket_rx > 0 else 0
+                    ny = (dy + socket_ry // 2) / socket_ry if socket_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0 and dist > 0.3:  # Ring around eye, not filling center
+                        # Stronger at edges, especially upper area
+                        upper_boost = 1.0 + (0.5 if dy < 0 else 0.0)
+                        falloff = (dist - 0.3) / 0.7 * upper_boost
+                        alpha = int(max_alpha * falloff * 0.7)
+                        if alpha > 0:
+                            px = ex + dx
+                            py = ey + dy
+                            canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
     def _render_eyeshadow(self, canvas: Canvas) -> None:
         """Render eye shadow on the eyelid area above the eye."""
         if not self.config.has_eyeshadow:
@@ -3529,6 +3594,32 @@ class PortraitGenerator:
         # Get config values
         arch_amount = self.config.eyebrow_arch
         angle = self.config.eyebrow_angle
+        shape = getattr(self.config, 'eyebrow_shape', "natural").lower()
+
+        def arch_for_shape(t: float) -> int:
+            if shape == "straight":
+                return int(arch_amount * 0.5)
+            if shape == "arched":
+                return int(arch_amount * (1 - t ** 2) * 6)
+            if shape == "curved":
+                curve = (math.cos(t * math.pi) + 1) / 2
+                return int(arch_amount * curve * 4)
+            if shape == "angular":
+                return int(arch_amount * (1 - abs(t)) * 5)
+            return int(arch_amount * (1 - t ** 2) * 4)
+
+        thickness = getattr(self.config, 'eyebrow_thickness', 2)
+        if shape == "thick":
+            thickness = min(4, thickness + 1)
+        elif shape == "thin":
+            thickness = max(1, thickness - 1)
+        elif shape == "feathered":
+            thickness = 1
+
+        rng = None
+        if shape == "feathered":
+            seed = self.config.seed
+            rng = random.Random(seed + 3100) if seed is not None else random.Random()
 
         for side in [-1, 1]:
             brow_x = cx + side * eye_spacing
@@ -3541,7 +3632,7 @@ class PortraitGenerator:
                 t = dx / half_width if half_width > 0 else 0
 
                 # Arch curve (higher arch_amount = more curved)
-                arch = int(arch_amount * (1 - t ** 2) * 4)
+                arch = arch_for_shape(t)
 
                 # Angle offset (tilts the eyebrow)
                 angle_offset = int(effective_angle * t * 4)
@@ -3549,10 +3640,20 @@ class PortraitGenerator:
                 px = brow_x + dx
                 py = brow_y - arch + angle_offset
 
-                # Draw eyebrow with configurable thickness
-                thickness = getattr(self.config, 'eyebrow_thickness', 2)
-                for ty in range(thickness):
-                    canvas.set_pixel(px, py + ty, brow_color)
+                if shape == "feathered" and rng is not None:
+                    if rng.random() < 0.15:
+                        continue
+                    falloff = 1.0 - abs(t)
+                    stroke_length = 1
+                    if rng.random() < (0.35 + 0.35 * falloff):
+                        stroke_length = 2
+                    jitter = -1 if rng.random() < 0.25 else 0
+                    for ty in range(stroke_length):
+                        canvas.set_pixel(px, py + ty + jitter, brow_color)
+                else:
+                    # Draw eyebrow with configurable thickness
+                    for ty in range(thickness):
+                        canvas.set_pixel(px, py + ty, brow_color)
 
     def _render_piercings(self, canvas: Canvas) -> None:
         """Render facial piercings if configured."""
@@ -4214,6 +4315,7 @@ class PortraitGenerator:
         self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
+        self._render_eye_socket_shadow(canvas)  # Depth around eye area
         self._render_eyeshadow(canvas)  # Eye shadow on eyelid before eye
         self._render_eyes(canvas)
         self._render_eyelashes(canvas)
