@@ -113,6 +113,7 @@ class PortraitConfig:
     forehead_height: float = 1.0  # 0.8 = short, 1.0 = normal, 1.2 = tall forehead
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
+    earlobe_attached: bool = False  # False = detached/free-hanging lobe, True = attached to jaw
     ear_cartilage: float = 0.0  # 0.0 = none, 0.5 = subtle inner structure, 1.0 = defined
     ear_size: float = 1.0  # 0.7-1.3, multiplier for ear size
     ear_angle: float = 0.0  # 0.0 = flat against head, 0.5 = slight stick out, 1.0 = prominent ears
@@ -933,6 +934,19 @@ class PortraitGenerator:
             detail: Detail level (0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading)
         """
         self.config.ear_lobe_detail = max(0.0, min(1.0, detail))
+        return self
+
+    def set_earlobe_attached(self, attached: bool = False) -> 'PortraitGenerator':
+        """
+        Set whether earlobes are attached or detached.
+
+        Attached earlobes connect directly to the jaw without a free-hanging lobe.
+        Detached earlobes have a free-hanging bottom portion.
+
+        Args:
+            attached: True for attached lobes, False for detached (default)
+        """
+        self.config.earlobe_attached = attached
         return self
 
     def set_ear_cartilage(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -2723,6 +2737,12 @@ class PortraitGenerator:
                 # Lobe is the rounded bottom portion of the ear
                 lobe_y = ear_bottom - ear_h // 6
                 lobe_radius = max(2, ear_w // 2)
+
+                # Attached vs detached earlobes
+                attached = getattr(self.config, 'earlobe_attached', False)
+                if attached:
+                    # Attached lobes are smaller and connect more directly
+                    lobe_radius = max(1, int(lobe_radius * 0.6))
 
                 # Add highlight to the front/outer curve of lobe
                 highlight_idx = min(ramp_len - 1, mid_idx + 2)
