@@ -111,6 +111,7 @@ class PortraitConfig:
     lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
+    lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
 
     # Teeth
     show_teeth: bool = False
@@ -701,6 +702,16 @@ class PortraitGenerator:
             corners: Corner lift (-1.0 = frown, 0.0 = neutral, 1.0 = smile)
         """
         self.config.mouth_corners = max(-1.0, min(1.0, corners))
+        return self
+
+    def set_lip_gloss(self, gloss: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lip gloss/shine level.
+
+        Args:
+            gloss: Gloss level (0.0 = matte, 0.5 = subtle, 1.0 = glossy)
+        """
+        self.config.lip_gloss = max(0.0, min(1.0, gloss))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -2468,6 +2479,17 @@ class PortraitGenerator:
                 for dy in range(1, curve + 1):
                     color = highlight_color if dy == 1 else lower_lip_color
                     canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
+
+            # Lip gloss highlight for NEUTRAL shape
+            gloss_level = getattr(self.config, 'lip_gloss', 0.0)
+            if gloss_level > 0.0:
+                gloss_alpha = int(40 + gloss_level * 80)  # 40-120 alpha
+                gloss_span = max(1, lip_width // 2)
+                for dx in range(-gloss_span, gloss_span + 1):
+                    gloss_fade = 1.0 - abs(dx) / gloss_span if gloss_span > 0 else 1.0
+                    alpha = int(gloss_alpha * gloss_fade)
+                    if alpha > 0:
+                        canvas.set_pixel(cx + dx, lip_y + 2, (255, 255, 255, alpha))
             return
 
         upper_scale = 0.5
@@ -2531,6 +2553,17 @@ class PortraitGenerator:
                 else:
                     color = lower_lip_color
                 canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
+
+        # Lip gloss highlight for non-NEUTRAL shapes
+        gloss_level = getattr(self.config, 'lip_gloss', 0.0)
+        if gloss_level > 0.0:
+            gloss_alpha = int(40 + gloss_level * 80)  # 40-120 alpha
+            gloss_span = max(1, lip_width // 2)
+            for dx in range(-gloss_span, gloss_span + 1):
+                gloss_fade = 1.0 - abs(dx) / gloss_span if gloss_span > 0 else 1.0
+                alpha = int(gloss_alpha * gloss_fade)
+                if alpha > 0:
+                    canvas.set_pixel(cx + dx, lip_y + 2, (255, 255, 255, alpha))
 
     def _render_teeth(self, canvas: Canvas) -> None:
         """Render teeth visible through smile gap."""
