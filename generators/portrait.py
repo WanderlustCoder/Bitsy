@@ -96,6 +96,8 @@ class PortraitConfig:
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
     pupil_size: float = 1.0  # 0.7-1.5, multiplier for pupil size
+    iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
+    catchlight_style: str = "double"  # none, single, double, sparkle
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
@@ -573,7 +575,8 @@ class PortraitGenerator:
                  openness: float = 1.0,
                  right_color: Optional[str] = None,
                  size: float = 1.0,
-                 pupil_size: float = 1.0) -> 'PortraitGenerator':
+                 pupil_size: float = 1.0,
+                 iris_size: float = 1.0) -> 'PortraitGenerator':
         """
         Set eye shape and color.
 
@@ -584,6 +587,7 @@ class PortraitGenerator:
             right_color: Right eye color for heterochromia (None = same as left)
             size: Eye size multiplier (0.7-1.3, default 1.0)
             pupil_size: Pupil size multiplier (0.7-1.5, default 1.0)
+            iris_size: Iris size multiplier (0.7-1.3, default 1.0)
         """
         self.config.eye_shape = shape
         self.config.eye_color = color
@@ -591,6 +595,7 @@ class PortraitGenerator:
         self.config.eye_openness = openness
         self.config.eye_size = max(0.7, min(1.3, size))
         self.config.pupil_size = max(0.7, min(1.5, pupil_size))
+        self.config.iris_size = max(0.7, min(1.3, iris_size))
         return self
 
     def set_eyelashes(self, length: float = 0.5) -> 'PortraitGenerator':
@@ -601,6 +606,16 @@ class PortraitGenerator:
             length: Eyelash length (0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic)
         """
         self.config.eyelash_length = max(0.0, min(1.5, length))
+        return self
+
+    def set_catchlight(self, style: str = "double") -> 'PortraitGenerator':
+        """
+        Set eye catchlight (light reflection) style.
+
+        Args:
+            style: Catchlight style - none, single, double (default), or sparkle
+        """
+        self.config.catchlight_style = style
         return self
 
     def set_eyeliner(self, style: str = "thin",
@@ -2043,7 +2058,8 @@ class PortraitGenerator:
             canvas.fill_ellipse_aa(ex, eye_y, eye_width, eye_height, white_color)
 
             # Layer 2: Iris
-            iris_radius = int(eye_width * 0.6)
+            iris_mult = getattr(self.config, 'iris_size', 1.0)
+            iris_radius = int(eye_width * 0.6 * iris_mult)
             # Apply gaze offset
             gaze_x = int(self.config.gaze_direction[0] * eye_width * 0.2)
             gaze_y = int(self.config.gaze_direction[1] * eye_height * 0.2)
@@ -2062,15 +2078,30 @@ class PortraitGenerator:
             pupil_color = (10, 10, 15, 255)  # Near black with slight blue
             canvas.fill_circle_aa(iris_x, iris_y, pupil_radius, pupil_color)
 
-            # Layer 4: Catchlight (2 small white dots)
-            catchlight_color = (255, 255, 255, 255)
-            cl_offset_x = int(iris_radius * 0.3)
-            cl_offset_y = int(iris_radius * 0.3)
-            # Primary catchlight
-            canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
-            canvas.set_pixel(iris_x - cl_offset_x + 1, iris_y - cl_offset_y, catchlight_color)
-            # Secondary smaller catchlight
-            canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y + cl_offset_y, (255, 255, 255, 180))
+            # Layer 4: Catchlight (light reflection)
+            catchlight_style = getattr(self.config, 'catchlight_style', 'double').lower()
+            if catchlight_style != "none":
+                catchlight_color = (255, 255, 255, 255)
+                cl_offset_x = int(iris_radius * 0.3)
+                cl_offset_y = int(iris_radius * 0.3)
+
+                if catchlight_style == "single":
+                    # Single large catchlight
+                    canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
+                    canvas.set_pixel(iris_x - cl_offset_x + 1, iris_y - cl_offset_y, catchlight_color)
+                    canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y + 1, catchlight_color)
+                elif catchlight_style == "sparkle":
+                    # Multiple small sparkles
+                    canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
+                    canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y - cl_offset_y + 1, (255, 255, 255, 200))
+                    canvas.set_pixel(iris_x - cl_offset_x + 2, iris_y + cl_offset_y - 2, (255, 255, 255, 160))
+                    canvas.set_pixel(iris_x + cl_offset_x, iris_y + cl_offset_y - 1, (255, 255, 255, 140))
+                else:  # double (default)
+                    # Primary catchlight
+                    canvas.set_pixel(iris_x - cl_offset_x, iris_y - cl_offset_y, catchlight_color)
+                    canvas.set_pixel(iris_x - cl_offset_x + 1, iris_y - cl_offset_y, catchlight_color)
+                    # Secondary smaller catchlight
+                    canvas.set_pixel(iris_x + cl_offset_x - 1, iris_y + cl_offset_y, (255, 255, 255, 180))
 
             # Layer 5: Eyelid shadow (1px darker at top of eye)
             eyelid_shadow = (0, 0, 0, 40)
