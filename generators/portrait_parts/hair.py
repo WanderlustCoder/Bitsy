@@ -31,6 +31,7 @@ class HairStyle(Enum):
     SHORT = "short"
     PONYTAIL = "ponytail"
     BRAIDED = "braided"
+    LONG = "long"
 
 
 @dataclass
@@ -314,6 +315,120 @@ def generate_curly_clusters(center_x: float, top_y: float,
     return clusters
 
 
+def generate_long_clusters(center_x: float, top_y: float,
+                           width: float, length: float,
+                           count: int = 22,
+                           rng: Optional[random.Random] = None) -> List[HairCluster]:
+    """
+    Generate long flowing hair clusters that extend past shoulders.
+
+    Creates:
+    - Long strands that flow down past the face
+    - Gentle waves with natural movement
+    - Hair that spreads outward at the sides
+    """
+    if rng is None:
+        rng = random.Random()
+
+    clusters = []
+
+    # Long hair extends significantly past normal length
+    extended_length = length * 1.4
+
+    for i in range(count):
+        t = (i + 0.5) / count
+        start_x = center_x - width / 2 + t * width
+        start_x += rng.uniform(-width * 0.04, width * 0.04)
+        start_y = top_y + rng.uniform(0, length * 0.08)
+
+        # Gentle wave for natural flow
+        wave_amplitude = rng.uniform(width * 0.03, width * 0.08)
+        wave_frequency = rng.uniform(1.0, 2.0)
+        phase = rng.uniform(0, math.pi * 2)
+
+        # Side bias - hair on edges spreads outward more
+        side_bias = (t - 0.5) * 2  # -1 to 1
+
+        # Edge strands are longer and spread more
+        edge_factor = 1.0 + abs(side_bias) * 0.15
+        cluster_length = extended_length * edge_factor
+
+        # Outward spread increases with length
+        spread_factor = side_bias * width * 0.35
+
+        p0 = (start_x, start_y)
+        p1 = (
+            start_x + spread_factor * 0.2 + wave_amplitude * math.sin(phase),
+            start_y + cluster_length * 0.33
+        )
+        p2 = (
+            start_x + spread_factor * 0.5 + wave_amplitude * math.sin(phase + wave_frequency),
+            start_y + cluster_length * 0.66
+        )
+        p3 = (
+            start_x + spread_factor * 0.8 + wave_amplitude * math.sin(phase + wave_frequency * 2),
+            start_y + cluster_length
+        )
+
+        # Thicker base strands that taper to thin tips
+        base_width = rng.uniform(3.0, 5.0)
+        width_profile = [
+            (0.0, base_width * 0.85),
+            (0.2, base_width),
+            (0.5, base_width * 0.85),
+            (0.75, base_width * 0.5),
+            (0.9, base_width * 0.25),
+            (1.0, base_width * 0.1),
+        ]
+
+        # Z-depth: center strands slightly in front
+        z_depth = 0.9 - abs(side_bias) * 0.4
+
+        cluster = HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=z_depth,
+            color_offset=rng.uniform(-0.25, 0.25),
+            is_highlight=side_bias > 0.3,
+        )
+        clusters.append(cluster)
+
+    # Add some inner strands for depth
+    inner_count = count // 4
+    for i in range(inner_count):
+        t = (i + 0.5) / inner_count * 0.6 + 0.2  # Center portion only
+        start_x = center_x - width / 3 + t * width * 0.66
+        start_y = top_y + rng.uniform(length * 0.05, length * 0.15)
+
+        cluster_length = extended_length * rng.uniform(0.85, 1.0)
+        wave = rng.uniform(-width * 0.04, width * 0.04)
+
+        p0 = (start_x, start_y)
+        p1 = (start_x + wave, start_y + cluster_length * 0.33)
+        p2 = (start_x + wave * 1.5, start_y + cluster_length * 0.66)
+        p3 = (start_x + wave * 2, start_y + cluster_length)
+
+        base_width = rng.uniform(2.5, 4.0)
+        width_profile = [
+            (0.0, base_width * 0.9),
+            (0.3, base_width),
+            (0.6, base_width * 0.7),
+            (0.85, base_width * 0.35),
+            (1.0, base_width * 0.1),
+        ]
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=0.3 + rng.uniform(0, 0.2),
+            color_offset=rng.uniform(-0.15, 0.15),
+            is_highlight=False,
+        ))
+
+    clusters.sort(key=lambda c: c.z_depth)
+    return clusters
+
+
 def generate_bun_clusters(center_x: float, top_y: float,
                           width: float, length: float,
                           count: int = 40,
@@ -490,6 +605,8 @@ def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
     elif style == HairStyle.PONYTAIL:
         # Use bun style for ponytail
         return generate_bun_clusters(center_x, top_y, width, length, count, rng)
+    elif style == HairStyle.LONG:
+        return generate_long_clusters(center_x, top_y, width, length, count, rng)
     else:
         # Default to wavy
         return generate_wavy_clusters(center_x, top_y, width, length, count, rng)

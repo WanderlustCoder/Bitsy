@@ -34,6 +34,7 @@ class HairStyle(Enum):
     SHORT = "short"
     PONYTAIL = "ponytail"
     BRAIDED = "braided"
+    LONG = "long"
 
 
 class EyeShape(Enum):
@@ -1042,6 +1043,53 @@ class PortraitGenerator:
             light_direction=self.config.light_direction
         )
 
+    def _render_earrings(self, canvas: Canvas) -> None:
+        """Render earrings if configured."""
+        if not self.config.has_earrings:
+            return
+
+        from generators.portrait_parts.accessories import (
+            render_earring, EarringStyle
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Ear position - on the sides of the face, slightly below eye level
+        ear_y = cy + fh // 12  # Slightly below center
+        ear_offset = fw // 2 + 2  # Just outside face edge
+
+        # Map style string to enum
+        style_map = {
+            "stud": EarringStyle.STUD,
+            "hoop": EarringStyle.HOOP,
+            "drop": EarringStyle.DROP,
+            "dangle": EarringStyle.DANGLE,
+        }
+        earring_style = style_map.get(
+            self.config.earring_style.lower(),
+            EarringStyle.STUD
+        )
+
+        # Earring colors based on style
+        earring_colors = {
+            "stud": (255, 215, 0, 255),     # Gold
+            "hoop": (200, 200, 210, 255),    # Silver
+            "drop": (70, 130, 180, 255),     # Blue gem
+            "dangle": (255, 215, 0, 255),    # Gold
+        }
+        color = earring_colors.get(
+            self.config.earring_style.lower(),
+            (255, 215, 0, 255)
+        )
+
+        # Size scales with face
+        size = max(2, fw // 20)
+
+        # Render on both ears
+        render_earring(canvas, cx - ear_offset, ear_y, earring_style, color, size)
+        render_earring(canvas, cx + ear_offset, ear_y, earring_style, color, size)
+
     def _render_glasses(self, canvas: Canvas) -> None:
         """Render glasses if configured."""
         if not self.config.has_glasses:
@@ -1298,6 +1346,7 @@ class PortraitGenerator:
         self._render_nose(canvas)
         self._render_lips(canvas)
         self._render_eyes(canvas)
+        self._render_earrings(canvas)  # Earrings on side of face
         self._render_glasses(canvas)  # Glasses over eyes
         self._render_eyebrows(canvas)
         self._render_bangs(canvas)  # Front hair over forehead
