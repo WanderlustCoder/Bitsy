@@ -118,6 +118,7 @@ class PortraitConfig:
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
     nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
+    nose_bridge_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined bridge highlight
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
@@ -824,6 +825,16 @@ class PortraitGenerator:
         self.config.nose_size = max(0.7, min(1.3, size))
         self.config.nose_tip_highlight = max(0.0, min(1.0, tip_highlight))
         self.config.nostril_definition = max(0.0, min(1.0, nostril_definition))
+        return self
+
+    def set_nose_bridge_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set nose bridge highlight intensity.
+
+        Args:
+            intensity: Highlight intensity (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.nose_bridge_highlight = max(0.0, min(1.0, intensity))
         return self
 
     def set_lips(self, shape: LipShape, color: str = "natural") -> 'PortraitGenerator':
@@ -3707,6 +3718,34 @@ class PortraitGenerator:
                     canvas.set_pixel(nx, nostril_y - 1, (*nostril_color[:3], int(nostril_alpha * 0.6)))
                 if nostril_def > 0.6:
                     canvas.set_pixel(nx + side, nostril_y, (*nostril_color[:3], int(nostril_alpha * 0.4)))
+
+        # Nose bridge highlight
+        bridge_intensity = getattr(self.config, 'nose_bridge_highlight', 0.0)
+        if bridge_intensity > 0.0:
+            bridge_highlight_color = (255, 252, 248)  # Warm white
+            max_bridge_alpha = int(25 + 50 * bridge_intensity)
+
+            # Bridge runs from between eyes to mid-nose
+            eye_y = self._get_eye_y(cy, fh)
+            bridge_top = eye_y - 2
+            bridge_bottom = nose_y + int(fh // 12 * nose_size_mult)
+            bridge_length = bridge_bottom - bridge_top
+
+            for dy in range(bridge_length):
+                y = bridge_top + dy
+                # Narrow highlight line down the center
+                t = dy / bridge_length if bridge_length > 0 else 0
+                # Strongest in middle, fade at top and bottom
+                y_fade = math.sin(t * math.pi) if bridge_length > 0 else 1.0
+                alpha = int(max_bridge_alpha * y_fade)
+                if alpha > 0:
+                    canvas.set_pixel(cx, y, (*bridge_highlight_color, alpha))
+                    # Subtle spread for higher intensity
+                    if bridge_intensity > 0.5:
+                        side_alpha = int(alpha * 0.4)
+                        if side_alpha > 0:
+                            canvas.set_pixel(cx - 1, y, (*bridge_highlight_color, side_alpha))
+                            canvas.set_pixel(cx + 1, y, (*bridge_highlight_color, side_alpha))
 
         # Philtrum (vertical groove between nose and upper lip)
         philtrum_depth = getattr(self.config, 'philtrum_depth', 0.0)
