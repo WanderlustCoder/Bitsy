@@ -103,6 +103,7 @@ class PortraitConfig:
     lipstick_color: str = "red"  # red, pink, nude, berry, coral, plum
     lipstick_intensity: float = 0.7  # 0.0 to 1.0
     lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
+    lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
 
     # Teeth
     show_teeth: bool = False
@@ -634,14 +635,17 @@ class PortraitGenerator:
         self.config.lipstick_intensity = max(0.0, min(1.0, intensity))
         return self
 
-    def set_lip_thickness(self, thickness: float = 1.0) -> 'PortraitGenerator':
+    def set_lip_thickness(self, thickness: float = 1.0,
+                          width: float = 1.0) -> 'PortraitGenerator':
         """
-        Set lip thickness multiplier.
+        Set lip thickness and width multipliers.
 
         Args:
             thickness: Multiplier for lip height (0.5-1.5, default 1.0)
+            width: Multiplier for lip width (0.8-1.2, default 1.0)
         """
         self.config.lip_thickness = max(0.5, min(1.5, thickness))
+        self.config.lip_width = max(0.8, min(1.2, width))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -2200,7 +2204,8 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         lip_y = cy + fh // 4
-        lip_width = fw // 5
+        width_mult = getattr(self.config, 'lip_width', 1.0)
+        lip_width = int(fw // 5 * width_mult)
         base_lip_height = fh // 20
         thickness = getattr(self.config, 'lip_thickness', 1.0)
         lip_height = int(base_lip_height * thickness)
