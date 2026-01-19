@@ -89,6 +89,7 @@ class PortraitConfig:
     highlight_color: str = "blonde"  # color for highlights/streaks
     highlight_intensity: float = 0.3  # 0.0-1.0, proportion of hair highlighted
 
+    hairline_shape: str = "straight"  # straight, widows_peak, rounded, receding, m_shaped
     # Face
     face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
@@ -210,6 +211,7 @@ class PortraitConfig:
 
     # Nasolabial folds (smile/laugh lines)
     nasolabial_depth: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent
+    marionette_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible
 
     # Temple shadow (adds depth to face structure)
     temple_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
@@ -696,6 +698,22 @@ class PortraitGenerator:
     def set_hair_parting(self, side: str = "center") -> 'PortraitGenerator':
         """Set hair parting side (none, left, right, center)."""
         self.config.hair_parting = (side or "none").lower()
+        return self
+
+    def set_hairline_shape(self, shape: str = "straight") -> 'PortraitGenerator':
+        """
+        Set hairline shape.
+
+        Args:
+            shape: Hairline type:
+                - "straight": Even, horizontal hairline (default)
+                - "widows_peak": V-shaped dip at center
+                - "rounded": Curved/arched hairline
+                - "receding": Higher at temples
+                - "m_shaped": Pronounced M-pattern
+        """
+        valid_shapes = ["straight", "widows_peak", "rounded", "receding", "m_shaped"]
+        self.config.hairline_shape = shape.lower() if shape.lower() in valid_shapes else "straight"
         return self
 
     def set_hair_highlights(self, color: str = "blonde",
@@ -1357,6 +1375,16 @@ class PortraitGenerator:
             depth: How prominent the folds are (0.0 = none, 0.5 = subtle, 1.0 = prominent)
         """
         self.config.nasolabial_depth = max(0.0, min(1.0, depth))
+        return self
+
+    def set_marionette_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set marionette lines (mouth corner to chin lines) visibility.
+
+        Args:
+            intensity: Line visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.marionette_lines = max(0.0, min(1.0, intensity))
         return self
 
     def set_temple_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -2284,6 +2312,81 @@ class PortraitGenerator:
                         pixel_alpha = int(alpha * (1.0 - dy / 4))
                         if pixel_alpha > 0:
                             canvas.set_pixel(px, py + dy, (*shadow_color[:3], pixel_alpha))
+
+    def _render_hairline(self, canvas: Canvas) -> None:
+        """Render hairline shape adjustments at the forehead edge."""
+        hairline = getattr(self.config, 'hairline_shape', 'straight').lower()
+        if hairline == "straight":
+            return  # Default, no modification needed
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        forehead_y = cy - fh // 3  # Top of forehead
+
+        # Use hair color for extending hairline
+        hair_color = self._hair_ramp[len(self._hair_ramp) // 2]
+
+        if hairline == "widows_peak":
+            # V-shaped dip at center - extend hair downward
+            peak_depth = max(2, fh // 12)
+            peak_width = max(3, fw // 8)
+            for dy in range(peak_depth):
+                width_at_y = int(peak_width * (1 - dy / peak_depth))
+                for dx in range(-width_at_y, width_at_y + 1):
+                    fade = 1.0 - abs(dx) / (width_at_y + 1)
+                    alpha = int(200 * fade)
+                    if alpha > 20:
+                        canvas.set_pixel(cx + dx, forehead_y + dy, (*hair_color[:3], alpha))
+
+        elif hairline == "rounded":
+            # Curved/arched hairline - slight arch
+            arch_height = max(2, fh // 15)
+            for dx in range(-fw // 3, fw // 3 + 1):
+                # Parabolic curve
+                dy = int(arch_height * (1 - (dx / (fw // 3 + 1)) ** 2))
+                fade = 1.0 - abs(dx) / (fw // 3 + 1)
+                alpha = int(180 * fade)
+                if alpha > 20:
+                    canvas.set_pixel(cx + dx, forehead_y - dy, (*hair_color[:3], alpha))
+
+        elif hairline == "receding":
+            # Higher at temples - add skin at temple areas
+            temple_width = max(3, fw // 6)
+            recession_depth = max(2, fh // 10)
+            skin_color = self._skin_ramp[len(self._skin_ramp) // 2]
+            for side in (-1, 1):
+                temple_x = cx + side * (fw // 3)
+                for dy in range(recession_depth):
+                    for dx in range(temple_width):
+                        fade = (1 - dx / temple_width) * (1 - dy / recession_depth)
+                        alpha = int(200 * fade)
+                        if alpha > 20:
+                            canvas.set_pixel(temple_x + side * dx, forehead_y + dy, (*skin_color[:3], alpha))
+
+        elif hairline == "m_shaped":
+            # M-pattern - like widow's peak but with receding temples
+            # Central peak
+            peak_depth = max(2, fh // 15)
+            peak_width = max(2, fw // 10)
+            for dy in range(peak_depth):
+                width_at_y = int(peak_width * (1 - dy / peak_depth))
+                for dx in range(-width_at_y, width_at_y + 1):
+                    fade = 1.0 - abs(dx) / (width_at_y + 1)
+                    alpha = int(180 * fade)
+                    if alpha > 20:
+                        canvas.set_pixel(cx + dx, forehead_y + dy, (*hair_color[:3], alpha))
+            # Temple recession
+            temple_width = max(2, fw // 8)
+            recession_depth = max(2, fh // 12)
+            skin_color = self._skin_ramp[len(self._skin_ramp) // 2]
+            for side in (-1, 1):
+                temple_x = cx + side * (fw // 4)
+                for dy in range(recession_depth):
+                    for dx in range(temple_width):
+                        fade = (1 - dx / temple_width) * (1 - dy / recession_depth)
+                        alpha = int(180 * fade)
+                        if alpha > 20:
+                            canvas.set_pixel(temple_x + side * dx, forehead_y + dy, (*skin_color[:3], alpha))
 
     def _render_neck_shadow(self, canvas: Canvas) -> None:
         """Render shadow under the chin for neck transition depth."""
@@ -3431,6 +3534,54 @@ class PortraitGenerator:
                         # Add subtle shadow for depth
                         if depth > 0.5:
                             canvas.set_pixel(px + side, py, (*base_color[:3], alpha // 2))
+
+    def _render_marionette_lines(self, canvas: Canvas) -> None:
+        """Render marionette lines (lines from mouth corners downward)."""
+        intensity = getattr(self.config, 'marionette_lines', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        lip_y = cy + fh // 4
+        width_mult = getattr(self.config, 'lip_width', 1.0)
+        lip_width = int(fw // 5 * width_mult)
+        base_lip_height = fh // 20
+        thickness = getattr(self.config, 'lip_thickness', 1.0)
+        lip_height = int(base_lip_height * thickness)
+
+        corner_val = getattr(self.config, 'mouth_corners', 0.0)
+        max_corner_shift = max(1, lip_height // 2)
+        corner_y = lip_y - int(corner_val * max_corner_shift)
+
+        chin_y = cy + fh // 2 - 1
+        line_len = max(4, int(fh * (0.14 + 0.08 * intensity)))
+        end_y = min(chin_y, corner_y + line_len)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        base_color = self._skin_ramp[shade_idx]
+        base_alpha = int(25 + 60 * intensity)
+
+        for side in (-1, 1):
+            start_x = cx + side * (lip_width + 1)
+            start_y = corner_y + 1
+            steps = max(2, end_y - start_y)
+            for i in range(steps + 1):
+                t = i / steps
+                curve = math.sin(t * math.pi) * fw * 0.015 * side
+                px = int(start_x + curve)
+                py = int(start_y + (end_y - start_y) * t)
+
+                fade = 1.0 - t * 0.7
+                alpha = int(base_alpha * fade)
+                if alpha > 0:
+                    canvas.set_pixel(px, py, (*base_color[:3], alpha))
+                    if intensity > 0.6:
+                        side_alpha = int(alpha * 0.4)
+                        if side_alpha > 0:
+                            canvas.set_pixel(px + side, py, (*base_color[:3], side_alpha))
 
     def _render_eyes(self, canvas: Canvas) -> None:
         """Render detailed eyes with multiple layers."""
@@ -5439,6 +5590,7 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_hairline(canvas)  # Hairline shape adjustments
         self._render_neck_shadow(canvas)  # Shadow under chin
         self._render_double_chin(canvas)  # Double chin fold
         self._render_neck_crease(canvas)  # Neck fold lines
@@ -5458,6 +5610,7 @@ class PortraitGenerator:
         self._render_crows_feet(canvas)  # Eye corner wrinkles
         self._render_frown_lines(canvas)  # Glabella lines between eyebrows
         self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
+        self._render_marionette_lines(canvas)  # Mouth corner lines
         self._render_eyebags(canvas)
         self._render_freckles(canvas)
         self._render_moles(canvas)
