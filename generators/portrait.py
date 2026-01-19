@@ -101,6 +101,7 @@ class PortraitConfig:
     iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
     catchlight_style: str = "double"  # none, single, double, sparkle
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
+    iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
@@ -625,7 +626,8 @@ class PortraitGenerator:
                  pupil_size: float = 1.0,
                  iris_size: float = 1.0,
                  tilt: float = 0.0,
-                 limbal_ring: float = 0.3) -> 'PortraitGenerator':
+                 limbal_ring: float = 0.3,
+                 iris_pattern: str = "solid") -> 'PortraitGenerator':
         """
         Set eye shape and color.
 
@@ -639,6 +641,7 @@ class PortraitGenerator:
             iris_size: Iris size multiplier (0.7-1.3, default 1.0)
             tilt: Eye tilt angle (-0.3 to 0.3, negative=downward, positive=upward)
             limbal_ring: Dark ring intensity around iris (0.0-1.0, 0.3 default)
+            iris_pattern: Pattern in iris - solid, ringed, starburst, speckled
         """
         self.config.eye_shape = shape
         self.config.eye_color = color
@@ -649,6 +652,7 @@ class PortraitGenerator:
         self.config.iris_size = max(0.7, min(1.3, iris_size))
         self.config.eye_tilt = max(-0.3, min(0.3, tilt))
         self.config.limbal_ring = max(0.0, min(1.0, limbal_ring))
+        self.config.iris_pattern = iris_pattern
         return self
 
     def set_eyelashes(self, length: float = 0.5) -> 'PortraitGenerator':
@@ -2428,6 +2432,43 @@ class PortraitGenerator:
             iris_mid = eye_ramp[2]    # Middle
             canvas.fill_circle_aa(iris_x, iris_y, iris_radius, iris_outer)
             canvas.fill_circle_aa(iris_x, iris_y, int(iris_radius * 0.7), iris_mid)
+
+            # Iris pattern overlay
+            iris_pattern = getattr(self.config, 'iris_pattern', 'solid').lower()
+            if iris_pattern != "solid":
+                pattern_color_light = eye_ramp[min(len(eye_ramp) - 1, 3)]
+                pattern_color_dark = eye_ramp[max(0, 1)]
+                pupil_r = int(iris_radius * 0.4)  # Inner boundary
+
+                if iris_pattern == "ringed":
+                    # Concentric rings in iris
+                    for ring_r in range(pupil_r + 2, iris_radius - 1, 2):
+                        ring_alpha = 40 + int(30 * (ring_r - pupil_r) / (iris_radius - pupil_r))
+                        canvas.draw_circle(iris_x, iris_y, ring_r, (*pattern_color_dark[:3], ring_alpha))
+
+                elif iris_pattern == "starburst":
+                    # Radial lines from pupil
+                    num_rays = 12
+                    for i in range(num_rays):
+                        angle = (i / num_rays) * 2 * math.pi
+                        for r in range(pupil_r + 1, iris_radius - 1):
+                            px = iris_x + int(r * math.cos(angle))
+                            py = iris_y + int(r * math.sin(angle))
+                            ray_alpha = int(50 * (1 - (r - pupil_r) / (iris_radius - pupil_r)))
+                            if ray_alpha > 5:
+                                canvas.set_pixel(px, py, (*pattern_color_light[:3], ray_alpha))
+
+                elif iris_pattern == "speckled":
+                    # Random flecks in iris
+                    import random
+                    random.seed(hash((iris_x, iris_y)))  # Consistent per eye
+                    for _ in range(15):
+                        angle = random.random() * 2 * math.pi
+                        r = pupil_r + random.random() * (iris_radius - pupil_r - 2)
+                        px = iris_x + int(r * math.cos(angle))
+                        py = iris_y + int(r * math.sin(angle))
+                        fleck_color = pattern_color_light if random.random() > 0.5 else pattern_color_dark
+                        canvas.set_pixel(px, py, (*fleck_color[:3], 80))
 
             # Limbal ring: dark ring around iris edge for definition
             limbal_strength = getattr(self.config, 'limbal_ring', 0.3)
