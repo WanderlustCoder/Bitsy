@@ -136,6 +136,7 @@ class PortraitConfig:
     eye_socket_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined depth
     orbital_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined rim light
     eye_depth: float = 0.0  # -0.5 = protruding, 0.0 = normal, 0.5 = deep-set
+    hooded_eyes: float = 0.0  # 0.0 = open lid, 0.5 = partially hooded, 1.0 = fully hooded (lid hidden)
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -1158,6 +1159,19 @@ class PortraitGenerator:
             depth: Depth level (-0.5 = protruding, 0.0 = normal, 0.5 = deep-set)
         """
         self.config.eye_depth = max(-0.5, min(0.5, depth))
+        return self
+
+    def set_hooded_eyes(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set hooded eye intensity.
+
+        Creates the hooded eye effect where the upper eyelid
+        is partially or fully hidden by the brow/crease skin.
+
+        Args:
+            intensity: Hood level (0.0 = open lid, 0.5 = partial, 1.0 = fully hooded)
+        """
+        self.config.hooded_eyes = max(0.0, min(1.0, intensity))
         return self
 
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
@@ -5565,6 +5579,53 @@ class PortraitGenerator:
                         if alpha > 3:
                             canvas.set_pixel(ex + dx, ey + dy, (*highlight_color[:3], alpha))
 
+    def _render_hooded_eyes(self, canvas: Canvas) -> None:
+        """Render hooded eye effect (skin covering upper eyelid)."""
+        intensity = getattr(self.config, 'hooded_eyes', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6))
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        skin_color = self._skin_ramp[mid_idx]
+
+        # Hood extends over the eyelid area
+        hood_height = max(2, int((2 + 3 * intensity)))
+        max_shadow_alpha = int(40 + 60 * intensity)
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            # Draw hood skin over upper eyelid
+            hood_y = ey - eye_height // 2 - 1
+            hood_width = eye_width + 2
+
+            for dy in range(hood_height):
+                y_alpha = 1.0 - dy / hood_height
+                for dx in range(-hood_width, hood_width + 1):
+                    x_fade = 1.0 - (abs(dx) / hood_width) ** 1.5
+                    # Skin overlay with shadow underneath
+                    skin_alpha = int(80 * intensity * x_fade * (1 - y_alpha * 0.5))
+                    if skin_alpha > 5:
+                        canvas.set_pixel(ex + dx, hood_y + dy, (*skin_color[:3], skin_alpha))
+                    # Shadow at crease
+                    if dy == hood_height - 1:
+                        shadow_alpha = int(max_shadow_alpha * x_fade)
+                        if shadow_alpha > 3:
+                            canvas.set_pixel(ex + dx, hood_y + dy + 1, (*shadow_color[:3], shadow_alpha))
+
     def _render_orbital_rim_light(self, canvas: Canvas) -> None:
         """Render subtle rim lighting along the eye socket edge."""
         intensity = getattr(self.config, 'orbital_rim_light', 0.0)
@@ -7624,6 +7685,7 @@ class PortraitGenerator:
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
         self._render_eye_depth(canvas)  # Deep-set or protruding eyes
+        self._render_hooded_eyes(canvas)  # Hooded eye effect (skin over lid)
         self._render_orbital_rim_light(canvas)  # Subtle rim light around eye socket
         self._render_brow_bone(canvas)  # Brow ridge prominence
         self._render_under_brow_shadow(canvas)  # Deep shadow under brow ridge
