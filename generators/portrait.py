@@ -133,6 +133,7 @@ class PortraitConfig:
     nose_tip_shape: str = "rounded"  # rounded, pointed, bulbous, upturned
     nose_bridge_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined bridge highlight
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
+    nostril_flare: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide/flared nostrils
     under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
@@ -1006,6 +1007,18 @@ class PortraitGenerator:
             intensity: Highlight intensity (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.nose_bridge_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_nostril_flare(self, flare: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set nostril flare/width.
+
+        Controls how wide or narrow the nostrils spread.
+
+        Args:
+            flare: Width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = flared)
+        """
+        self.config.nostril_flare = max(0.7, min(1.3, flare))
         return self
 
     def set_under_nose_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -4732,7 +4745,8 @@ class PortraitGenerator:
                         canvas.set_pixel(cx + shadow_side * (2 + sw), py, (*shadow_color[:3], alpha))
             # Nostril hints
             nostril_y = nose_y + nose_height
-            nostril_offset = nose_width // 2 + 1
+            nostril_flare = getattr(self.config, 'nostril_flare', 1.0)
+            nostril_offset = int((nose_width // 2 + 1) * nostril_flare)
             canvas.set_pixel(cx - nostril_offset, nostril_y, dark_shadow)
             canvas.set_pixel(cx + nostril_offset, nostril_y, dark_shadow)
             # Tip highlight
@@ -4839,7 +4853,8 @@ class PortraitGenerator:
                 n_width = max(2, fw // 12)
 
             nostril_y = nose_y + n_height
-            nostril_offset = max(2, n_width)
+            nostril_flare = getattr(self.config, 'nostril_flare', 1.0)
+            nostril_offset = int(max(2, n_width) * nostril_flare)
             nostril_alpha = int(30 + 50 * nostril_def)
             nostril_color = self._skin_ramp[max(0, mid_idx - 2)]
 
@@ -5568,7 +5583,8 @@ class PortraitGenerator:
         if self.config.has_nose_piercing:
             nose_y = cy + fh // 10
             nose_height = max(4, fh // 9)
-            nostril_offset = max(2, fw // 12)
+            nostril_flare = getattr(self.config, 'nostril_flare', 1.0)
+            nostril_offset = int(max(2, fw // 12) * nostril_flare)
             pierce_type = (self.config.nose_piercing_type or "stud").lower()
             px = cx - nostril_offset
             py = nose_y + nose_height - 1
