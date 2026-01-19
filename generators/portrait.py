@@ -171,6 +171,7 @@ class PortraitConfig:
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     nostril_flare: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide/flared nostrils
     nostril_size: float = 1.0  # 0.7 = small/hidden nostrils, 1.0 = normal, 1.3 = large/prominent nostrils
+    nostril_angle: float = 0.0  # -1.0 = nose tip down (nostrils hidden), 0.0 = neutral, 1.0 = nose tip up (nostrils visible)
     nose_alar_width: float = 1.0  # 0.7 = narrow wings, 1.0 = normal, 1.3 = wide nostril wings
     nose_deviation: float = 0.0  # -1.0 = deviated left, 0.0 = straight, 1.0 = deviated right
     under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
@@ -1513,6 +1514,20 @@ class PortraitGenerator:
             size: Size multiplier (0.7 = small/hidden, 1.0 = normal, 1.3 = large/prominent)
         """
         self.config.nostril_size = max(0.7, min(1.3, size))
+        return self
+
+    def set_nostril_angle(self, angle: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set nostril angle (nose tip tilt up/down).
+
+        Controls how visible the nostrils are from the front view.
+        Negative values tilt the nose down (hiding nostrils),
+        positive values tilt the nose up (showing nostrils).
+
+        Args:
+            angle: Tilt angle (-1.0 = tip down, 0.0 = neutral, 1.0 = tip up)
+        """
+        self.config.nostril_angle = max(-1.0, min(1.0, angle))
         return self
 
     def set_nose_alar_width(self, width: float = 1.0) -> 'PortraitGenerator':
@@ -7062,8 +7077,11 @@ class PortraitGenerator:
             nostril_flare = getattr(self.config, 'nostril_flare', 1.0)
             alar_width = getattr(self.config, 'nose_alar_width', 1.0)
             nostril_size_mult = getattr(self.config, 'nostril_size', 1.0)
+            nostril_angle = getattr(self.config, 'nostril_angle', 0.0)
             nostril_offset = int(max(2, n_width) * nostril_flare)
-            nostril_alpha = int((30 + 50 * nostril_def) * nostril_size_mult)
+            # Nostril angle affects visibility: positive = tip up = more visible
+            angle_alpha_mult = 1.0 + nostril_angle * 0.5  # Range 0.5 to 1.5
+            nostril_alpha = int((30 + 50 * nostril_def) * nostril_size_mult * angle_alpha_mult)
             nostril_color = self._skin_ramp[max(0, mid_idx - 2)]
 
             # Alar width affects how many pixels wide the nostril wing appears
@@ -7085,6 +7103,13 @@ class PortraitGenerator:
                         if wing_alpha > 5:
                             canvas.set_pixel(nx + side * w, nostril_y, (*nostril_color[:3], wing_alpha))
                             canvas.set_pixel(nx + side * w, nostril_y - 1, (*nostril_color[:3], int(wing_alpha * 0.6)))
+                # Extra visibility when nose tip is up (nostril interior visible)
+                if nostril_angle > 0.3:
+                    extra_rows = max(1, int(nostril_angle * 2))
+                    for row in range(1, extra_rows + 1):
+                        row_alpha = int(nostril_alpha * (0.6 - row * 0.2))
+                        if row_alpha > 10:
+                            canvas.set_pixel(nx, nostril_y + row, (*nostril_color[:3], row_alpha))
 
         # Nose bridge highlight
         bridge_intensity = getattr(self.config, 'nose_bridge_highlight', 0.0)
