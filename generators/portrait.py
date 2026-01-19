@@ -124,6 +124,7 @@ class PortraitConfig:
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
     nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
+    nose_tip_shape: str = "rounded"  # rounded, pointed, bulbous, upturned
     nose_bridge_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined bridge highlight
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     lip_shape: LipShape = LipShape.NEUTRAL
@@ -884,6 +885,21 @@ class PortraitGenerator:
         self.config.nose_size = max(0.7, min(1.3, size))
         self.config.nose_tip_highlight = max(0.0, min(1.0, tip_highlight))
         self.config.nostril_definition = max(0.0, min(1.0, nostril_definition))
+        return self
+
+    def set_nose_tip_shape(self, shape: str = "rounded") -> 'PortraitGenerator':
+        """
+        Set nose tip shape.
+
+        Args:
+            shape: Nose tip style:
+                - "rounded": Standard rounded tip (default)
+                - "pointed": Narrow, angular tip
+                - "bulbous": Wide, rounded tip
+                - "upturned": Tip tilts upward slightly
+        """
+        valid_shapes = ["rounded", "pointed", "bulbous", "upturned"]
+        self.config.nose_tip_shape = shape.lower() if shape.lower() in valid_shapes else "rounded"
         return self
 
     def set_nose_bridge_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -4001,6 +4017,47 @@ class PortraitGenerator:
                 # Larger highlight for more shine
                 canvas.set_pixel(cx - 1, tip_y, (*shine_color[:3], shine_alpha // 2))
                 canvas.set_pixel(cx + 1, tip_y, (*shine_color[:3], shine_alpha // 2))
+
+        # Nose tip shape variation
+        tip_shape = getattr(self.config, 'nose_tip_shape', 'rounded').lower()
+        if tip_shape != "rounded":
+            # Get tip position
+            if nose_type == NoseType.SMALL:
+                tip_nose_h = int(fh // 10 * nose_size_mult)
+            elif nose_type == NoseType.BUTTON:
+                tip_nose_h = int(fh // 9 * nose_size_mult)
+            elif nose_type == NoseType.POINTED:
+                tip_nose_h = int(fh // 7 * nose_size_mult)
+            else:
+                tip_nose_h = int(fh // 8 * nose_size_mult)
+
+            tip_pos_y = nose_y + tip_nose_h - 1
+
+            if tip_shape == "pointed":
+                # Narrow the tip with shadow on sides
+                shadow_tip = (*self._skin_ramp[mid_idx - 1][:3], 50)
+                canvas.set_pixel(cx - 2, tip_pos_y, shadow_tip)
+                canvas.set_pixel(cx + 2, tip_pos_y, shadow_tip)
+                canvas.set_pixel(cx - 1, tip_pos_y + 1, shadow_tip)
+                canvas.set_pixel(cx + 1, tip_pos_y + 1, shadow_tip)
+
+            elif tip_shape == "bulbous":
+                # Widen the tip with highlight spread
+                bulb_hl = (*self._skin_ramp[mid_idx + 1][:3], 40)
+                for dx in range(-2, 3):
+                    canvas.set_pixel(cx + dx, tip_pos_y, bulb_hl)
+                canvas.set_pixel(cx - 1, tip_pos_y - 1, bulb_hl)
+                canvas.set_pixel(cx + 1, tip_pos_y - 1, bulb_hl)
+
+            elif tip_shape == "upturned":
+                # Add shadow below tip to suggest upward tilt
+                upturn_shadow = (*self._skin_ramp[mid_idx - 2][:3], 45)
+                canvas.set_pixel(cx - 1, tip_pos_y + 1, upturn_shadow)
+                canvas.set_pixel(cx, tip_pos_y + 1, upturn_shadow)
+                canvas.set_pixel(cx + 1, tip_pos_y + 1, upturn_shadow)
+                # Highlight on underside suggests light catching upturned tip
+                upturn_hl = (*self._skin_ramp[mid_idx + 1][:3], 35)
+                canvas.set_pixel(cx, tip_pos_y + 2, upturn_hl)
 
         # Enhanced nostril definition
         nostril_def = getattr(self.config, 'nostril_definition', 0.5)
