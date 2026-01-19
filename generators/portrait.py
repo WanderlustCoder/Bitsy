@@ -101,6 +101,7 @@ class PortraitConfig:
     iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
     catchlight_style: str = "double"  # none, single, double, sparkle
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
+    eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
@@ -593,7 +594,8 @@ class PortraitGenerator:
                  right_color: Optional[str] = None,
                  size: float = 1.0,
                  pupil_size: float = 1.0,
-                 iris_size: float = 1.0) -> 'PortraitGenerator':
+                 iris_size: float = 1.0,
+                 tilt: float = 0.0) -> 'PortraitGenerator':
         """
         Set eye shape and color.
 
@@ -605,6 +607,7 @@ class PortraitGenerator:
             size: Eye size multiplier (0.7-1.3, default 1.0)
             pupil_size: Pupil size multiplier (0.7-1.5, default 1.0)
             iris_size: Iris size multiplier (0.7-1.3, default 1.0)
+            tilt: Eye tilt angle (-0.3 to 0.3, negative=downward, positive=upward)
         """
         self.config.eye_shape = shape
         self.config.eye_color = color
@@ -613,6 +616,7 @@ class PortraitGenerator:
         self.config.eye_size = max(0.7, min(1.3, size))
         self.config.pupil_size = max(0.7, min(1.5, pupil_size))
         self.config.iris_size = max(0.7, min(1.3, iris_size))
+        self.config.eye_tilt = max(-0.3, min(0.3, tilt))
         return self
 
     def set_eyelashes(self, length: float = 0.5) -> 'PortraitGenerator':
@@ -2143,12 +2147,18 @@ class PortraitGenerator:
         for side in [-1, 1]:  # Left (-1) and right (1) eye
             ex = cx + side * eye_spacing
 
+            # Apply eye tilt - shifts Y position based on side
+            # Positive tilt = outer corners up (cat-eye), negative = outer corners down
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset  # Adjusted eye Y for this eye
+
             # Select eye color ramp (heterochromia support)
             eye_ramp = self._right_eye_ramp if side == 1 else self._eye_ramp
 
             # Layer 1: Eye white (slight off-white)
             white_color = (245, 242, 238, 255)
-            canvas.fill_ellipse_aa(ex, eye_y, eye_width, eye_height, white_color)
+            canvas.fill_ellipse_aa(ex, ey, eye_width, eye_height, white_color)
 
             # Layer 2: Iris
             iris_mult = getattr(self.config, 'iris_size', 1.0)
@@ -2157,7 +2167,7 @@ class PortraitGenerator:
             gaze_x = int(self.config.gaze_direction[0] * eye_width * 0.2)
             gaze_y = int(self.config.gaze_direction[1] * eye_height * 0.2)
             iris_x = ex + gaze_x
-            iris_y = eye_y + gaze_y
+            iris_y = ey + gaze_y
 
             # Iris gradient: darker at edge
             iris_outer = eye_ramp[0]  # Darkest
@@ -2200,7 +2210,7 @@ class PortraitGenerator:
             eyelid_shadow = (0, 0, 0, 40)
             for dx in range(-eye_width + 2, eye_width - 1):
                 px = ex + dx
-                py = eye_y - eye_height + 1
+                py = ey - eye_height + 1
                 if canvas.get_pixel(px, py) and canvas.get_pixel(px, py)[3] > 100:
                     canvas.set_pixel(px, py, eyelid_shadow)
 
@@ -2225,6 +2235,11 @@ class PortraitGenerator:
         for side in (-1, 1):  # Left and right eye
             ex = cx + side * eye_spacing
 
+            # Apply eye tilt offset (must match _render_eyes)
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
             # Draw lashes along upper lid
             num_lashes = max(3, eye_width // 2)
             for i in range(num_lashes):
@@ -2233,7 +2248,7 @@ class PortraitGenerator:
                 lash_x = ex + int((t - 0.5) * 2 * (eye_width - 1))
 
                 # Lash base at upper lid edge
-                lid_y = eye_y - eye_height + 1
+                lid_y = ey - eye_height + 1
 
                 # Vary lash length - longer in middle
                 center_factor = 1.0 - abs(t - 0.5) * 0.6
@@ -2283,12 +2298,17 @@ class PortraitGenerator:
         for side in (-1, 1):
             ex = cx + side * eye_spacing
 
+            # Apply eye tilt offset (must match _render_eyes)
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
             for dx in range(-eye_width, eye_width + 1):
                 nx = dx / eye_width if eye_width else 0
                 if nx * nx > 1.0:
                     continue
                 top_y = -math.sqrt(1.0 - nx * nx) * eye_height
-                py = eye_y + int(round(top_y))
+                py = ey + int(round(top_y))
 
                 for t in range(thickness):
                     canvas.set_pixel(ex + dx, py + t, (*base_color, alpha))
@@ -2306,13 +2326,13 @@ class PortraitGenerator:
                     if nx * nx > 1.0:
                         continue
                     bottom_y = math.sqrt(1.0 - nx * nx) * eye_height
-                    py = eye_y + int(round(bottom_y))
+                    py = ey + int(round(bottom_y))
                     canvas.set_pixel(ex + dx, py, (*base_color, lower_alpha))
 
             if style == "winged":
                 wing_len = max(2, int(eye_width * 0.45))
                 wing_start_x = ex + side * eye_width
-                wing_start_y = eye_y - max(1, int(eye_height * 0.3))
+                wing_start_y = ey - max(1, int(eye_height * 0.3))
                 for i in range(wing_len):
                     px = wing_start_x + side * i
                     py = wing_start_y - int(i * 0.5)

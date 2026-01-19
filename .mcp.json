@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "codex-bridge": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/mnt/c/Users/Werem/Projects/CodexBridge/server/index.js"],
+      "description": "Multi-instance parallel task delegation to OpenAI Codex CLI v2.0"
+    }
+  }
+}
