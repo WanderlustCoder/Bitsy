@@ -147,6 +147,7 @@ class PortraitConfig:
     eye_depth: float = 0.0  # -0.5 = protruding, 0.0 = normal, 0.5 = deep-set
     eye_bag_puffiness: float = 0.0  # 0.0 = flat, 0.5 = subtle bags, 1.0 = prominent puffy bags
     hooded_eyes: float = 0.0  # 0.0 = open lid, 0.5 = partially hooded, 1.0 = fully hooded (lid hidden)
+    upper_lid_fullness: float = 0.5  # 0.0 = flat/sunken lid, 0.5 = normal, 1.0 = puffy/full lid
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -1365,6 +1366,20 @@ class PortraitGenerator:
         """
         self.config.hooded_eyes = max(0.0, min(1.0, intensity))
         return self
+
+    def set_upper_lid_fullness(self, fullness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set upper eyelid fullness/puffiness.
+
+        Controls the fullness of the upper eyelid area between the
+        crease and the lash line (not to be confused with under-eye bags).
+
+        Args:
+            fullness: Lid fullness (0.0 = flat/sunken, 0.5 = normal, 1.0 = puffy/full)
+        """
+        self.config.upper_lid_fullness = max(0.0, min(1.0, fullness))
+        return self
+
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
         """
         Add color to the waterline (inner eyelid rim).
@@ -6485,6 +6500,60 @@ class PortraitGenerator:
                         if shadow_alpha > 3:
                             canvas.set_pixel(ex + dx, hood_y + dy + 1, (*shadow_color[:3], shadow_alpha))
 
+    def _render_upper_lid_fullness(self, canvas: Canvas) -> None:
+        """Render upper eyelid fullness/puffiness effect."""
+        fullness = getattr(self.config, 'upper_lid_fullness', 0.5)
+        # Only render if noticeably different from default
+        if abs(fullness - 0.5) < 0.1:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6))
+
+        mid_idx = len(self._skin_ramp) // 2
+
+        # Determine if adding fullness (highlight) or removing it (shadow)
+        if fullness > 0.5:
+            # Full/puffy lid - add highlight
+            light_idx = min(len(self._skin_ramp) - 1, mid_idx + 1)
+            effect_color = self._skin_ramp[light_idx]
+            effect_strength = (fullness - 0.5) * 2  # 0 to 1
+        else:
+            # Flat/sunken lid - add shadow
+            dark_idx = max(0, mid_idx - 2)
+            effect_color = self._skin_ramp[dark_idx]
+            effect_strength = (0.5 - fullness) * 2  # 0 to 1
+
+        max_alpha = int(30 + 50 * effect_strength)
+        lid_height = max(2, int(eye_height * 0.4 * (1 + effect_strength * 0.5)))
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            # Upper lid area is above the eye center
+            lid_y = ey - eye_height // 2 - 1
+            lid_width = eye_width - 1
+
+            for dy in range(lid_height):
+                y_fade = 1.0 - dy / lid_height
+                for dx in range(-lid_width, lid_width + 1):
+                    x_fade = 1.0 - (abs(dx) / (lid_width + 1)) ** 1.5
+                    dist = (abs(dx) / (lid_width + 1)) ** 2 + (dy / lid_height) ** 2
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 0.7
+                        alpha = int(max_alpha * falloff * x_fade * y_fade)
+                        if alpha > 5:
+                            canvas.set_pixel(ex + dx, lid_y + dy, (*effect_color[:3], alpha))
+
     def _render_orbital_rim_light(self, canvas: Canvas) -> None:
         """Render subtle rim lighting along the eye socket edge."""
         intensity = getattr(self.config, 'orbital_rim_light', 0.0)
@@ -8689,6 +8758,7 @@ class PortraitGenerator:
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
         self._render_eye_depth(canvas)  # Deep-set or protruding eyes
         self._render_hooded_eyes(canvas)  # Hooded eye effect (skin over lid)
+        self._render_upper_lid_fullness(canvas)  # Upper eyelid fullness/puffiness
         self._render_orbital_rim_light(canvas)  # Subtle rim light around eye socket
         self._render_brow_bone(canvas)  # Brow ridge prominence
         self._render_under_brow_shadow(canvas)  # Deep shadow under brow ridge
