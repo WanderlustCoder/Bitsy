@@ -153,6 +153,7 @@ class PortraitConfig:
     tear_film: float = 0.0  # 0.0 = normal, 0.5 = moist, 1.0 = wet/glassy eyes
     sclera_show: float = 0.0  # -1.0 = upper sanpaku, 0.0 = centered, 1.0 = lower sanpaku (visible below iris)
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
+    outer_corner_shape: float = 0.5  # 0.0 = round/soft corners, 0.5 = normal, 1.0 = pointed/sharp corners
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
@@ -1154,6 +1155,19 @@ class PortraitGenerator:
                       0.0 = centered, 1.0 = lower sanpaku/sclera above)
         """
         self.config.sclera_show = max(-1.0, min(1.0, position))
+        return self
+
+    def set_outer_corner_shape(self, sharpness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set outer eye corner shape from round to pointed.
+
+        Controls the sharpness/pointedness of the outer eye corners
+        (cat eye vs doe eye appearance).
+
+        Args:
+            sharpness: Corner shape (0.0 = round/soft, 0.5 = normal, 1.0 = pointed/sharp)
+        """
+        self.config.outer_corner_shape = max(0.0, min(1.0, sharpness))
         return self
 
     def set_catchlight(self, style: str = "double",
@@ -5593,6 +5607,29 @@ class PortraitGenerator:
                 white_color = (*base_white, 255)
 
             canvas.fill_ellipse_aa(ex, ey, eye_width_adj, eye_height_adj, white_color)
+
+            # Layer 1b: Outer corner shape (pointed extension)
+            corner_sharpness = getattr(self.config, 'outer_corner_shape', 0.5)
+            if corner_sharpness > 0.3:  # Only render if noticeably pointed
+                # Outer corner is away from nose (positive side direction)
+                outer_x = ex + side * eye_width_adj
+                outer_y = ey + tilt_offset  # Account for eye tilt
+
+                # Extension length based on sharpness (0-3 pixels)
+                ext_length = max(1, int((corner_sharpness - 0.3) * 4))
+                ext_alpha = int(180 + 75 * corner_sharpness)
+
+                # Draw triangular pointed extension
+                for dx in range(1, ext_length + 1):
+                    px = outer_x + side * dx
+                    # Taper vertically as we extend outward
+                    max_dy = max(0, ext_length - dx)
+                    for dy in range(-max_dy, max_dy + 1):
+                        fade = 1.0 - dx / (ext_length + 1)
+                        y_fade = 1.0 - abs(dy) / (max_dy + 1) if max_dy > 0 else 1.0
+                        alpha = int(ext_alpha * fade * y_fade)
+                        if alpha > 30:
+                            canvas.set_pixel(px, outer_y + dy, (*white_color[:3], alpha))
 
             # Layer 2: Iris
             iris_mult = getattr(self.config, 'iris_size', 1.0)
