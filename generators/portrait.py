@@ -108,6 +108,15 @@ class PortraitConfig:
     facial_hair_color: Optional[str] = None  # None = use hair color
     has_necklace: bool = False
     necklace_style: str = "chain"
+    has_hair_accessory: bool = False
+    hair_accessory_style: str = "headband"
+    hair_accessory_color: Optional[str] = None  # None = use default pink
+
+    # Freckles and beauty marks
+    has_freckles: bool = False
+    freckle_density: float = 0.5  # 0.0 to 1.0
+    has_beauty_mark: bool = False
+    beauty_mark_position: str = "cheek"  # cheek, lip, chin
 
     # Clothing
     clothing_style: str = "casual"
@@ -503,6 +512,32 @@ class PortraitGenerator:
         self.config.necklace_style = style
         return self
 
+    def set_hair_accessory(self, style: str = "headband",
+                           color: Optional[str] = None) -> 'PortraitGenerator':
+        """
+        Add a hair accessory.
+
+        Args:
+            style: One of 'headband', 'bow', 'clip', 'scrunchie'
+            color: Color name (None for default pink)
+        """
+        self.config.has_hair_accessory = True
+        self.config.hair_accessory_style = style
+        self.config.hair_accessory_color = color
+        return self
+
+    def set_freckles(self, density: float = 0.5) -> 'PortraitGenerator':
+        """Add freckles with a density from 0.0 to 1.0."""
+        self.config.has_freckles = True
+        self.config.freckle_density = max(0.0, min(1.0, density))
+        return self
+
+    def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
+        """Add a beauty mark at the specified position."""
+        self.config.has_beauty_mark = True
+        self.config.beauty_mark_position = position
+        return self
+
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
         """Set clothing style and color."""
         self.config.clothing_style = style
@@ -800,6 +835,75 @@ class PortraitGenerator:
                         if alpha > 0:
                             px, py = blush_cx + dx, cheek_y + dy
                             canvas.set_pixel(px, py, (*blush_color, alpha))
+
+    def _render_freckles(self, canvas: Canvas) -> None:
+        """Render freckles across nose and cheeks."""
+        if not self.config.has_freckles:
+            return
+
+        density = max(0.0, min(1.0, self.config.freckle_density))
+        if density <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        seed = self.config.seed
+        rng = random.Random(seed + 2000) if seed is not None else random.Random()
+
+        base_count = int(fw * fh * 0.0035)
+        freckle_count = max(1, int(base_count * density))
+
+        mid_idx = len(self._skin_ramp) // 2
+        freckle_color = self._skin_ramp[max(0, mid_idx - 2)]
+        freckle_color = (freckle_color[0], freckle_color[1], freckle_color[2], 210)
+
+        regions = [
+            (cx, cy + fh // 10, fw // 10, fh // 10, 0.4),  # nose bridge/tip
+            (cx - fw // 4, cy + fh // 8, fw // 8, fh // 10, 0.3),  # left cheek
+            (cx + fw // 4, cy + fh // 8, fw // 8, fh // 10, 0.3),  # right cheek
+        ]
+        region_weights = [r[4] for r in regions]
+
+        for _ in range(freckle_count):
+            for _ in range(6):
+                region_idx = rng.choices(range(len(regions)), weights=region_weights, k=1)[0]
+                rcx, rcy, rw, rh, _ = regions[region_idx]
+                angle = rng.random() * math.tau
+                radius = (rng.random() ** 0.5)
+                px = int(rcx + math.cos(angle) * rw * radius)
+                py = int(rcy + math.sin(angle) * rh * radius)
+
+                dx = (px - cx) / rx if rx > 0 else 0
+                dy = (py - cy) / ry if ry > 0 else 0
+                if dx * dx + dy * dy <= 1.0:
+                    canvas.set_pixel(px, py, freckle_color)
+                    if rng.random() < 0.2:
+                        canvas.set_pixel(px + 1, py, freckle_color)
+                    break
+
+    def _render_beauty_mark(self, canvas: Canvas) -> None:
+        """Render a small beauty mark at a specified position."""
+        if not self.config.has_beauty_mark:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        lip_y = cy + fh // 4
+
+        position = (self.config.beauty_mark_position or "cheek").lower()
+        if position == "lip":
+            bx, by = cx + fw // 8, lip_y - 2
+        elif position == "chin":
+            bx, by = cx + fw // 12, cy + fh // 3
+        else:
+            bx, by = cx + fw // 6, cy - fh // 12
+
+        mark_color = (30, 20, 20, 230)
+        canvas.set_pixel(bx, by, mark_color)
+        if fw > 80:
+            canvas.set_pixel(bx + 1, by, mark_color)
 
     def _render_eyes(self, canvas: Canvas) -> None:
         """Render detailed eyes with multiple layers."""
@@ -1311,6 +1415,58 @@ class PortraitGenerator:
 
         render_necklace(canvas, cx, neck_y, neck_width, necklace_style, color, size)
 
+    def _render_hair_accessory(self, canvas: Canvas) -> None:
+        """Render hair accessory if configured."""
+        if not self.config.has_hair_accessory:
+            return
+
+        from generators.portrait_parts.accessories import (
+            render_hair_accessory, HairAccessoryStyle
+        )
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Hair accessory position - at top of hair
+        hair_top_y = cy - fh // 2 - fh // 4
+        hair_width = fw
+
+        # Map style string to enum
+        style_map = {
+            "headband": HairAccessoryStyle.HEADBAND,
+            "bow": HairAccessoryStyle.BOW,
+            "clip": HairAccessoryStyle.CLIP,
+            "scrunchie": HairAccessoryStyle.SCRUNCHIE,
+        }
+        accessory_style = style_map.get(
+            self.config.hair_accessory_style.lower(),
+            HairAccessoryStyle.HEADBAND
+        )
+
+        # Color - use configured color or default
+        if self.config.hair_accessory_color:
+            color_map = {
+                "pink": (255, 150, 180, 255),
+                "red": (220, 60, 80, 255),
+                "blue": (100, 150, 255, 255),
+                "purple": (180, 100, 220, 255),
+                "white": (250, 250, 255, 255),
+                "black": (40, 35, 40, 255),
+                "gold": (255, 215, 0, 255),
+                "green": (100, 200, 120, 255),
+            }
+            color = color_map.get(
+                self.config.hair_accessory_color.lower(),
+                (255, 150, 180, 255)
+            )
+        else:
+            color = (255, 150, 180, 255)  # Default pink
+
+        # Size scales with face
+        size = max(2, fw // 25)
+
+        render_hair_accessory(canvas, cx, hair_top_y, hair_width, accessory_style, color, size)
+
     def _render_shoulders(self, canvas: Canvas) -> None:
         """Render shoulders extending from clothing area."""
         cx, cy = self._get_face_center()
@@ -1458,6 +1614,8 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_freckles(canvas)
+        self._render_beauty_mark(canvas)
         self._render_nose(canvas)
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
@@ -1466,6 +1624,7 @@ class PortraitGenerator:
         self._render_glasses(canvas)  # Glasses over eyes
         self._render_eyebrows(canvas)
         self._render_bangs(canvas)  # Front hair over forehead
+        self._render_hair_accessory(canvas)  # Hair accessories on top
 
         return canvas
 
