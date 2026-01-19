@@ -92,6 +92,7 @@ class PortraitConfig:
     face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
+    chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
@@ -586,6 +587,16 @@ class PortraitGenerator:
             chin_type: One of 'normal', 'pointed', 'square', 'round', 'cleft'
         """
         self.config.chin_type = chin_type
+        return self
+
+    def set_chin_dimple(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set chin dimple depth (works with any chin type).
+
+        Args:
+            depth: Dimple depth (0.0 = none, 0.5 = subtle, 1.0 = pronounced)
+        """
+        self.config.chin_dimple = max(0.0, min(1.0, depth))
         return self
 
     def set_forehead(self, size: str = "normal") -> 'PortraitGenerator':
@@ -1986,6 +1997,54 @@ class PortraitGenerator:
                 alpha = int(max_alpha * y_fade * x_fade)
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, y, (*shadow_color[:3], alpha))
+
+    def _render_chin_dimple(self, canvas: Canvas) -> None:
+        """Render a chin dimple/cleft with shadow and highlight."""
+        depth = getattr(self.config, 'chin_dimple', 0.0)
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Chin dimple position: center bottom of face
+        chin_y = cy + fh // 2 - 2  # Just above chin edge
+        dimple_height = max(2, int(3 + 2 * depth))
+        dimple_width = max(1, int(2 + depth))
+
+        # Shadow color for indent
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_idx = max(0, mid_idx - 2)
+        shadow_color = self._skin_ramp[shadow_idx]
+        max_shadow_alpha = int(30 + 50 * depth)
+
+        # Highlight for edges
+        highlight_idx = min(len(self._skin_ramp) - 1, mid_idx + 1)
+        highlight_color = self._skin_ramp[highlight_idx]
+        max_highlight_alpha = int(20 + 30 * depth)
+
+        # Render dimple shadow (center indent)
+        for dy in range(dimple_height):
+            y = chin_y - dimple_height // 2 + dy
+            y_fade = 1.0 - abs(dy - dimple_height // 2) / (dimple_height // 2 + 1)
+
+            for dx in range(-dimple_width, dimple_width + 1):
+                x_fade = 1.0 - abs(dx) / (dimple_width + 1)
+                alpha = int(max_shadow_alpha * y_fade * x_fade)
+                if alpha > 0:
+                    canvas.set_pixel(cx + dx, y, (*shadow_color[:3], alpha))
+
+        # Render subtle highlights on dimple edges
+        if depth > 0.3:
+            for dy in range(dimple_height):
+                y = chin_y - dimple_height // 2 + dy
+                y_fade = 1.0 - abs(dy - dimple_height // 2) / (dimple_height // 2 + 1)
+                alpha = int(max_highlight_alpha * y_fade)
+                if alpha > 0:
+                    # Left edge highlight
+                    canvas.set_pixel(cx - dimple_width - 1, y, (*highlight_color[:3], alpha))
+                    # Right edge highlight
+                    canvas.set_pixel(cx + dimple_width + 1, y, (*highlight_color[:3], alpha))
 
     def _render_highlight(self, canvas: Canvas) -> None:
         """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
@@ -4460,6 +4519,7 @@ class PortraitGenerator:
         self._render_temple_shadow(canvas)  # Temple shadow for depth
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
+        self._render_chin_dimple(canvas)  # Chin dimple/cleft
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
         self._render_eyebags(canvas)
