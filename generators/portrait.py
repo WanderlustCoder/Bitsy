@@ -129,6 +129,7 @@ class PortraitConfig:
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
+    nose_bridge_width: float = 1.0  # 0.7-1.3, multiplier for nose bridge width
     nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
     nose_tip_shape: str = "rounded"  # rounded, pointed, bulbous, upturned
     nose_bridge_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined bridge highlight
@@ -182,6 +183,7 @@ class PortraitConfig:
     eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
+    eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
     brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
     glabella_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle depth, 1.0 = defined shadow between brows
 
@@ -984,6 +986,16 @@ class PortraitGenerator:
         self.config.nostril_definition = max(0.0, min(1.0, nostril_definition))
         return self
 
+    def set_nose_bridge_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set nose bridge width multiplier.
+
+        Args:
+            width: Bridge width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = wide)
+        """
+        self.config.nose_bridge_width = max(0.7, min(1.3, width))
+        return self
+
     def set_nose_tip_shape(self, shape: str = "rounded") -> 'PortraitGenerator':
         """
         Set nose tip shape.
@@ -1270,6 +1282,19 @@ class PortraitGenerator:
         self.config.eyebrow_color = color
         self.config.eyebrow_gap = max(0.7, min(1.3, gap))
         self.config.eyebrow_shape = shape
+        return self
+
+    def set_eyebrow_hair_detail(self, detail: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eyebrow hair stroke detail level.
+
+        Higher values render individual hair strokes instead
+        of solid filled eyebrows for a more natural look.
+
+        Args:
+            detail: Detail level (0.0 = solid, 0.5 = subtle, 1.0 = individual hairs)
+        """
+        self.config.eyebrow_hair_detail = max(0.0, min(1.0, detail))
         return self
 
     def set_brow_bone(self, prominence: float = 0.5) -> 'PortraitGenerator':
@@ -4671,6 +4696,7 @@ class PortraitGenerator:
 
         # Apply nose size multiplier
         nose_size_mult = getattr(self.config, 'nose_size', 1.0)
+        bridge_width_mult = max(0.7, min(1.3, getattr(self.config, 'nose_bridge_width', 1.0)))
         nose_y = cy + fh // 10
 
         # Nose shadow on one side (based on lighting)
@@ -4684,13 +4710,19 @@ class PortraitGenerator:
 
         nose_type = self.config.nose_type
 
+        def bridge_offset(base_offset: int) -> int:
+            return max(1, int(round(base_offset * bridge_width_mult)))
+
+        def bridge_width(base_width: int) -> int:
+            return max(1, int(round(base_width * bridge_width_mult)))
+
         if nose_type == NoseType.SMALL:
             # Small nose: minimal shadow, small highlight
             nose_height = int(fh // 10 * nose_size_mult)
             # Very subtle shadow line
             for dy in range(nose_height):
                 py = nose_y + dy
-                px = cx + shadow_side * 1
+                px = cx + shadow_side * bridge_offset(1)
                 canvas.set_pixel(px, py, (*shadow_color[:3], 40))
             # Small tip highlight
             canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
@@ -4702,10 +4734,11 @@ class PortraitGenerator:
             # Rounded shadow
             for dy in range(nose_height):
                 t = dy / nose_height
-                shadow_width = int(1 + t * 1.5)  # Widens toward tip
+                shadow_width = bridge_width(int(1 + t * 1.5))  # Widens toward tip
                 py = nose_y + dy
+                base_offset = bridge_offset(1)
                 for sw in range(shadow_width):
-                    canvas.set_pixel(cx + shadow_side * (1 + sw), py, shadow_color)
+                    canvas.set_pixel(cx + shadow_side * (base_offset + sw), py, shadow_color)
             # Round tip highlight (larger)
             tip_y = nose_y + nose_height - 1
             canvas.set_pixel(cx - 1, tip_y, highlight_color)
@@ -4719,12 +4752,13 @@ class PortraitGenerator:
             # Sharp, narrow shadow line
             for dy in range(nose_height):
                 py = nose_y + dy
-                px = cx + shadow_side * 2
+                px = cx + shadow_side * bridge_offset(2)
                 # Sharper contrast
                 canvas.set_pixel(px, py, (*shadow_color[:3], 70))
             # Sharper bridge shadow
             for dy in range(nose_height // 2):
-                canvas.set_pixel(cx + shadow_side, nose_y + dy, (*shadow_color[:3], 35))
+                canvas.set_pixel(cx + shadow_side * bridge_offset(1), nose_y + dy,
+                                 (*shadow_color[:3], 35))
             # Pointed tip highlight
             tip_y = nose_y + nose_height - 1
             canvas.set_pixel(cx, tip_y, highlight_color)
@@ -4737,12 +4771,14 @@ class PortraitGenerator:
             # Wider shadow area
             for dy in range(nose_height):
                 t = dy / nose_height
-                shadow_width = int(1 + t * 2)  # Wider at bottom
+                shadow_width = bridge_width(int(1 + t * 2))  # Wider at bottom
                 py = nose_y + dy
+                base_offset = bridge_offset(2)
                 for sw in range(shadow_width):
                     alpha = 60 - sw * 15
                     if alpha > 0:
-                        canvas.set_pixel(cx + shadow_side * (2 + sw), py, (*shadow_color[:3], alpha))
+                        canvas.set_pixel(cx + shadow_side * (base_offset + sw), py,
+                                         (*shadow_color[:3], alpha))
             # Nostril hints
             nostril_y = nose_y + nose_height
             nostril_flare = getattr(self.config, 'nostril_flare', 1.0)
@@ -4759,7 +4795,7 @@ class PortraitGenerator:
             nose_height = int(fh // 8 * nose_size_mult)
             for dy in range(nose_height):
                 py = nose_y + dy
-                px = cx + shadow_side * 2
+                px = cx + shadow_side * bridge_offset(2)
                 canvas.set_pixel(px, py, shadow_color)
             canvas.set_pixel(cx, nose_y + nose_height - 2, highlight_color)
             canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
@@ -4893,8 +4929,16 @@ class PortraitGenerator:
                     if bridge_intensity > 0.5:
                         side_alpha = int(alpha * 0.4)
                         if side_alpha > 0:
-                            canvas.set_pixel(cx - 1, y, (*bridge_highlight_color, side_alpha))
-                            canvas.set_pixel(cx + 1, y, (*bridge_highlight_color, side_alpha))
+                            if bridge_width_mult < 0.9:
+                                continue
+                            side_extent = 1
+                            if bridge_width_mult > 1.0:
+                                side_extent = max(1, int(round(1 + (bridge_width_mult - 1.0) * 2)))
+                            for dx in range(1, side_extent + 1):
+                                canvas.set_pixel(cx - dx, y,
+                                                 (*bridge_highlight_color, side_alpha))
+                                canvas.set_pixel(cx + dx, y,
+                                                 (*bridge_highlight_color, side_alpha))
 
         # Philtrum (vertical groove between nose and upper lip)
         philtrum_depth = getattr(self.config, 'philtrum_depth', 0.0)
@@ -5513,10 +5557,9 @@ class PortraitGenerator:
         elif shape == "feathered":
             thickness = 1
 
-        rng = None
-        if shape == "feathered":
-            seed = self.config.seed
-            rng = random.Random(seed + 3100) if seed is not None else random.Random()
+        hair_detail = getattr(self.config, 'eyebrow_hair_detail', 0.0)
+        seed = self.config.seed
+        rng = random.Random(seed + 3100) if seed is not None else random.Random()
 
         for side in [-1, 1]:
             brow_x = cx + side * eye_spacing
@@ -5537,7 +5580,7 @@ class PortraitGenerator:
                 px = brow_x + dx
                 py = brow_y - arch + angle_offset
 
-                if shape == "feathered" and rng is not None:
+                if shape == "feathered":
                     if rng.random() < 0.15:
                         continue
                     falloff = 1.0 - abs(t)
@@ -5547,8 +5590,22 @@ class PortraitGenerator:
                     jitter = -1 if rng.random() < 0.25 else 0
                     for ty in range(stroke_length):
                         canvas.set_pixel(px, py + ty + jitter, brow_color)
+                elif hair_detail > 0.0:
+                    # Hair detail mode - individual strokes
+                    if rng.random() < 0.1 * hair_detail:
+                        continue
+                    falloff = 1.0 - abs(t)
+                    stroke_length = max(1, thickness - 1)
+                    if hair_detail > 0.5 and rng.random() < (0.3 + 0.3 * falloff):
+                        stroke_length += 1
+                    jitter = 0
+                    if hair_detail > 0.3 and rng.random() < 0.2:
+                        jitter = -1 if rng.random() < 0.5 else 1
+                    alpha = int(255 * (0.8 + 0.2 * rng.random())) if hair_detail > 0.5 else 255
+                    for ty in range(stroke_length):
+                        canvas.set_pixel(px, py + ty + jitter, (*brow_color[:3], alpha))
                 else:
-                    # Draw eyebrow with configurable thickness
+                    # Solid fill - original behavior
                     for ty in range(thickness):
                         canvas.set_pixel(px, py + ty, brow_color)
 
