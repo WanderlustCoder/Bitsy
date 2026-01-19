@@ -186,6 +186,9 @@ class PortraitConfig:
     # Nasolabial folds (smile/laugh lines)
     nasolabial_depth: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent
 
+    # Temple shadow (adds depth to face structure)
+    temple_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
+
     # Accessories
     has_glasses: bool = False
     glasses_style: str = "round"
@@ -1079,6 +1082,16 @@ class PortraitGenerator:
         self.config.nasolabial_depth = max(0.0, min(1.0, depth))
         return self
 
+    def set_temple_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set temple shadow intensity for facial depth.
+
+        Args:
+            intensity: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.temple_shadow = max(0.0, min(1.0, intensity))
+        return self
+
     def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
         """Add a beauty mark at the specified position."""
         self.config.has_beauty_mark = True
@@ -1782,6 +1795,52 @@ class PortraitGenerator:
                         # 1-2 pixel wide contour
                         canvas.set_pixel(nose_cx, py, (*contour_color, alpha))
                         canvas.set_pixel(nose_cx + side, py, (*contour_color, alpha // 2))
+
+    def _render_temple_shadow(self, canvas: Canvas) -> None:
+        """Render temple shadow for facial depth and structure."""
+        intensity = getattr(self.config, 'temple_shadow', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+
+        # Shadow color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        shadow_color = self._skin_ramp[shade_idx]
+        max_alpha = int(35 + 55 * intensity)
+
+        # Temple position: above and outside eyes
+        temple_y = eye_y - fh // 8
+        temple_offset = fw // 3  # Distance from center
+
+        temple_rx = max(3, fw // 8)
+        temple_ry = max(4, fh // 7)
+
+        for side in (-1, 1):
+            temple_cx = cx + side * temple_offset
+
+            for dy in range(-temple_ry, temple_ry + 1):
+                for dx in range(-temple_rx, temple_rx + 1):
+                    # Only render on the outer side
+                    if side * dx < 0:
+                        continue
+
+                    nx = dx / temple_rx if temple_rx > 0 else 0
+                    ny = dy / temple_ry if temple_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0:
+                        # Stronger on outer edge, fading toward center
+                        edge_factor = abs(nx)
+                        falloff = (1.0 - dist) * edge_factor
+                        alpha = int(max_alpha * falloff)
+                        if alpha > 0:
+                            px = temple_cx + dx
+                            py = temple_y + dy
+                            canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
 
     def _render_highlight(self, canvas: Canvas) -> None:
         """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
@@ -4106,6 +4165,7 @@ class PortraitGenerator:
         self._render_ears(canvas)
         self._render_blush(canvas)
         self._render_contour(canvas)  # Facial contouring for definition
+        self._render_temple_shadow(canvas)  # Temple shadow for depth
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_wrinkles(canvas)  # Age lines on face
