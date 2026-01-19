@@ -99,6 +99,7 @@ class PortraitConfig:
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
+    ear_cartilage: float = 0.0  # 0.0 = none, 0.5 = subtle inner structure, 1.0 = defined
     ear_size: float = 1.0  # 0.7-1.3, multiplier for ear size
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
@@ -187,6 +188,7 @@ class PortraitConfig:
     has_eyebags: bool = False
     eyebag_intensity: float = 0.5  # 0.0 to 1.0
     eyebag_color: str = "shadow"  # shadow (gray), purple (dark circles), brown (natural)
+    under_eye_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (concealer effect)
 
     # Blush
     has_blush: bool = False
@@ -698,6 +700,19 @@ class PortraitGenerator:
             detail: Detail level (0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading)
         """
         self.config.ear_lobe_detail = max(0.0, min(1.0, detail))
+        return self
+
+    def set_ear_cartilage(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set ear cartilage detail intensity.
+
+        Adds inner ear structure lines for helix, antihelix, and tragus
+        to give depth to the ear cartilage.
+
+        Args:
+            intensity: Cartilage detail (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.ear_cartilage = max(0.0, min(1.0, intensity))
         return self
 
     def set_hair(self, style: HairStyle, color: str,
@@ -1352,6 +1367,19 @@ class PortraitGenerator:
         self.config.eyebag_intensity = max(0.0, min(1.0, intensity))
         valid_colors = ["shadow", "purple", "brown"]
         self.config.eyebag_color = color.lower() if color.lower() in valid_colors else "shadow"
+        return self
+
+    def set_under_eye_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set under-eye highlight (concealer/brightening effect).
+
+        Creates a brightening effect under the eyes, similar to
+        concealer makeup. Helps counteract dark circles.
+
+        Args:
+            intensity: Brightness level (0.0 = none, 0.5 = subtle, 1.0 = bright)
+        """
+        self.config.under_eye_highlight = max(0.0, min(1.0, intensity))
         return self
 
     def set_blush(self, color: str = "pink",
@@ -2161,6 +2189,64 @@ class PortraitGenerator:
                         alpha = int(inner_shadow_alpha * (1.0 - dy_off / lobe_radius))
                         if alpha > 0:
                             canvas.set_pixel(inner_x, y, (*inner_color[:3], alpha))
+
+            cartilage = getattr(self.config, 'ear_cartilage', 0.0)
+            if cartilage > 0.0:
+                shadow_idx = max(0, mid_idx - 3)
+                shadow_color = self._skin_ramp[shadow_idx]
+                base_alpha = int(35 + 55 * cartilage)
+
+                def in_ear_shape(px: int, py: int) -> bool:
+                    dx = (px - ear_center_x) / (ear_w / 2) if ear_w > 0 else 0
+                    dy = (py - ear_center_y) / (ear_h / 2) if ear_h > 0 else 0
+                    in_ellipse = dx * dx + dy * dy <= 1.0
+                    in_tip = False
+                    if ear_type == "pointed" and py < ear_top:
+                        if py >= ear_top - tip_height:
+                            t_tip = (ear_top - py) / max(1, tip_height)
+                            half_w = max(1, int(tip_width * (1.0 - t_tip)))
+                            in_tip = abs(px - ear_center_x) <= half_w
+
+                    if not (in_ellipse or in_tip):
+                        return False
+
+                    face_dx = (px - cx) / rx if rx > 0 else 0
+                    face_dy = (py - cy) / ry if ry > 0 else 0
+                    return face_dx * face_dx + face_dy * face_dy > 1.0
+
+                def draw_cartilage_curve(y_start: int, y_end: int,
+                                         base_offset: int,
+                                         curve_amp: int,
+                                         alpha_scale: float = 1.0) -> None:
+                    steps = max(6, abs(y_end - y_start))
+                    for i in range(steps + 1):
+                        t = i / max(1, steps)
+                        py = int(y_start + (y_end - y_start) * t)
+                        curve = math.sin(t * math.pi) * curve_amp
+                        px = int(ear_center_x + base_offset - side * curve)
+                        if not in_ear_shape(px, py):
+                            continue
+                        alpha = int(base_alpha * alpha_scale * (0.6 + 0.4 * math.sin(t * math.pi)))
+                        if alpha > 0:
+                            canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
+                helix_start = ear_top + max(1, ear_h // 12)
+                helix_end = ear_bottom - max(2, ear_h // 6)
+                helix_offset = side * max(1, int(ear_w * 0.33))
+                helix_curve = max(1, int(ear_w * 0.12))
+                draw_cartilage_curve(helix_start, helix_end, helix_offset, helix_curve, 1.0)
+
+                antihelix_start = ear_top + max(2, ear_h // 5)
+                antihelix_end = ear_bottom - max(3, ear_h // 4)
+                antihelix_offset = side * max(1, int(ear_w * 0.18))
+                antihelix_curve = max(1, int(ear_w * 0.07))
+                draw_cartilage_curve(antihelix_start, antihelix_end, antihelix_offset, antihelix_curve, 0.85)
+
+                tragus_start = ear_top + max(3, ear_h // 2)
+                tragus_end = tragus_start + max(2, ear_h // 8)
+                tragus_offset = -side * max(1, int(ear_w * 0.08))
+                tragus_curve = max(1, int(ear_w * 0.05))
+                draw_cartilage_curve(tragus_start, tragus_end, tragus_offset, tragus_curve, 0.8)
 
     def _render_blush(self, canvas: Canvas) -> None:
         """Render subtle cheek blush with a feathered gradient."""
@@ -3437,6 +3523,56 @@ class PortraitGenerator:
                         alpha = int(base_alpha * (0.4 + 0.6 * fade))
                         if alpha > 0:
                             canvas.set_pixel(px, py, (*base_color[:3], alpha))
+
+    def _render_under_eye_highlight(self, canvas: Canvas) -> None:
+        """Render under-eye highlight (concealer/brightening effect)."""
+        intensity = getattr(self.config, 'under_eye_highlight', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+        eye_width = fw // 6
+        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+
+        # Highlight area under eyes
+        hl_width = max(3, int(eye_width * 0.6))
+        hl_height = max(2, int(eye_height * 0.4))
+        hl_offset_y = max(2, int(eye_height * 0.7))
+
+        # Highlight color - slightly lighter than skin with warm/peachy tint
+        mid_idx = len(self._skin_ramp) // 2
+        light_idx = min(len(self._skin_ramp) - 1, mid_idx + 2)
+        base_skin = self._skin_ramp[light_idx]
+
+        # Add slight warm/peachy tint for natural concealer look
+        hl_color = (
+            min(255, base_skin[0] + 15),
+            min(255, base_skin[1] + 5),
+            base_skin[2],
+        )
+
+        max_alpha = int(25 + 50 * intensity)
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+            hl_y = eye_y + hl_offset_y
+
+            for dy in range(hl_height):
+                for dx in range(-hl_width, hl_width + 1):
+                    nx = dx / hl_width if hl_width > 0 else 0
+                    ny = dy / hl_height if hl_height > 0 else 0
+                    dist = nx * nx + ny * ny * 0.5
+
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 0.8
+                        alpha = int(max_alpha * falloff)
+                        if alpha > 5:
+                            canvas.set_pixel(ex + dx, hl_y + dy, (*hl_color, alpha))
 
     def _render_wrinkles(self, canvas: Canvas) -> None:
         """Render wrinkle lines for an aged appearance."""
@@ -6067,6 +6203,7 @@ class PortraitGenerator:
         self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
         self._render_marionette_lines(canvas)  # Mouth corner lines
         self._render_eyebags(canvas)
+        self._render_under_eye_highlight(canvas)  # Concealer/brightening effect
         self._render_freckles(canvas)
         self._render_moles(canvas)
         self._render_beauty_mark(canvas)
