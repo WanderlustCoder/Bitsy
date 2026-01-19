@@ -85,6 +85,7 @@ class PortraitConfig:
     face_shape: str = "oval"  # oval, round, heart, square
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
+    right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
@@ -97,6 +98,10 @@ class PortraitConfig:
     # Eyebrows
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
     eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
+
+    # Eyebags
+    has_eyebags: bool = False
+    eyebag_intensity: float = 0.5  # 0.0 to 1.0
 
     # Accessories
     has_glasses: bool = False
@@ -419,10 +424,20 @@ class PortraitGenerator:
         return self
 
     def set_eyes(self, shape: EyeShape, color: str,
-                 openness: float = 1.0) -> 'PortraitGenerator':
-        """Set eye shape and color."""
+                 openness: float = 1.0,
+                 right_color: Optional[str] = None) -> 'PortraitGenerator':
+        """
+        Set eye shape and color.
+
+        Args:
+            shape: Eye shape
+            color: Left eye color (and right if right_color not set)
+            openness: How open the eyes are (0.0-1.0)
+            right_color: Right eye color for heterochromia (None = same as left)
+        """
         self.config.eye_shape = shape
         self.config.eye_color = color
+        self.config.right_eye_color = right_color
         self.config.eye_openness = openness
         return self
 
@@ -448,6 +463,10 @@ class PortraitGenerator:
         - surprised: Wide eyes, centered gaze
         - angry: Narrowed eyes, direct gaze
         - sleepy: Half-closed eyes, downward gaze
+        - suspicious: Narrowed eyes, slightly angled brows
+        - loving: Soft eyes, gentle upward gaze
+        - confused: Normal eyes, mixed brow angle
+        - determined: Focused eyes, strong brow angle
         - wink: One eye closed (left)
         """
         self.config.expression = expression
@@ -459,7 +478,11 @@ class PortraitGenerator:
             "sad": (0.9, (0.0, 0.2), 0.5, -0.25),  # High arch, sad angle
             "surprised": (1.2, (0.0, 0.0), 0.6, 0.0),  # Raised eyebrows
             "angry": (0.75, (0.0, 0.0), 0.15, 0.35),  # Low, angry angle
-            "sleepy": (0.5, (0.0, 0.15), 0.2, -0.1),  # Relaxed
+            "sleepy": (0.45, (0.0, 0.15), 0.2, -0.1),  # Relaxed droop
+            "suspicious": (0.6, (0.1, 0.0), 0.35, 0.2),  # Narrow eyes, side glance
+            "loving": (1.3, (0.0, -0.05), 0.45, 0.05),  # Soft, slightly upturned
+            "confused": (1.0, (0.0, 0.0), 0.35, -0.15),  # Mixed brow angle
+            "determined": (0.85, (0.0, 0.0), 0.2, 0.3),  # Focused, strong angle
             "wink": (0.9, (0.1, 0.0), 0.35, 0.1),
         }
 
@@ -542,6 +565,12 @@ class PortraitGenerator:
         self.config.freckle_density = max(0.0, min(1.0, density))
         return self
 
+    def set_eyebags(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """Add eyebags with intensity from 0.0 to 1.0."""
+        self.config.has_eyebags = True
+        self.config.eyebag_intensity = max(0.0, min(1.0, intensity))
+        return self
+
     def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
         """Add a beauty mark at the specified position."""
         self.config.has_beauty_mark = True
@@ -612,12 +641,22 @@ class PortraitGenerator:
             levels=6
         )
 
-        # Eye ramp
+        # Eye ramp (left eye / both if no heterochromia)
         eye_base = EYE_COLORS.get(self.config.eye_color, EYE_COLORS["brown"])
         self._eye_ramp = create_eye_ramp(
             (*eye_base, 255),
             levels=5
         )
+
+        # Right eye ramp for heterochromia
+        if self.config.right_eye_color:
+            right_eye_base = EYE_COLORS.get(self.config.right_eye_color, EYE_COLORS["brown"])
+            self._right_eye_ramp = create_eye_ramp(
+                (*right_eye_base, 255),
+                levels=5
+            )
+        else:
+            self._right_eye_ramp = self._eye_ramp
 
         # Lip ramp - derived from skin with slight red shift
         if self.config.lip_color == "natural":
@@ -642,6 +681,7 @@ class PortraitGenerator:
             self._skin_ramp = self._adjust_ramp_vibrancy(self._skin_ramp, vibrancy)
             self._hair_ramp = self._adjust_ramp_vibrancy(self._hair_ramp, vibrancy)
             self._eye_ramp = self._adjust_ramp_vibrancy(self._eye_ramp, vibrancy)
+            self._right_eye_ramp = self._adjust_ramp_vibrancy(self._right_eye_ramp, vibrancy)
             self._lip_ramp = self._adjust_ramp_vibrancy(self._lip_ramp, vibrancy)
 
     def _adjust_ramp_vibrancy(self, ramp: List[Color], factor: float) -> List[Color]:
@@ -951,6 +991,57 @@ class PortraitGenerator:
         if fw > 80:
             canvas.set_pixel(bx + 1, by, mark_color)
 
+    def _render_eyebags(self, canvas: Canvas) -> None:
+        """Render subtle dark semicircles under each eye."""
+        if not self.config.has_eyebags:
+            return
+
+        intensity = max(0.0, min(1.0, self.config.eyebag_intensity))
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning (matching _render_eyes)
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+        eye_width = fw // 6
+        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
+
+        bag_width = max(2, int(eye_width * (0.45 + 0.25 * intensity)))
+        bag_height = max(1, int(eye_height * (0.25 + 0.25 * intensity)))
+        bag_offset_y = max(1, int(eye_height * 0.55))
+        base_alpha = int(30 + 70 * intensity)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        base_color = self._skin_ramp[shade_idx]
+
+        for side in [-1, 1]:
+            ex = cx + side * eye_spacing
+            center_y = eye_y + bag_offset_y + bag_height // 2
+
+            x_start = ex - bag_width - 1
+            x_end = ex + bag_width + 2
+            y_start = center_y - bag_height - 1
+            y_end = center_y + bag_height + 2
+
+            for py in range(y_start, y_end):
+                if py < center_y:
+                    continue
+                for px in range(x_start, x_end):
+                    if bag_width == 0 or bag_height == 0:
+                        continue
+                    nx = (px - ex) / bag_width
+                    ny = (py - center_y) / bag_height
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        fade = max(0.0, 1.0 - dist)
+                        alpha = int(base_alpha * (0.4 + 0.6 * fade))
+                        if alpha > 0:
+                            canvas.set_pixel(px, py, (*base_color[:3], alpha))
+
     def _render_eyes(self, canvas: Canvas) -> None:
         """Render detailed eyes with multiple layers."""
         cx, cy = self._get_face_center()
@@ -962,8 +1053,11 @@ class PortraitGenerator:
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
-        for side in [-1, 1]:  # Left and right eye
+        for side in [-1, 1]:  # Left (-1) and right (1) eye
             ex = cx + side * eye_spacing
+
+            # Select eye color ramp (heterochromia support)
+            eye_ramp = self._right_eye_ramp if side == 1 else self._eye_ramp
 
             # Layer 1: Eye white (slight off-white)
             white_color = (245, 242, 238, 255)
@@ -978,8 +1072,8 @@ class PortraitGenerator:
             iris_y = eye_y + gaze_y
 
             # Iris gradient: darker at edge
-            iris_outer = self._eye_ramp[0]  # Darkest
-            iris_mid = self._eye_ramp[2]    # Middle
+            iris_outer = eye_ramp[0]  # Darkest
+            iris_mid = eye_ramp[2]    # Middle
             canvas.fill_circle_aa(iris_x, iris_y, iris_radius, iris_outer)
             canvas.fill_circle_aa(iris_x, iris_y, int(iris_radius * 0.7), iris_mid)
 
@@ -1785,6 +1879,7 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_eyebags(canvas)
         self._render_freckles(canvas)
         self._render_beauty_mark(canvas)
         self._render_nose(canvas)
