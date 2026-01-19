@@ -142,6 +142,7 @@ class PortraitConfig:
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
     lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
+    lip_pout: float = 0.0  # 0.0 = flat, 0.5 = subtle pout, 1.0 = full pout (enhanced curves)
 
     # Teeth
     show_teeth: bool = False
@@ -1046,6 +1047,19 @@ class PortraitGenerator:
             intensity: Texture visibility (0.0 = smooth, 0.5 = subtle, 1.0 = visible)
         """
         self.config.lip_texture = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_lip_pout(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lip pout/fullness emphasis.
+
+        Enhances lip curves for a pouty, plump appearance.
+        Adds extra highlight and shadow to emphasize volume.
+
+        Args:
+            intensity: Pout level (0.0 = flat, 0.5 = subtle, 1.0 = full pout)
+        """
+        self.config.lip_pout = max(0.0, min(1.0, intensity))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -4397,6 +4411,30 @@ class PortraitGenerator:
                 alpha = int(gloss_alpha * gloss_fade)
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
+
+        # Lip pout effect (enhanced fullness/volume)
+        lip_pout = getattr(self.config, 'lip_pout', 0.0)
+        if lip_pout > 0.0:
+            # Extra highlight on lower lip center for volume
+            pout_hl_alpha = int(30 + 50 * lip_pout)
+            pout_hl_span = max(2, lip_width // 3)
+            for dx in range(-pout_hl_span, pout_hl_span + 1):
+                fade = 1.0 - abs(dx) / pout_hl_span if pout_hl_span > 0 else 1.0
+                alpha = int(pout_hl_alpha * fade)
+                if alpha > 5:
+                    # Highlight on lower lip
+                    canvas.set_pixel(cx + dx, lip_y + 2, (255, 252, 248, alpha))
+
+            # Shadow below lower lip for volume/depth
+            pout_sh_alpha = int(20 + 40 * lip_pout)
+            mid_idx_p = len(self._skin_ramp) // 2
+            pout_shadow = self._skin_ramp[max(0, mid_idx_p - 2)]
+            lower_curve = int(lip_height * 0.8)
+            for dx in range(-lip_width + 2, lip_width - 1):
+                edge_fade = 1.0 - (abs(dx) / lip_width) ** 2 if lip_width > 0 else 1.0
+                alpha = int(pout_sh_alpha * edge_fade)
+                if alpha > 5:
+                    canvas.set_pixel(cx + dx, lip_y + lower_curve + 1, (*pout_shadow[:3], alpha))
 
         # Render lip corner shadows
         self._render_lip_corner_shadow(canvas, cx, lip_y, lip_width, lip_height)
