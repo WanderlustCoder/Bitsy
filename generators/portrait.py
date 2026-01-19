@@ -310,6 +310,7 @@ class PortraitConfig:
     cheekbone_highlight: float = 0.5  # 0.0 = no highlight, 0.5 = normal, 1.0 = intense
     cheekbone_definition: float = 0.0  # 0.0 = soft, 0.5 = defined, 1.0 = sharp/angular
     cheek_hollows: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = gaunt/sunken cheeks
+    cheek_fullness: float = 0.0  # 0.0 = normal, 0.5 = slightly full, 1.0 = chubby/baby face cheeks
 
     # Clothing
     clothing_style: str = "casual"
@@ -2045,6 +2046,18 @@ class PortraitGenerator:
             intensity: Hollow depth (0.0 = none, 0.5 = subtle, 1.0 = gaunt)
         """
         self.config.cheek_hollows = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_cheek_fullness(self, fullness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set cheek fullness for rounder, fuller cheeks.
+
+        Creates a baby-face or chubby cheek appearance.
+
+        Args:
+            fullness: Fullness level (0.0 = normal, 0.5 = slightly full, 1.0 = chubby)
+        """
+        self.config.cheek_fullness = max(0.0, min(1.0, fullness))
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -4154,6 +4167,54 @@ class PortraitGenerator:
                             px = hollow_cx + side * dx
                             py = hollow_y + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
+    def _render_cheek_fullness(self, canvas: Canvas) -> None:
+        """Render full/chubby cheeks with highlights and soft shading."""
+        fullness = getattr(self.config, 'cheek_fullness', 0.0)
+        if fullness <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = cy - fh // 8
+        eye_spacing = self._get_eye_spacing(fw)
+
+        # Full cheeks are below and outside the eyes
+        cheek_y = eye_y + fh // 5
+        cheek_offset = eye_spacing - fw // 16
+
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 2)]
+        blush_color = (255, 200, 180)  # Warm rosy tone
+
+        # Size scales with fullness
+        rx = max(4, int(fw // 6 * (0.7 + fullness * 0.4)))
+        ry = max(3, int(fh // 8 * (0.7 + fullness * 0.4)))
+
+        max_highlight = int(20 + 40 * fullness)
+        max_blush = int(15 + 30 * fullness)
+
+        for side in (-1, 1):
+            cheek_cx = cx + side * cheek_offset
+
+            for dy in range(-ry, ry + 1):
+                for dx in range(-rx, rx + 1):
+                    nx = dx / rx if rx > 0 else 0
+                    ny = dy / ry if ry > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.5
+                        # Highlight on upper/center part
+                        if dy < 0:
+                            alpha = int(max_highlight * falloff)
+                            if alpha > 3:
+                                canvas.set_pixel(cheek_cx + dx, cheek_y + dy, (*highlight_color[:3], alpha))
+                        # Subtle blush on lower part
+                        else:
+                            alpha = int(max_blush * falloff * 0.6)
+                            if alpha > 3:
+                                canvas.set_pixel(cheek_cx + dx, cheek_y + dy, (*blush_color, alpha))
 
     def _render_skin_shine(self, canvas: Canvas) -> None:
         """Render skin shine/highlight on forehead, nose, and cheeks."""
@@ -7644,6 +7705,7 @@ class PortraitGenerator:
         self._render_cheekbones(canvas)  # Cheekbone shading
         self._render_cheekbone_definition(canvas)  # Cheekbone definition
         self._render_cheek_hollows(canvas)  # Sunken cheeks for angular look
+        self._render_cheek_fullness(canvas)  # Full/chubby cheeks
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_face_powder(canvas)  # Matte powder overlay to reduce shine
         self._render_face_rim_light(canvas)  # Backlight glow on face edges
