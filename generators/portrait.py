@@ -95,6 +95,8 @@ class PortraitConfig:
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
+    pupil_size: float = 1.0  # 0.7-1.5, multiplier for pupil size
+    eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
@@ -105,6 +107,7 @@ class PortraitConfig:
     lipstick_intensity: float = 0.7  # 0.0 to 1.0
     lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
+    mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
 
     # Teeth
     show_teeth: bool = False
@@ -569,7 +572,8 @@ class PortraitGenerator:
     def set_eyes(self, shape: EyeShape, color: str,
                  openness: float = 1.0,
                  right_color: Optional[str] = None,
-                 size: float = 1.0) -> 'PortraitGenerator':
+                 size: float = 1.0,
+                 pupil_size: float = 1.0) -> 'PortraitGenerator':
         """
         Set eye shape and color.
 
@@ -579,12 +583,24 @@ class PortraitGenerator:
             openness: How open the eyes are (0.0-1.0)
             right_color: Right eye color for heterochromia (None = same as left)
             size: Eye size multiplier (0.7-1.3, default 1.0)
+            pupil_size: Pupil size multiplier (0.7-1.5, default 1.0)
         """
         self.config.eye_shape = shape
         self.config.eye_color = color
         self.config.right_eye_color = right_color
         self.config.eye_openness = openness
         self.config.eye_size = max(0.7, min(1.3, size))
+        self.config.pupil_size = max(0.7, min(1.5, pupil_size))
+        return self
+
+    def set_eyelashes(self, length: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eyelash length.
+
+        Args:
+            length: Eyelash length (0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic)
+        """
+        self.config.eyelash_length = max(0.0, min(1.5, length))
         return self
 
     def set_eyeliner(self, style: str = "thin",
@@ -654,6 +670,16 @@ class PortraitGenerator:
         """
         self.config.lip_thickness = max(0.5, min(1.5, thickness))
         self.config.lip_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_mouth_corners(self, corners: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set mouth corner position for subtle expression control.
+
+        Args:
+            corners: Corner lift (-1.0 = frown, 0.0 = neutral, 1.0 = smile)
+        """
+        self.config.mouth_corners = max(-1.0, min(1.0, corners))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -2031,7 +2057,8 @@ class PortraitGenerator:
             canvas.fill_circle_aa(iris_x, iris_y, int(iris_radius * 0.7), iris_mid)
 
             # Layer 3: Pupil
-            pupil_radius = int(iris_radius * 0.4)
+            pupil_mult = getattr(self.config, 'pupil_size', 1.0)
+            pupil_radius = int(iris_radius * 0.4 * pupil_mult)
             pupil_color = (10, 10, 15, 255)  # Near black with slight blue
             canvas.fill_circle_aa(iris_x, iris_y, pupil_radius, pupil_color)
 
@@ -2052,6 +2079,50 @@ class PortraitGenerator:
                 py = eye_y - eye_height + 1
                 if canvas.get_pixel(px, py) and canvas.get_pixel(px, py)[3] > 100:
                     canvas.set_pixel(px, py, eyelid_shadow)
+
+    def _render_eyelashes(self, canvas: Canvas) -> None:
+        """Render eyelashes along the upper eyelid."""
+        lash_length = getattr(self.config, 'eyelash_length', 0.0)
+        if lash_length <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+
+        lash_color = (20, 15, 15, 255)  # Dark brown/black
+        base_lash_len = max(1, int(eye_height * 0.4 * lash_length))
+
+        for side in (-1, 1):  # Left and right eye
+            ex = cx + side * eye_spacing
+
+            # Draw lashes along upper lid
+            num_lashes = max(3, eye_width // 2)
+            for i in range(num_lashes):
+                # Position along the eye width
+                t = i / (num_lashes - 1) if num_lashes > 1 else 0.5
+                lash_x = ex + int((t - 0.5) * 2 * (eye_width - 1))
+
+                # Lash base at upper lid edge
+                lid_y = eye_y - eye_height + 1
+
+                # Vary lash length - longer in middle
+                center_factor = 1.0 - abs(t - 0.5) * 0.6
+                this_lash_len = max(1, int(base_lash_len * center_factor))
+
+                # Angle outward from center
+                angle = (t - 0.5) * 0.3 * side
+
+                # Draw the lash
+                for ly in range(this_lash_len):
+                    py = lid_y - ly
+                    px = lash_x + int(angle * ly)
+                    canvas.set_pixel(px, py, lash_color)
 
     def _render_eyeliner(self, canvas: Canvas) -> None:
         """Render eyeliner that follows the eye shape."""
@@ -2237,6 +2308,10 @@ class PortraitGenerator:
         shape = self.config.lip_shape
         lip_ramp = self._lip_ramp
 
+        # Mouth corner adjustment
+        corner_val = getattr(self.config, 'mouth_corners', 0.0)
+        max_corner_shift = max(1, lip_height // 2)  # Max pixel shift at corners
+
         if self.config.has_lipstick:
             intensity = max(0.0, min(1.0, self.config.lipstick_intensity))
             if intensity > 0.0:
@@ -2268,21 +2343,28 @@ class PortraitGenerator:
             # Keep the default rendering for neutral lips.
             upper_lip_color = lip_ramp[1]
             for dx in range(-lip_width, lip_width + 1):
+                # Corner offset: positive corner_val lifts corners up (negative y)
+                edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+                corner_offset = int(-corner_val * max_corner_shift * edge_factor)
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
                 for dy in range(curve):
-                    canvas.set_pixel(cx + dx, lip_y - dy, upper_lip_color)
+                    canvas.set_pixel(cx + dx, lip_y - dy + corner_offset, upper_lip_color)
 
             lip_line_color = lip_ramp[0]
             for dx in range(-lip_width + 2, lip_width - 1):
-                canvas.set_pixel(cx + dx, lip_y, lip_line_color)
+                edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+                corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                canvas.set_pixel(cx + dx, lip_y + corner_offset, lip_line_color)
 
             lower_lip_color = lip_ramp[2]
             highlight_color = lip_ramp[3]
             for dx in range(-lip_width + 1, lip_width):
+                edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+                corner_offset = int(-corner_val * max_corner_shift * edge_factor)
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
                 for dy in range(1, curve + 1):
                     color = highlight_color if dy == 1 else lower_lip_color
-                    canvas.set_pixel(cx + dx, lip_y + dy, color)
+                    canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
             return
 
         upper_scale = 0.5
@@ -2319,27 +2401,33 @@ class PortraitGenerator:
 
         upper_lip_color = lip_ramp[1]
         for dx in range(-lip_width, lip_width + 1):
+            edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+            corner_offset = int(-corner_val * max_corner_shift * edge_factor)
             curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale)
             if shape == LipShape.HEART and abs(dx) <= cupid_width:
                 dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
                 curve = max(0, curve - dip)
             for dy in range(curve):
-                canvas.set_pixel(cx + dx, lip_y - dy, upper_lip_color)
+                canvas.set_pixel(cx + dx, lip_y - dy + corner_offset, upper_lip_color)
 
         lip_line_color = lip_ramp[0]
         for dx in range(-lip_width + line_inset, lip_width - line_inset + 1):
-            canvas.set_pixel(cx + dx, lip_y, lip_line_color)
+            edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+            corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+            canvas.set_pixel(cx + dx, lip_y + corner_offset, lip_line_color)
 
         lower_lip_color = lip_ramp[2]
         highlight_color = lip_ramp[3]
         for dx in range(-lip_width + 1, lip_width):
+            edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+            corner_offset = int(-corner_val * max_corner_shift * edge_factor)
             curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale)
             for dy in range(1, curve + 1):
                 if dy <= highlight_rows and abs(dx) <= highlight_span:
                     color = highlight_color
                 else:
                     color = lower_lip_color
-                canvas.set_pixel(cx + dx, lip_y + dy, color)
+                canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
 
     def _render_teeth(self, canvas: Canvas) -> None:
         """Render teeth visible through smile gap."""
@@ -3120,6 +3208,7 @@ class PortraitGenerator:
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eyes(canvas)
+        self._render_eyelashes(canvas)
         self._render_eyeliner(canvas)
         self._render_eyebrows(canvas)
         self._render_scar(canvas)
