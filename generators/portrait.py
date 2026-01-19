@@ -116,6 +116,7 @@ class PortraitConfig:
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
     nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
+    nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
     has_lipstick: bool = False
@@ -781,18 +782,21 @@ class PortraitGenerator:
         return self
 
     def set_nose(self, nose_type: NoseType, size: float = 1.0,
-                 tip_highlight: float = 0.0) -> 'PortraitGenerator':
+                 tip_highlight: float = 0.0,
+                 nostril_definition: float = 0.5) -> 'PortraitGenerator':
         """
-        Set nose type, size, and tip highlight.
+        Set nose type, size, and details.
 
         Args:
             nose_type: Nose shape type
             size: Size multiplier (0.7-1.3, default 1.0)
             tip_highlight: Nose tip shine (0.0-1.0, 0.0 = none)
+            nostril_definition: Nostril visibility (0.0 = subtle, 0.5 = normal, 1.0 = pronounced)
         """
         self.config.nose_type = nose_type
         self.config.nose_size = max(0.7, min(1.3, size))
         self.config.nose_tip_highlight = max(0.0, min(1.0, tip_highlight))
+        self.config.nostril_definition = max(0.0, min(1.0, nostril_definition))
         return self
 
     def set_lips(self, shape: LipShape, color: str = "natural") -> 'PortraitGenerator':
@@ -3345,6 +3349,41 @@ class PortraitGenerator:
                 # Larger highlight for more shine
                 canvas.set_pixel(cx - 1, tip_y, (*shine_color[:3], shine_alpha // 2))
                 canvas.set_pixel(cx + 1, tip_y, (*shine_color[:3], shine_alpha // 2))
+
+        # Enhanced nostril definition
+        nostril_def = getattr(self.config, 'nostril_definition', 0.5)
+        if nostril_def > 0.0:
+            # Calculate nose dimensions based on type
+            if nose_type == NoseType.SMALL:
+                n_height = int(fh // 10 * nose_size_mult)
+                n_width = max(1, fw // 14)
+            elif nose_type == NoseType.BUTTON:
+                n_height = int(fh // 9 * nose_size_mult)
+                n_width = max(2, fw // 12)
+            elif nose_type == NoseType.POINTED:
+                n_height = int(fh // 7 * nose_size_mult)
+                n_width = max(1, fw // 16)
+            elif nose_type == NoseType.WIDE:
+                n_height = int(fh // 8 * nose_size_mult)
+                n_width = max(3, fw // 10)
+            else:
+                n_height = int(fh // 8 * nose_size_mult)
+                n_width = max(2, fw // 12)
+
+            nostril_y = nose_y + n_height
+            nostril_offset = max(2, n_width)
+            nostril_alpha = int(30 + 50 * nostril_def)
+            nostril_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+            for side in (-1, 1):
+                nx = cx + side * nostril_offset
+                # Main nostril shadow
+                canvas.set_pixel(nx, nostril_y, (*nostril_color[:3], nostril_alpha))
+                # Extended nostril for higher definition
+                if nostril_def > 0.3:
+                    canvas.set_pixel(nx, nostril_y - 1, (*nostril_color[:3], int(nostril_alpha * 0.6)))
+                if nostril_def > 0.6:
+                    canvas.set_pixel(nx + side, nostril_y, (*nostril_color[:3], int(nostril_alpha * 0.4)))
 
         # Philtrum (vertical groove between nose and upper lip)
         philtrum_depth = getattr(self.config, 'philtrum_depth', 0.0)
