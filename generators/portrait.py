@@ -120,6 +120,7 @@ class PortraitConfig:
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eyelash_curl: float = 0.5  # 0.0 = straight, 0.5 = natural curl, 1.0 = dramatic curl
     lower_lashes: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible lower lashes
+    tear_film: float = 0.0  # 0.0 = normal, 0.5 = moist, 1.0 = wet/glassy eyes
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
@@ -216,6 +217,8 @@ class PortraitConfig:
 
     # Neck shadow (chin to neck transition)
     neck_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
+    double_chin: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible
+    neck_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
 
     # Accessories
     has_glasses: bool = False
@@ -759,6 +762,19 @@ class PortraitGenerator:
         self.config.eyelash_length = max(0.0, min(1.5, length))
         self.config.eyelash_curl = max(0.0, min(1.0, curl))
         self.config.lower_lashes = max(0.0, min(1.0, lower))
+        return self
+
+    def set_tear_film(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set tear film/wet eye effect.
+
+        Creates a glassy, moist appearance on the eyes for
+        emotional or dramatic effect.
+
+        Args:
+            intensity: Wetness level (0.0 = normal, 0.5 = moist, 1.0 = wet/teary)
+        """
+        self.config.tear_film = max(0.0, min(1.0, intensity))
         return self
 
     def set_catchlight(self, style: str = "double",
@@ -1374,6 +1390,26 @@ class PortraitGenerator:
             depth: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.neck_shadow = max(0.0, min(1.0, depth))
+        return self
+
+    def set_double_chin(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set double chin fold visibility under the chin.
+
+        Args:
+            depth: Fold visibility (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.double_chin = max(0.0, min(1.0, depth))
+        return self
+
+    def set_neck_crease(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set neck crease (horizontal fold lines) visibility.
+
+        Args:
+            intensity: Crease visibility (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.neck_crease = max(0.0, min(1.0, intensity))
         return self
 
     def set_beauty_mark(self, position: str = "cheek",
@@ -2281,6 +2317,89 @@ class PortraitGenerator:
                 alpha = int(max_alpha * y_fade * x_fade)
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, y, (*shadow_color[:3], alpha))
+
+    def _render_double_chin(self, canvas: Canvas) -> None:
+        """Render a subtle fold under the chin to suggest a double chin."""
+        depth = getattr(self.config, 'double_chin', 0.0)
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        chin_y = cy + fh // 2
+        fold_y = chin_y + max(2, fh // 18)
+        line_width = max(6, int(fw * (0.35 + 0.15 * depth)))
+        curve_height = max(1, fh // 40)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        fold_color = self._skin_ramp[shade_idx]
+        base_alpha = int(18 + 45 * depth)
+
+        half_width = max(1, line_width // 2)
+        for px in range(cx - half_width, cx + half_width + 1):
+            dist = abs(px - cx) / half_width if half_width > 0 else 0
+            if dist > 1.0:
+                continue
+
+            curve = int((dist ** 2) * curve_height)
+            py = fold_y + curve
+            fade = (1.0 - dist) ** 1.5
+            alpha = int(base_alpha * fade)
+            if alpha <= 0:
+                continue
+
+            canvas.set_pixel(px, py, (*fold_color[:3], alpha))
+            for dy in range(1, 3):
+                soft_alpha = int(alpha * (0.5 - 0.15 * dy))
+                if soft_alpha > 0:
+                    canvas.set_pixel(px, py + dy, (*fold_color[:3], soft_alpha))
+
+    def _render_neck_crease(self, canvas: Canvas) -> None:
+        """Render horizontal neck creases/folds."""
+        intensity = getattr(self.config, 'neck_crease', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        chin_y = cy + fh // 2
+        neckline_y = cy + fh // 2 + fh // 8
+        neck_height = max(4, neckline_y - chin_y)
+        if neck_height <= 2:
+            return
+
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        crease_color = self._skin_ramp[shade_idx]
+        base_alpha = int(25 + 55 * intensity)
+
+        num_lines = 1 + int(intensity * 2)
+        spacing = max(2, neck_height // (num_lines + 1))
+        max_line_width = int(fw * 0.35)
+
+        for i in range(num_lines):
+            ly = chin_y + (i + 1) * spacing
+            if ly >= neckline_y - 1:
+                break
+
+            line_w = int(max_line_width * (1.0 - i * 0.12))
+            line_w = max(4, line_w)
+            fade_scale = 0.7 + 0.3 * (1.0 - i / max(1, num_lines - 1))
+
+            for px in range(cx - line_w // 2, cx + line_w // 2 + 1):
+                wave = int(math.sin((px - cx) * 0.2 + i) * 0.8)
+                py = ly + wave
+                if py <= chin_y or py >= neckline_y:
+                    continue
+
+                dist = abs(px - cx) / (line_w / 2) if line_w > 0 else 0
+                fade = max(0.0, 1.0 - dist * dist)
+                alpha = int(base_alpha * fade * fade_scale)
+                if alpha > 0:
+                    canvas.set_pixel(px, py, (*crease_color[:3], alpha))
 
     def _render_chin_dimple(self, canvas: Canvas) -> None:
         """Render a chin dimple/cleft with shadow and highlight."""
@@ -3492,6 +3611,29 @@ class PortraitGenerator:
                         pixel_alpha = int(arc_alpha * (1 - arc_pos * 0.5))
                         if pixel_alpha > 10:
                             canvas.set_pixel(px, py, (255, 255, 255, pixel_alpha))
+
+            # Layer 4.6: Tear film (wet/glassy eyes)
+            tear_film = getattr(self.config, 'tear_film', 0.0)
+            if tear_film > 0.0:
+                # Glassy highlight across lower portion of eye
+                film_alpha = int(20 + 60 * tear_film)
+
+                # Lower waterline shimmer
+                for dx in range(-eye_width + 1, eye_width):
+                    edge_fade = 1.0 - (abs(dx) / eye_width) ** 2 if eye_width > 0 else 1.0
+                    alpha = int(film_alpha * edge_fade * 0.7)
+                    if alpha > 5:
+                        canvas.set_pixel(ex + dx, ey + eye_height - 1, (255, 255, 255, alpha))
+
+                # Extra shine on eye surface (wet look)
+                if tear_film > 0.3:
+                    shine_alpha = int(15 + 40 * tear_film)
+                    for dy in range(eye_height - 2, eye_height):
+                        for dx in range(-eye_width // 2, eye_width // 2 + 1):
+                            edge = abs(dx) / (eye_width // 2 + 1) if eye_width > 0 else 0
+                            alpha = int(shine_alpha * (1 - edge))
+                            if alpha > 3:
+                                canvas.set_pixel(ex + dx, ey + dy, (255, 255, 255, alpha))
 
             # Layer 5: Eyelid shadow (1px darker at top of eye)
             eyelid_shadow = (0, 0, 0, 40)
@@ -5298,6 +5440,8 @@ class PortraitGenerator:
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
         self._render_neck_shadow(canvas)  # Shadow under chin
+        self._render_double_chin(canvas)  # Double chin fold
+        self._render_neck_crease(canvas)  # Neck fold lines
         self._render_cheekbones(canvas)  # Cheekbone shading
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_skin_texture(canvas)  # Subtle skin pores/texture
