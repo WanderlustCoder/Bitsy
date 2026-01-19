@@ -156,6 +156,7 @@ class PortraitConfig:
     sclera_show: float = 0.0  # -1.0 = upper sanpaku, 0.0 = centered, 1.0 = lower sanpaku (visible below iris)
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     outer_corner_shape: float = 0.5  # 0.0 = round/soft corners, 0.5 = normal, 1.0 = pointed/sharp corners
+    inner_corner_shape: float = 0.5  # 0.0 = round/soft, 0.5 = normal, 1.0 = pointed toward nose
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
@@ -1190,6 +1191,19 @@ class PortraitGenerator:
             sharpness: Corner shape (0.0 = round/soft, 0.5 = normal, 1.0 = pointed/sharp)
         """
         self.config.outer_corner_shape = max(0.0, min(1.0, sharpness))
+        return self
+
+    def set_inner_corner_shape(self, sharpness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set inner eye corner shape from round to pointed.
+
+        Controls the sharpness/pointedness of the inner eye corners
+        near the nose bridge.
+
+        Args:
+            sharpness: Corner shape (0.0 = round/soft, 0.5 = normal, 1.0 = pointed toward nose)
+        """
+        self.config.inner_corner_shape = max(0.0, min(1.0, sharpness))
         return self
 
     def set_catchlight(self, style: str = "double",
@@ -5758,6 +5772,29 @@ class PortraitGenerator:
                         alpha = int(ext_alpha * fade * y_fade)
                         if alpha > 30:
                             canvas.set_pixel(px, outer_y + dy, (*white_color[:3], alpha))
+
+            # Layer 1b-2: Inner corner shape (pointed extension toward nose)
+            inner_sharpness = getattr(self.config, 'inner_corner_shape', 0.5)
+            if inner_sharpness > 0.3:  # Only render if noticeably pointed
+                # Inner corner is toward nose (negative side direction)
+                inner_x = ex - side * eye_width_adj
+                inner_y = ey + tilt_offset
+
+                # Extension length based on sharpness (0-3 pixels)
+                ext_length = max(1, int((inner_sharpness - 0.3) * 4))
+                ext_alpha = int(180 + 75 * inner_sharpness)
+
+                # Draw triangular pointed extension toward nose
+                for dx in range(1, ext_length + 1):
+                    px = inner_x - side * dx  # Opposite direction from outer corner
+                    # Taper vertically as we extend inward
+                    max_dy = max(0, ext_length - dx)
+                    for dy in range(-max_dy, max_dy + 1):
+                        fade = 1.0 - dx / (ext_length + 1)
+                        y_fade = 1.0 - abs(dy) / (max_dy + 1) if max_dy > 0 else 1.0
+                        alpha = int(ext_alpha * fade * y_fade)
+                        if alpha > 30:
+                            canvas.set_pixel(px, inner_y + dy, (*white_color[:3], alpha))
 
             # Layer 1c: Lower lid curve adjustment
             lower_curve = getattr(self.config, 'lower_lid_curve', 0.5)
