@@ -138,6 +138,7 @@ class PortraitConfig:
     tear_duct: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible pink caruncle
     eye_crease: float = 0.0  # 0.0 = none/monolid, 0.5 = subtle, 1.0 = defined crease
     eye_socket_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined depth
+    eye_spacing_adjust: float = 0.0  # -0.3 = close-set eyes, 0.0 = normal, 0.3 = wide-set eyes
     orbital_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined rim light
     eye_depth: float = 0.0  # -0.5 = protruding, 0.0 = normal, 0.5 = deep-set
     hooded_eyes: float = 0.0  # 0.0 = open lid, 0.5 = partially hooded, 1.0 = fully hooded (lid hidden)
@@ -195,6 +196,7 @@ class PortraitConfig:
     # Expression
     expression: str = "neutral"  # neutral, happy, sad, surprised, etc.
     eye_openness: float = 1.0  # 0.0 = closed, 1.0 = fully open
+    eye_roundness: float = 0.5  # 0.0 = narrow/almond, 0.5 = neutral, 1.0 = round/wide
     gaze_direction: Tuple[float, float] = (0.0, 0.0)  # pupil offset
 
     # Eyeliner
@@ -216,6 +218,7 @@ class PortraitConfig:
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
+    brow_thickness: float = 1.0  # 0.5 = thin/fine brows, 1.0 = normal, 1.5 = thick/bold brows
     eyebrow_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle height diff, 0.6 = noticeable
     eyebrow_height: float = 0.0  # -0.3 = low (close to eyes), 0.0 = normal, 0.3 = high (raised)
     brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
@@ -1083,6 +1086,11 @@ class PortraitGenerator:
     def set_eye_spacing(self, spacing: float = 1.0) -> 'PortraitGenerator':
         """Set eye spacing multiplier (0.8-1.2, default 1.0)."""
         self.config.eye_spacing = max(0.8, min(1.2, spacing))
+        return self
+
+    def set_eye_spacing_adjust(self, spacing: float = 0.0) -> 'PortraitGenerator':
+        """Adjust eye spacing (distance between eyes)."""
+        self.config.eye_spacing_adjust = max(-0.3, min(0.3, spacing))
         return self
 
     def set_eyelashes(self, length: float = 0.5,
@@ -2489,7 +2497,8 @@ class PortraitGenerator:
     def _get_eye_spacing(self, fw: int) -> int:
         """Calculate eye spacing with configurable multiplier."""
         spacing_mult = getattr(self.config, 'eye_spacing', 1.0)
-        return int(fw // 4 * spacing_mult)
+        spacing_adjust = getattr(self.config, 'eye_spacing_adjust', 0.0)
+        return int(fw // 4 * spacing_mult * (1.0 + spacing_adjust))
 
     def _render_face_base(self, canvas: Canvas) -> None:
         """Render the base face shape with gradient shading."""
