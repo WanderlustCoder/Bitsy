@@ -124,6 +124,7 @@ class PortraitConfig:
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
+    philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
 
     # Teeth
     show_teeth: bool = False
@@ -842,6 +843,16 @@ class PortraitGenerator:
             definition: How pronounced the cupid's bow is (0.0 = flat, 0.5 = normal, 1.0 = pronounced)
         """
         self.config.cupid_bow = max(0.0, min(1.0, definition))
+        return self
+
+    def set_philtrum(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set philtrum (vertical groove between nose and upper lip) visibility.
+
+        Args:
+            depth: How defined the philtrum groove is (0.0 = flat, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.philtrum_depth = max(0.0, min(1.0, depth))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -3114,6 +3125,34 @@ class PortraitGenerator:
                 # Larger highlight for more shine
                 canvas.set_pixel(cx - 1, tip_y, (*shine_color[:3], shine_alpha // 2))
                 canvas.set_pixel(cx + 1, tip_y, (*shine_color[:3], shine_alpha // 2))
+
+        # Philtrum (vertical groove between nose and upper lip)
+        philtrum_depth = getattr(self.config, 'philtrum_depth', 0.0)
+        if philtrum_depth > 0.0:
+            # Get lip position for endpoint
+            lip_y = cy + fh // 4
+            # Calculate nose bottom
+            tip_nose_height = int(fh // 9 * nose_size_mult)  # Approximate
+            philtrum_top = nose_y + tip_nose_height + 1
+            philtrum_bottom = lip_y - 2
+
+            # Shadow color for groove edges
+            shade_idx = max(0, len(self._skin_ramp) // 2 - 2)
+            shadow_color = self._skin_ramp[shade_idx]
+            shadow_alpha = int(25 + 50 * philtrum_depth)
+
+            # Highlight color for groove center ridge
+            highlight_color = (255, 250, 245)
+            highlight_alpha = int(20 + 40 * philtrum_depth)
+
+            # Draw philtrum groove (two shadow lines with highlight between)
+            for py in range(philtrum_top, philtrum_bottom):
+                # Shadow on sides (creating groove effect)
+                canvas.set_pixel(cx - 1, py, (*shadow_color[:3], shadow_alpha))
+                canvas.set_pixel(cx + 1, py, (*shadow_color[:3], shadow_alpha))
+                # Optional: center highlight ridge
+                if philtrum_depth > 0.5:
+                    canvas.set_pixel(cx, py, (*highlight_color, highlight_alpha))
 
     def _render_lips(self, canvas: Canvas) -> None:
         """Render lips with gradient and highlight."""
