@@ -150,6 +150,7 @@ class PortraitConfig:
     eyelash_curl: float = 0.5  # 0.0 = straight, 0.5 = natural curl, 1.0 = dramatic curl
     lower_lashes: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible lower lashes
     tear_film: float = 0.0  # 0.0 = normal, 0.5 = moist, 1.0 = wet/glassy eyes
+    sclera_show: float = 0.0  # -1.0 = upper sanpaku, 0.0 = centered, 1.0 = lower sanpaku (visible below iris)
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
@@ -1137,6 +1138,20 @@ class PortraitGenerator:
             intensity: Wetness level (0.0 = normal, 0.5 = moist, 1.0 = wet/teary)
         """
         self.config.tear_film = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_sclera_show(self, position: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set sclera (eye white) visibility position (sanpaku effect).
+
+        Controls whether the iris sits high or low in the eye, showing
+        sclera above or below it.
+
+        Args:
+            position: Iris position (-1.0 = upper sanpaku/sclera below,
+                      0.0 = centered, 1.0 = lower sanpaku/sclera above)
+        """
+        self.config.sclera_show = max(-1.0, min(1.0, position))
         return self
 
     def set_catchlight(self, style: str = "double",
@@ -5519,11 +5534,12 @@ class PortraitGenerator:
             # Layer 2: Iris
             iris_mult = getattr(self.config, 'iris_size', 1.0)
             iris_radius = int(eye_width_adj * 0.6 * iris_mult)
-            # Apply gaze offset
+            # Apply gaze offset and sclera show (sanpaku effect)
             gaze_x = int(self.config.gaze_direction[0] * eye_width_adj * 0.2)
             gaze_y = int(self.config.gaze_direction[1] * eye_height_adj * 0.2)
+            sclera_offset = int(getattr(self.config, 'sclera_show', 0.0) * eye_height_adj * 0.3)
             iris_x = ex + gaze_x
-            iris_y = ey + gaze_y
+            iris_y = ey + gaze_y + sclera_offset  # Positive = iris down = lower sanpaku
 
             # Iris gradient: darker at edge
             iris_outer = eye_ramp[0]  # Darkest
