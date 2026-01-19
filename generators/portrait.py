@@ -230,6 +230,7 @@ class PortraitConfig:
 
     # Eyebrows
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
+    eyebrow_arch_position: float = 0.6  # 0.3 = inner arch, 0.5 = center, 0.7 = outer arch (default slightly outer)
     eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
     eyebrow_thickness: int = 2  # 1-4 pixels thick
     eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
@@ -1910,6 +1911,19 @@ class PortraitGenerator:
         self.config.eyebrow_color = color
         self.config.eyebrow_gap = max(0.7, min(1.3, gap))
         self.config.eyebrow_shape = shape
+        return self
+
+    def set_eyebrow_arch_position(self, position: float = 0.6) -> 'PortraitGenerator':
+        """
+        Set where the eyebrow arch peak is positioned.
+
+        Controls the horizontal position of the highest point (apex)
+        of the eyebrow arch along its length.
+
+        Args:
+            position: Arch position (0.3 = inner third, 0.5 = center, 0.7 = outer third)
+        """
+        self.config.eyebrow_arch_position = max(0.3, min(0.8, position))
         return self
 
     def set_eyebrow_hair_detail(self, detail: float = 0.5) -> 'PortraitGenerator':
@@ -7965,18 +7979,24 @@ class PortraitGenerator:
         arch_amount = self.config.eyebrow_arch
         angle = self.config.eyebrow_angle
         shape = getattr(self.config, 'eyebrow_shape', "natural").lower()
+        arch_pos = getattr(self.config, 'eyebrow_arch_position', 0.6)
 
-        def arch_for_shape(t: float) -> int:
+        def arch_for_shape(t: float, side: int) -> int:
+            # Shift peak position: t goes from -1 (inner) to 1 (outer) relative to side
+            # arch_pos 0.3 = inner, 0.5 = center, 0.7 = outer
+            peak_t = (arch_pos - 0.5) * 2 * side  # Convert to t coordinate
+            shifted_t = t - peak_t  # Shift so peak is at new position
+
             if shape == "straight":
                 return int(arch_amount * 0.5)
             if shape == "arched":
-                return int(arch_amount * (1 - t ** 2) * 6)
+                return int(arch_amount * max(0, 1 - shifted_t ** 2) * 6)
             if shape == "curved":
-                curve = (math.cos(t * math.pi) + 1) / 2
+                curve = (math.cos(shifted_t * math.pi) + 1) / 2
                 return int(arch_amount * curve * 4)
             if shape == "angular":
-                return int(arch_amount * (1 - abs(t)) * 5)
-            return int(arch_amount * (1 - t ** 2) * 4)
+                return int(arch_amount * max(0, 1 - abs(shifted_t)) * 5)
+            return int(arch_amount * max(0, 1 - shifted_t ** 2) * 4)
 
         thickness = getattr(self.config, 'eyebrow_thickness', 2)
         if shape == "thick":
@@ -8017,7 +8037,7 @@ class PortraitGenerator:
                 t = dx / half_width if half_width > 0 else 0
 
                 # Arch curve (higher arch_amount = more curved)
-                arch = arch_for_shape(t)
+                arch = arch_for_shape(t, side)
 
                 # Angle offset (tilts the eyebrow)
                 angle_offset = int(effective_angle * t * 4)
