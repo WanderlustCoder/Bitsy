@@ -182,6 +182,9 @@ class PortraitConfig:
     wrinkle_intensity: float = 0.5  # 0.0 to 1.0, controls visibility
     wrinkle_areas: str = "all"  # all, forehead, eyes, mouth
 
+    # Nasolabial folds (smile/laugh lines)
+    nasolabial_depth: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent
+
     # Accessories
     has_glasses: bool = False
     glasses_style: str = "round"
@@ -1053,6 +1056,16 @@ class PortraitGenerator:
         self.config.has_wrinkles = True
         self.config.wrinkle_intensity = max(0.0, min(1.0, intensity))
         self.config.wrinkle_areas = areas
+        return self
+
+    def set_nasolabial_folds(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set nasolabial fold (smile/laugh line) visibility.
+
+        Args:
+            depth: How prominent the folds are (0.0 = none, 0.5 = subtle, 1.0 = prominent)
+        """
+        self.config.nasolabial_depth = max(0.0, min(1.0, depth))
         return self
 
     def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
@@ -2474,6 +2487,52 @@ class PortraitGenerator:
                         alpha = int(base_alpha * fade * 0.8)
                         if alpha > 0:
                             canvas.set_pixel(px, py, (*base_color[:3], alpha))
+
+    def _render_nasolabial_folds(self, canvas: Canvas) -> None:
+        """Render nasolabial folds (smile/laugh lines) independently of wrinkles."""
+        depth = getattr(self.config, 'nasolabial_depth', 0.0)
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Fold color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        base_color = self._skin_ramp[shade_idx]
+        base_alpha = int(30 + 70 * depth)
+
+        # Fold positions
+        nose_y = cy + fh // 16
+        mouth_corner_y = cy + fh // 4
+        nose_x_offset = fw // 12
+        mouth_x_offset = fw // 6
+
+        for side in [-1, 1]:
+            start_x = cx + side * nose_x_offset
+            start_y = nose_y
+            end_x = cx + side * mouth_x_offset
+            end_y = mouth_corner_y
+
+            # Draw curved line from nose to mouth corner
+            steps = int(abs(end_y - start_y) * 1.5)
+            for i in range(steps):
+                t = i / max(1, steps - 1)
+                # Gentle outward curve
+                curve = math.sin(t * math.pi) * fw * 0.02 * side
+                px = int(start_x + (end_x - start_x) * t + curve)
+                py = int(start_y + (end_y - start_y) * t)
+
+                if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                    # Fade at ends, stronger in middle
+                    fade = math.sin(t * math.pi)
+                    alpha = int(base_alpha * fade)
+                    if alpha > 0:
+                        canvas.set_pixel(px, py, (*base_color[:3], alpha))
+                        # Add subtle shadow for depth
+                        if depth > 0.5:
+                            canvas.set_pixel(px + side, py, (*base_color[:3], alpha // 2))
 
     def _render_eyes(self, canvas: Canvas) -> None:
         """Render detailed eyes with multiple layers."""
@@ -4011,6 +4070,7 @@ class PortraitGenerator:
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_wrinkles(canvas)  # Age lines on face
+        self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
         self._render_eyebags(canvas)
         self._render_freckles(canvas)
         self._render_moles(canvas)
