@@ -107,6 +107,7 @@ class PortraitConfig:
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eyelash_curl: float = 0.5  # 0.0 = straight, 0.5 = natural curl, 1.0 = dramatic curl
+    lower_lashes: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible lower lashes
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
@@ -664,16 +665,19 @@ class PortraitGenerator:
         return self
 
     def set_eyelashes(self, length: float = 0.5,
-                      curl: float = 0.5) -> 'PortraitGenerator':
+                      curl: float = 0.5,
+                      lower: float = 0.0) -> 'PortraitGenerator':
         """
-        Set eyelash length and curl.
+        Set eyelash length, curl, and lower lash visibility.
 
         Args:
-            length: Eyelash length (0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic)
+            length: Upper eyelash length (0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic)
             curl: Eyelash curl (0.0 = straight, 0.5 = natural, 1.0 = dramatic curl)
+            lower: Lower lash visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
         """
         self.config.eyelash_length = max(0.0, min(1.5, length))
         self.config.eyelash_curl = max(0.0, min(1.0, curl))
+        self.config.lower_lashes = max(0.0, min(1.0, lower))
         return self
 
     def set_catchlight(self, style: str = "double") -> 'PortraitGenerator':
@@ -2668,6 +2672,41 @@ class PortraitGenerator:
                     py = lid_y - ly + curl_offset  # Curl makes tip bend back (higher y = more curved back)
                     px = lash_x + int(angle * ly)
                     canvas.set_pixel(px, py, lash_color)
+
+        # Render lower lashes if enabled
+        lower_lash_intensity = getattr(self.config, 'lower_lashes', 0.0)
+        if lower_lash_intensity > 0.0:
+            lower_lash_color = (30, 25, 25, int(180 * lower_lash_intensity))  # Softer, more transparent
+            lower_lash_len = max(1, int(base_lash_len * 0.4 * lower_lash_intensity))
+
+            for side in (-1, 1):
+                ex = cx + side * eye_spacing
+                tilt = getattr(self.config, 'eye_tilt', 0.0)
+                tilt_offset = int(tilt * eye_width * 0.5)
+                ey = eye_y - side * tilt_offset
+
+                # Lower lashes: fewer, shorter, pointing downward
+                num_lower = max(2, eye_width // 3)
+                for i in range(num_lower):
+                    t = i / (num_lower - 1) if num_lower > 1 else 0.5
+                    # Skip very outer corners
+                    if abs(t - 0.5) > 0.35:
+                        continue
+
+                    lash_x = ex + int((t - 0.5) * 2 * (eye_width - 2))
+                    lower_lid_y = ey + 1  # Just below center of eye
+
+                    # Shorter in center, slightly longer toward outer corners
+                    edge_factor = abs(t - 0.5) * 2
+                    this_lower_len = max(1, int(lower_lash_len * (0.6 + 0.4 * edge_factor)))
+
+                    # Slight outward angle
+                    angle = (t - 0.5) * 0.2 * side
+
+                    for ly in range(this_lower_len):
+                        py = lower_lid_y + ly
+                        px = lash_x + int(angle * ly)
+                        canvas.set_pixel(px, py, lower_lash_color)
 
     def _render_eyeliner(self, canvas: Canvas) -> None:
         """Render eyeliner that follows the eye shape."""
