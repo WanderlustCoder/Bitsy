@@ -157,6 +157,8 @@ class PortraitConfig:
     has_blush: bool = False
     blush_color: str = "pink"  # pink, peach, coral, rose
     blush_intensity: float = 0.5  # 0.0 to 1.0
+    blush_position_y: float = 0.5  # 0.0 = higher on cheekbone, 1.0 = lower toward jaw
+    blush_position_x: float = 0.5  # 0.0 = closer to nose, 1.0 = farther toward ears
 
     # Contour
     has_contour: bool = False
@@ -973,11 +975,23 @@ class PortraitGenerator:
         return self
 
     def set_blush(self, color: str = "pink",
-                  intensity: float = 0.5) -> 'PortraitGenerator':
-        """Add blush with configurable color and intensity (0.0-1.0)."""
+                  intensity: float = 0.5,
+                  position_y: float = 0.5,
+                  position_x: float = 0.5) -> 'PortraitGenerator':
+        """
+        Add blush with configurable color, intensity, and position.
+
+        Args:
+            color: Blush color (pink, peach, coral, rose)
+            intensity: How visible the blush is (0.0-1.0)
+            position_y: Vertical position (0.0 = higher on cheekbone, 1.0 = lower toward jaw)
+            position_x: Horizontal position (0.0 = closer to nose, 1.0 = farther toward ears)
+        """
         self.config.has_blush = True
         self.config.blush_color = color
         self.config.blush_intensity = max(0.0, min(1.0, intensity))
+        self.config.blush_position_y = max(0.0, min(1.0, position_y))
+        self.config.blush_position_x = max(0.0, min(1.0, position_x))
         return self
 
     def set_contour(self, intensity: float = 0.5,
@@ -1583,9 +1597,22 @@ class PortraitGenerator:
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
-        # Blush position: upper cheeks, below eyes
-        cheek_y = eye_y + eye_height + max(2, fh // 10)
-        cheek_offset = eye_spacing
+        # Blush position: adjustable based on config
+        # Base position: upper cheeks, below eyes
+        base_cheek_y = eye_y + eye_height + max(2, fh // 10)
+        base_cheek_offset = eye_spacing
+
+        # Apply position adjustments
+        pos_y = getattr(self.config, 'blush_position_y', 0.5)
+        pos_x = getattr(self.config, 'blush_position_x', 0.5)
+
+        # Vertical: 0.0 = 4px higher, 1.0 = 4px lower (relative to base)
+        y_range = max(3, fh // 8)
+        cheek_y = base_cheek_y + int((pos_y - 0.5) * y_range * 2)
+
+        # Horizontal: 0.0 = closer to nose, 1.0 = farther toward ears
+        x_range = max(2, fw // 10)
+        cheek_offset = base_cheek_offset + int((pos_x - 0.5) * x_range * 2)
 
         base_skin = self._skin_ramp[len(self._skin_ramp) // 2]
         blush_palette = {
