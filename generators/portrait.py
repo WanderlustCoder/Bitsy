@@ -130,6 +130,7 @@ class PortraitConfig:
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
+    lip_gloss_position: float = 0.5  # 0.0 = upper lip, 0.5 = center, 1.0 = lower lip
     lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
@@ -915,6 +916,16 @@ class PortraitGenerator:
             gloss: Gloss level (0.0 = matte, 0.5 = subtle, 1.0 = glossy)
         """
         self.config.lip_gloss = max(0.0, min(1.0, gloss))
+        return self
+
+    def set_lip_gloss_position(self, position: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set lip gloss/shine position.
+
+        Args:
+            position: Position (0.0 = upper lip, 0.5 = center/lip line, 1.0 = lower lip)
+        """
+        self.config.lip_gloss_position = max(0.0, min(1.0, position))
         return self
 
     def set_lip_corner_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
@@ -3929,11 +3940,14 @@ class PortraitGenerator:
             if gloss_level > 0.0:
                 gloss_alpha = int(40 + gloss_level * 80)  # 40-120 alpha
                 gloss_span = max(1, lip_width // 2)
+                # Position: 0.0 = upper (-1), 0.5 = center (+1), 1.0 = lower (+3)
+                gloss_pos = getattr(self.config, 'lip_gloss_position', 0.5)
+                gloss_y_offset = int(-1 + gloss_pos * 4)  # Range: -1 to +3
                 for dx in range(-gloss_span, gloss_span + 1):
                     gloss_fade = 1.0 - abs(dx) / gloss_span if gloss_span > 0 else 1.0
                     alpha = int(gloss_alpha * gloss_fade)
                     if alpha > 0:
-                        canvas.set_pixel(cx + dx, lip_y + 2, (255, 255, 255, alpha))
+                        canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
             return
 
         upper_scale = 0.5
@@ -4003,11 +4017,14 @@ class PortraitGenerator:
         if gloss_level > 0.0:
             gloss_alpha = int(40 + gloss_level * 80)  # 40-120 alpha
             gloss_span = max(1, lip_width // 2)
+            # Position: 0.0 = upper (-1), 0.5 = center (+1), 1.0 = lower (+3)
+            gloss_pos = getattr(self.config, 'lip_gloss_position', 0.5)
+            gloss_y_offset = int(-1 + gloss_pos * 4)  # Range: -1 to +3
             for dx in range(-gloss_span, gloss_span + 1):
                 gloss_fade = 1.0 - abs(dx) / gloss_span if gloss_span > 0 else 1.0
                 alpha = int(gloss_alpha * gloss_fade)
                 if alpha > 0:
-                    canvas.set_pixel(cx + dx, lip_y + 2, (255, 255, 255, alpha))
+                    canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
 
         # Render lip corner shadows
         self._render_lip_corner_shadow(canvas, cx, lip_y, lip_width, lip_height)
