@@ -183,6 +183,7 @@ class PortraitConfig:
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
     lip_gloss_position: float = 0.5  # 0.0 = upper lip, 0.5 = center, 1.0 = lower lip
     lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
+    lip_corner_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent corner creases
     cupids_bow: float = 0.5  # 0.0 = flat/subtle, 0.5 = normal, 1.0 = pronounced M-shape
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
