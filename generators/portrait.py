@@ -110,6 +110,7 @@ class PortraitConfig:
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
     nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
+    nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
     has_lipstick: bool = False
@@ -724,16 +725,19 @@ class PortraitGenerator:
         self.config.eyeshadow_style = style
         return self
 
-    def set_nose(self, nose_type: NoseType, size: float = 1.0) -> 'PortraitGenerator':
+    def set_nose(self, nose_type: NoseType, size: float = 1.0,
+                 tip_highlight: float = 0.0) -> 'PortraitGenerator':
         """
-        Set nose type and size.
+        Set nose type, size, and tip highlight.
 
         Args:
             nose_type: Nose shape type
             size: Size multiplier (0.7-1.3, default 1.0)
+            tip_highlight: Nose tip shine (0.0-1.0, 0.0 = none)
         """
         self.config.nose_type = nose_type
         self.config.nose_size = max(0.7, min(1.3, size))
+        self.config.nose_tip_highlight = max(0.0, min(1.0, tip_highlight))
         return self
 
     def set_lips(self, shape: LipShape, color: str = "natural") -> 'PortraitGenerator':
@@ -2899,6 +2903,33 @@ class PortraitGenerator:
                 canvas.set_pixel(px, py, shadow_color)
             canvas.set_pixel(cx, nose_y + nose_height - 2, highlight_color)
             canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
+
+        # Enhanced nose tip highlight (dewy/shiny effect)
+        tip_highlight = getattr(self.config, 'nose_tip_highlight', 0.0)
+        if tip_highlight > 0.0:
+            # Calculate tip position based on nose type
+            if nose_type == NoseType.SMALL:
+                tip_nose_height = int(fh // 10 * nose_size_mult)
+            elif nose_type == NoseType.BUTTON:
+                tip_nose_height = int(fh // 9 * nose_size_mult)
+            elif nose_type == NoseType.POINTED:
+                tip_nose_height = int(fh // 7 * nose_size_mult)
+            elif nose_type == NoseType.WIDE:
+                tip_nose_height = int(fh // 8 * nose_size_mult)
+            else:
+                tip_nose_height = int(fh // 8 * nose_size_mult)
+
+            tip_y = nose_y + tip_nose_height - 2
+            shine_alpha = int(60 + 100 * tip_highlight)
+            shine_color = (255, 252, 248, shine_alpha)
+
+            # Bright highlight spot on nose tip
+            canvas.set_pixel(cx, tip_y, shine_color)
+            canvas.set_pixel(cx, tip_y - 1, (*shine_color[:3], shine_alpha // 2))
+            if tip_highlight > 0.5:
+                # Larger highlight for more shine
+                canvas.set_pixel(cx - 1, tip_y, (*shine_color[:3], shine_alpha // 2))
+                canvas.set_pixel(cx + 1, tip_y, (*shine_color[:3], shine_alpha // 2))
 
     def _render_lips(self, canvas: Canvas) -> None:
         """Render lips with gradient and highlight."""
