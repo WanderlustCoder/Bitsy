@@ -94,6 +94,7 @@ class PortraitConfig:
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
+    ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
@@ -605,6 +606,16 @@ class PortraitGenerator:
             ear_type: One of 'normal', 'pointed', 'round', 'large', 'small'
         """
         self.config.ear_type = ear_type
+        return self
+
+    def set_ear_lobe_detail(self, detail: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set ear lobe detail and shading level.
+
+        Args:
+            detail: Detail level (0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading)
+        """
+        self.config.ear_lobe_detail = max(0.0, min(1.0, detail))
         return self
 
     def set_hair(self, style: HairStyle, color: str,
@@ -1691,6 +1702,50 @@ class PortraitGenerator:
                     if abs(dx) < 0.4 and abs(dy) < 0.4:
                         if side * dx < 0:
                             canvas.set_pixel(x, y, inner_color)
+
+            # Ear lobe detail rendering
+            lobe_detail = getattr(self.config, 'ear_lobe_detail', 0.5)
+            if lobe_detail > 0.0:
+                # Lobe is the rounded bottom portion of the ear
+                lobe_y = ear_bottom - ear_h // 6
+                lobe_radius = max(2, ear_w // 2)
+
+                # Add highlight to the front/outer curve of lobe
+                highlight_idx = min(ramp_len - 1, mid_idx + 2)
+                highlight_color = self._skin_ramp[highlight_idx]
+                highlight_alpha = int(40 * lobe_detail)
+
+                # Highlight on outer edge of lobe
+                for dy_off in range(-lobe_radius, lobe_radius + 1):
+                    y = lobe_y + dy_off
+                    x = ear_center_x + side * (ear_w // 3)
+                    dist_fade = 1.0 - abs(dy_off) / lobe_radius
+                    alpha = int(highlight_alpha * dist_fade)
+                    if alpha > 0:
+                        canvas.set_pixel(x, y, (*highlight_color[:3], alpha))
+
+                # Add subtle shadow/fold at lobe attachment point
+                if lobe_detail > 0.3:
+                    shadow_idx = max(0, mid_idx - 2)
+                    shadow_color = self._skin_ramp[shadow_idx]
+                    shadow_alpha = int(25 + 25 * lobe_detail)
+                    shadow_y = lobe_y - lobe_radius // 2
+                    for dx_off in range(-lobe_radius // 2, lobe_radius // 2 + 1):
+                        x = ear_center_x + dx_off
+                        x_fade = 1.0 - abs(dx_off) / (lobe_radius // 2 + 1)
+                        alpha = int(shadow_alpha * x_fade)
+                        if alpha > 0:
+                            canvas.set_pixel(x, shadow_y, (*shadow_color[:3], alpha))
+
+                # Add inner lobe curve detail for high detail
+                if lobe_detail > 0.6:
+                    inner_shadow_alpha = int(20 + 30 * lobe_detail)
+                    inner_x = ear_center_x - side * (ear_w // 6)
+                    for dy_off in range(0, lobe_radius):
+                        y = lobe_y + dy_off
+                        alpha = int(inner_shadow_alpha * (1.0 - dy_off / lobe_radius))
+                        if alpha > 0:
+                            canvas.set_pixel(inner_x, y, (*inner_color[:3], alpha))
 
     def _render_blush(self, canvas: Canvas) -> None:
         """Render subtle cheek blush with a feathered gradient."""
