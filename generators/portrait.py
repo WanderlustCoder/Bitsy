@@ -130,6 +130,7 @@ class PortraitConfig:
     eye_crease: float = 0.0  # 0.0 = none/monolid, 0.5 = subtle, 1.0 = defined crease
     eye_socket_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined depth
     orbital_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined rim light
+    eye_depth: float = 0.0  # -0.5 = protruding, 0.0 = normal, 0.5 = deep-set
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -1079,6 +1080,18 @@ class PortraitGenerator:
             intensity: Rim light strength (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.orbital_rim_light = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_eye_depth(self, depth: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set eye depth (deep-set vs protruding).
+
+        Controls how recessed or forward the eyes appear.
+
+        Args:
+            depth: Depth level (-0.5 = protruding, 0.0 = normal, 0.5 = deep-set)
+        """
+        self.config.eye_depth = max(-0.5, min(0.5, depth))
         return self
 
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
@@ -4666,6 +4679,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         lip_y = cy + fh // 4
+        cx = self._apply_head_tilt(cx, cy, lip_y)
         width_mult = getattr(self.config, 'lip_width', 1.0)
         lip_width = int(fw // 5 * width_mult)
         base_lip_height = fh // 20
@@ -5011,8 +5025,6 @@ class PortraitGenerator:
         eye_width = max(1, int(fw // 6 * size_mult))
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
         tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
-        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
-        tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
         lash_color = (20, 15, 15, 255)  # Dark brown/black
         base_lash_len = max(1, int(eye_height * 0.4 * lash_length))
@@ -5217,6 +5229,52 @@ class PortraitGenerator:
                             px = ex + dx
                             py = ey + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
+    def _render_eye_depth(self, canvas: Canvas) -> None:
+        """Render eye depth effect (deep-set or protruding eyes)."""
+        depth = getattr(self.config, 'eye_depth', 0.0)
+        if abs(depth) < 0.05:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6))
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 2)]
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            if depth > 0:  # Deep-set: shadow around eyes
+                max_alpha = int(30 + 50 * depth)
+                socket_rx = eye_width + 3
+                socket_ry = eye_height + 2
+                for dy in range(-socket_ry, 0):  # Upper area
+                    for dx in range(-socket_rx, socket_rx + 1):
+                        dist = abs(dx) / socket_rx
+                        y_fade = 1.0 - abs(dy) / socket_ry
+                        alpha = int(max_alpha * (1 - dist) * y_fade)
+                        if alpha > 3:
+                            canvas.set_pixel(ex + dx, ey + dy, (*shadow_color[:3], alpha))
+            else:  # Protruding: highlight on eye area
+                max_alpha = int(20 + 40 * abs(depth))
+                for dy in range(-2, eye_height // 2):
+                    for dx in range(-eye_width // 2, eye_width // 2 + 1):
+                        dist = abs(dx) / (eye_width // 2 + 1)
+                        y_fade = 1.0 - abs(dy - eye_height // 4) / (eye_height // 2 + 1)
+                        alpha = int(max_alpha * (1 - dist) * y_fade)
+                        if alpha > 3:
+                            canvas.set_pixel(ex + dx, ey + dy, (*highlight_color[:3], alpha))
 
     def _render_orbital_rim_light(self, canvas: Canvas) -> None:
         """Render subtle rim lighting along the eye socket edge."""
@@ -7170,6 +7228,7 @@ class PortraitGenerator:
         self._render_lower_lip_protrusion(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
+        self._render_eye_depth(canvas)  # Deep-set or protruding eyes
         self._render_orbital_rim_light(canvas)  # Subtle rim light around eye socket
         self._render_brow_bone(canvas)  # Brow ridge prominence
         self._render_under_brow_shadow(canvas)  # Deep shadow under brow ridge
