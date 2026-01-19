@@ -198,6 +198,7 @@ class PortraitConfig:
     wrinkle_areas: str = "all"  # all, forehead, eyes, mouth
     forehead_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (independent of wrinkles)
     crows_feet: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (eye corner wrinkles)
+    frown_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible (glabella lines between brows)
 
     # Nasolabial folds (smile/laugh lines)
     nasolabial_depth: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent
@@ -1227,6 +1228,19 @@ class PortraitGenerator:
             intensity: Line visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
         """
         self.config.crows_feet = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_frown_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set frown lines (glabella lines) visibility between eyebrows.
+
+        Vertical lines that appear above the nose bridge when frowning
+        or with age.
+
+        Args:
+            intensity: Line visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.frown_lines = max(0.0, min(1.0, intensity))
         return self
 
     def set_nasolabial_folds(self, depth: float = 0.5) -> 'PortraitGenerator':
@@ -3042,6 +3056,50 @@ class PortraitGenerator:
                         px = corner_x + dx
                         py = corner_y + dy
                         canvas.set_pixel(px, py, (*line_color[:3], alpha))
+
+    def _render_frown_lines(self, canvas: Canvas) -> None:
+        """Render frown lines (glabella lines) between the eyebrows."""
+        intensity = getattr(self.config, 'frown_lines', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+
+        # Position above nose bridge, between eyebrows
+        # Get eyebrow position for reference
+        brow_offset = int(fh * 0.05)  # Eyebrow is above eye
+        glabella_y = eye_y - brow_offset - 1
+
+        # Line color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        line_idx = max(0, mid_idx - 2)
+        line_color = self._skin_ramp[line_idx]
+        max_alpha = int(20 + 50 * intensity)
+
+        # Number of lines (1-2 based on intensity)
+        num_lines = 1 if intensity < 0.6 else 2
+        line_height = max(3, int(fh * 0.06))
+
+        for i in range(num_lines):
+            # Horizontal offset (lines are side by side)
+            offset_x = (i - (num_lines - 1) / 2) * 2
+
+            for step in range(line_height):
+                t = step / line_height
+                # Vertical line with slight curve inward at top
+                curve = int(math.sin(t * math.pi) * 0.5)
+                dx = int(offset_x + curve)
+                dy = -step  # Going upward
+
+                # Fade toward top
+                fade = 1.0 - t ** 2
+                alpha = int(max_alpha * fade)
+                if alpha > 3:
+                    px = cx + dx
+                    py = glabella_y + dy
+                    canvas.set_pixel(px, py, (*line_color[:3], alpha))
 
     def _render_nasolabial_folds(self, canvas: Canvas) -> None:
         """Render nasolabial folds (smile/laugh lines) independently of wrinkles."""
@@ -4977,6 +5035,7 @@ class PortraitGenerator:
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_forehead_lines(canvas)  # Forehead expression lines
         self._render_crows_feet(canvas)  # Eye corner wrinkles
+        self._render_frown_lines(canvas)  # Glabella lines between eyebrows
         self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
         self._render_eyebags(canvas)
         self._render_freckles(canvas)
