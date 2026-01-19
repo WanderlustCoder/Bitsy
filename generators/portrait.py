@@ -273,6 +273,7 @@ class PortraitConfig:
 
     # Neck shadow (chin to neck transition)
     neck_length: float = 1.0  # 0.7 = short, 1.0 = normal, 1.3 = long/elegant neck
+    neck_width: float = 1.0  # 0.7 = thin/slender neck, 1.0 = normal, 1.3 = thick/strong neck
     neck_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
     double_chin: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible
     neck_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
@@ -1199,6 +1200,18 @@ class PortraitGenerator:
         self.config.eye_crease = max(0.0, min(1.0, depth))
         return self
 
+    def set_eye_roundness(self, roundness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eye shape roundness.
+
+        Controls how round or almond-shaped the eyes appear.
+
+        Args:
+            roundness: Eye shape (0.0 = narrow/almond, 0.5 = neutral, 1.0 = round/wide)
+        """
+        self.config.eye_roundness = max(0.0, min(1.0, roundness))
+        return self
+
     def set_eye_socket_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
         """
         Set eye socket shadow depth for more defined eye area.
@@ -2085,6 +2098,11 @@ class PortraitGenerator:
         self.config.neck_length = max(0.7, min(1.3, length))
         return self
 
+    def set_neck_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """Set neck width/thickness."""
+        self.config.neck_width = max(0.7, min(1.3, width))
+        return self
+
     def set_double_chin(self, depth: float = 0.5) -> 'PortraitGenerator':
         """
         Set double chin fold visibility under the chin.
@@ -2443,6 +2461,11 @@ class PortraitGenerator:
         neck_span = max(1, int((fh // 8) * neck_length))
         return cy + fh // 2 + neck_span
 
+    def _get_neck_width_multiplier(self) -> float:
+        """Get clamped neck width multiplier."""
+        neck_width = getattr(self.config, 'neck_width', 1.0)
+        return max(0.7, min(1.3, neck_width))
+
     def _get_hair_parting_segments(self, center_x: float,
                                    width: float) -> List[Tuple[float, float]]:
         """Compute hair segment centers/widths based on parting."""
@@ -2508,6 +2531,9 @@ class PortraitGenerator:
         """Render the base face shape with gradient shading."""
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
+        width_mult = self._get_neck_width_multiplier()
+        width_mult = self._get_neck_width_multiplier()
+        width_mult = self._get_neck_width_multiplier()
         rx, ry = fw // 2, fh // 2
         _, _, forehead_scale = self._get_forehead_tuning(fh)
 
@@ -3438,7 +3464,7 @@ class PortraitGenerator:
         chin_y = cy + fh // 2
         shadow_y = chin_y + 2  # Just below chin
         shadow_height = max(2, fh // 10)
-        shadow_width = max(4, fw // 3)
+        shadow_width = max(4, int((fw / 3) * width_mult))
 
         for dy in range(shadow_height):
             y = shadow_y + dy
@@ -3463,7 +3489,7 @@ class PortraitGenerator:
 
         chin_y = cy + fh // 2
         fold_y = chin_y + max(2, fh // 18)
-        line_width = max(6, int(fw * (0.35 + 0.15 * depth)))
+        line_width = max(6, int(fw * (0.35 + 0.15 * depth) * width_mult))
         curve_height = max(1, fh // 40)
 
         mid_idx = len(self._skin_ramp) // 2
@@ -3512,7 +3538,7 @@ class PortraitGenerator:
 
         num_lines = 1 + int(intensity * 2)
         spacing = max(2, neck_height // (num_lines + 1))
-        max_line_width = int(fw * 0.35)
+        max_line_width = int(fw * 0.35 * width_mult)
 
         for i in range(num_lines):
             ly = chin_y + (i + 1) * spacing
@@ -7807,7 +7833,8 @@ class PortraitGenerator:
 
         # Necklace position - at the neckline
         neck_y = self._get_neckline_y(cy, fh)
-        neck_width = fw // 2
+        width_mult = self._get_neck_width_multiplier()
+        neck_width = max(2, int((fw / 2) * width_mult))
 
         # Map style string to enum
         style_map = {
