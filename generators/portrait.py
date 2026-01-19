@@ -76,6 +76,7 @@ class PortraitConfig:
     # Skin
     skin_tone: str = "light"  # light, medium, tan, dark, pale
     skin_undertone: str = "neutral"  # warm, cool, neutral
+    skin_undertone_intensity: float = 1.0  # 0.0 = no undertone, 0.5 = subtle, 1.0 = full
     skin_shine: float = 0.3  # 0.0 = matte, 0.5 = natural, 1.0 = dewy/shiny
     skin_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle pores, 1.0 = visible pores
     face_powder: float = 0.0  # 0.0 = none, 0.5 = subtle matte, 1.0 = full matte
@@ -600,6 +601,19 @@ class PortraitGenerator:
         self.config.skin_tone = tone
         self.config.skin_undertone = undertone
         self.config.skin_shine = max(0.0, min(1.0, shine))
+        return self
+
+    def set_skin_undertone_intensity(self, intensity: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set skin undertone intensity.
+
+        Controls how strongly the warm/cool undertone affects
+        the skin colors. Lower values make undertone subtle.
+
+        Args:
+            intensity: Undertone strength (0.0 = none, 0.5 = subtle, 1.0 = full)
+        """
+        self.config.skin_undertone_intensity = max(0.0, min(1.0, intensity))
         return self
 
     def set_skin_texture(self, texture: float = 0.3) -> 'PortraitGenerator':
@@ -1737,18 +1751,19 @@ class PortraitGenerator:
         skin_base = SKIN_TONES.get(self.config.skin_tone, SKIN_TONES["light"])
         undertone = getattr(self.config, 'skin_undertone', 'neutral').lower()
 
-        # Apply undertone color shift
+        # Apply undertone color shift (scaled by intensity)
         r, g, b = skin_base
+        intensity = getattr(self.config, 'skin_undertone_intensity', 1.0)
         if undertone == "warm":
             # Shift toward yellow/orange
-            r = min(255, r + 8)
-            g = min(255, g + 4)
-            b = max(0, b - 6)
+            r = min(255, r + int(8 * intensity))
+            g = min(255, g + int(4 * intensity))
+            b = max(0, b - int(6 * intensity))
         elif undertone == "cool":
             # Shift toward pink/blue
-            r = max(0, r - 4)
-            g = max(0, g - 2)
-            b = min(255, b + 8)
+            r = max(0, r - int(4 * intensity))
+            g = max(0, g - int(2 * intensity))
+            b = min(255, b + int(8 * intensity))
         # neutral = no shift
 
         skin_base = (r, g, b)
