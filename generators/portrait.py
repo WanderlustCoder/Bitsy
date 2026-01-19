@@ -80,6 +80,7 @@ class PortraitConfig:
     hair_style: HairStyle = HairStyle.WAVY
     hair_color: str = "brown"  # brown, black, blonde, red, gray, etc.
     hair_length: float = 1.0  # 0.5 = short, 1.0 = medium, 1.5 = long
+    hair_parting: str = "none"  # none, left, right, center
     has_hair_highlights: bool = False
     highlight_color: str = "blonde"  # color for highlights/streaks
     highlight_intensity: float = 0.3  # 0.0-1.0, proportion of hair highlighted
@@ -87,6 +88,8 @@ class PortraitConfig:
     # Face
     face_shape: str = "oval"  # oval, round, heart, square
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
+    forehead_size: str = "normal"  # normal, large, small
+    ear_type: str = "normal"  # normal, pointed, round, large, small
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
@@ -164,6 +167,15 @@ class PortraitConfig:
     has_scar: bool = False
     scar_type: str = "cheek"  # cheek, eyebrow, lip, forehead
     scar_intensity: float = 0.5  # 0.0 to 1.0
+
+    # Face tattoos
+    has_face_tattoo: bool = False
+    face_tattoo_type: str = "tear"  # tear, star, tribal, dots
+    face_tattoo_position: str = "cheek"  # cheek, forehead, temple
+    face_tattoo_color: str = "black"  # black, blue, red
+
+    # Cheekbone prominence
+    cheekbone_prominence: str = "normal"  # low, normal, high, sculpted
 
     # Clothing
     clothing_style: str = "casual"
@@ -483,12 +495,37 @@ class PortraitGenerator:
         self.config.chin_type = chin_type
         return self
 
+    def set_forehead(self, size: str = "normal") -> 'PortraitGenerator':
+        """
+        Set forehead size.
+
+        Args:
+            size: One of 'normal', 'large', 'small'
+        """
+        self.config.forehead_size = size
+        return self
+
+    def set_ears(self, ear_type: str = "normal") -> 'PortraitGenerator':
+        """
+        Set ear type.
+
+        Args:
+            ear_type: One of 'normal', 'pointed', 'round', 'large', 'small'
+        """
+        self.config.ear_type = ear_type
+        return self
+
     def set_hair(self, style: HairStyle, color: str,
                  length: float = 1.0) -> 'PortraitGenerator':
         """Set hair style and color."""
         self.config.hair_style = style
         self.config.hair_color = color
         self.config.hair_length = length
+        return self
+
+    def set_hair_parting(self, side: str = "center") -> 'PortraitGenerator':
+        """Set hair parting side (none, left, right, center)."""
+        self.config.hair_parting = (side or "none").lower()
         return self
 
     def set_hair_highlights(self, color: str = "blonde",
@@ -751,6 +788,26 @@ class PortraitGenerator:
         self.config.scar_intensity = max(0.0, min(1.0, intensity))
         return self
 
+    def set_face_tattoo(self, tattoo_type: str = "tear",
+                        position: str = "cheek",
+                        color: str = "black") -> 'PortraitGenerator':
+        """Add a facial tattoo with type, position, and color."""
+        self.config.has_face_tattoo = True
+        self.config.face_tattoo_type = tattoo_type
+        self.config.face_tattoo_position = position
+        self.config.face_tattoo_color = color
+        return self
+
+    def set_cheekbones(self, prominence: str = "normal") -> 'PortraitGenerator':
+        """
+        Set cheekbone prominence level.
+
+        Args:
+            prominence: One of 'low', 'normal', 'high', 'sculpted'
+        """
+        self.config.cheekbone_prominence = prominence
+        return self
+
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
         """Set clothing style and color."""
         self.config.clothing_style = style
@@ -929,7 +986,9 @@ class PortraitGenerator:
     def _get_face_center(self) -> Tuple[int, int]:
         """Calculate face center position."""
         cx = self.config.width // 2
-        cy = int(self.config.height * 0.45)  # Face slightly above center
+        _, fh = self._get_face_dimensions()
+        center_shift, _, _ = self._get_forehead_tuning(fh)
+        cy = int(self.config.height * 0.45) + center_shift  # Face slightly above center
         return cx, cy
 
     def _get_face_dimensions(self) -> Tuple[int, int]:
@@ -939,11 +998,55 @@ class PortraitGenerator:
         fh = int(self.config.height * 0.5)
         return fw, fh
 
+    def _get_hair_parting_segments(self, center_x: float,
+                                   width: float) -> List[Tuple[float, float]]:
+        """Compute hair segment centers/widths based on parting."""
+        parting = (self.config.hair_parting or "none").lower()
+        if parting not in ("none", "left", "right", "center"):
+            parting = "none"
+        if parting == "none":
+            return [(center_x, width)]
+
+        shift = {"left": -0.14, "right": 0.14, "center": 0.0}[parting]
+        gap = max(2.0, width * 0.07)
+        gap = min(gap, width * 0.3)
+
+        left_edge = center_x - width / 2
+        right_edge = center_x + width / 2
+        parting_x = center_x + shift * width
+        parting_x = max(left_edge + gap, min(right_edge - gap, parting_x))
+
+        left_end = parting_x - gap / 2
+        right_start = parting_x + gap / 2
+
+        left_width = max(1.0, left_end - left_edge)
+        right_width = max(1.0, right_edge - right_start)
+
+        left_center = left_edge + left_width / 2
+        right_center = right_start + right_width / 2
+
+        return [(left_center, left_width), (right_center, right_width)]
+
+    def _get_forehead_tuning(self, fh: int) -> Tuple[int, int, float]:
+        """Return center shift, eye shift, and upper scale for forehead sizing."""
+        size = (self.config.forehead_size or "normal").lower()
+        if size == "large":
+            return int(fh * 0.02), int(fh * 0.06), 0.88
+        if size == "small":
+            return -int(fh * 0.02), -int(fh * 0.05), 1.12
+        return 0, 0, 1.0
+
+    def _get_eye_y(self, cy: int, fh: int) -> int:
+        """Calculate eye baseline position with forehead sizing."""
+        _, eye_shift, _ = self._get_forehead_tuning(fh)
+        return cy - fh // 8 + eye_shift
+
     def _render_face_base(self, canvas: Canvas) -> None:
         """Render the base face shape with gradient shading."""
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         rx, ry = fw // 2, fh // 2
+        _, _, forehead_scale = self._get_forehead_tuning(fh)
 
         # Light direction
         lx, ly = self.config.light_direction
@@ -997,6 +1100,9 @@ class PortraitGenerator:
                     dy = dy * (1.0 - 0.1 * (1.0 - abs_dy ** power))
 
                 # else: oval (default) - no transformation needed
+
+                if dy < 0:
+                    dy = dy * forehead_scale
 
                 chin_adjust = 0.0
                 if dy > 0:
@@ -1101,6 +1207,98 @@ class PortraitGenerator:
             if alpha > 0:
                 canvas.set_pixel(shadow_x, nose_y + dy, (*shadow_color[:3], alpha))
 
+    def _render_ears(self, canvas: Canvas) -> None:
+        """Render ears on the sides of the face with shape variations."""
+        ear_type = (self.config.ear_type or "normal").lower()
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        base_w = max(3, fw // 8)
+        base_h = max(6, fh // 4)
+
+        scale = 1.0
+        if ear_type == "large":
+            scale = 1.25
+        elif ear_type == "small":
+            scale = 0.75
+
+        ear_w = max(3, int(base_w * scale))
+        ear_h = max(5, int(base_h * scale))
+
+        if ear_type == "round":
+            ear_w = int(ear_w * 1.15)
+            ear_h = int(ear_h * 0.9)
+        elif ear_type == "pointed":
+            ear_h = int(ear_h * 1.1)
+
+        ear_center_y = cy - fh // 10
+
+        lx, ly = self.config.light_direction
+        light_len = (lx * lx + ly * ly) ** 0.5
+        if light_len > 0:
+            lx, ly = lx / light_len, ly / light_len
+
+        ramp_len = len(self._skin_ramp)
+        mid_idx = ramp_len // 2
+        inner_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+        tip_height = max(2, ear_h // 4)
+        tip_width = max(2, ear_w // 2)
+
+        for side in (-1, 1):
+            ear_center_x = cx + side * (rx + ear_w // 3)
+            ear_top = ear_center_y - ear_h // 2
+            ear_bottom = ear_center_y + ear_h // 2
+
+            min_x = ear_center_x - ear_w // 2 - 1
+            max_x = ear_center_x + ear_w // 2 + 1
+            min_y = ear_top - (tip_height if ear_type == "pointed" else 0) - 1
+            max_y = ear_bottom + 1
+
+            for y in range(min_y, max_y + 1):
+                for x in range(min_x, max_x + 1):
+                    dx = (x - ear_center_x) / (ear_w / 2) if ear_w > 0 else 0
+                    dy = (y - ear_center_y) / (ear_h / 2) if ear_h > 0 else 0
+
+                    in_ellipse = dx * dx + dy * dy <= 1.0
+                    in_tip = False
+                    if ear_type == "pointed" and y < ear_top:
+                        if y >= ear_top - tip_height:
+                            t = (ear_top - y) / max(1, tip_height)
+                            half_w = max(1, int(tip_width * (1.0 - t)))
+                            in_tip = abs(x - ear_center_x) <= half_w
+
+                    if not (in_ellipse or in_tip):
+                        continue
+
+                    face_dx = (x - cx) / rx if rx > 0 else 0
+                    face_dy = (y - cy) / ry if ry > 0 else 0
+                    if face_dx * face_dx + face_dy * face_dy <= 1.0:
+                        continue
+
+                    nx = dx
+                    ny = dy
+                    nlen = (nx * nx + ny * ny) ** 0.5
+                    if nlen > 0:
+                        nx, ny = nx / nlen, ny / nlen
+                    else:
+                        nx, ny = 0, -1
+
+                    dot = -(nx * lx + ny * ly)
+                    vertical_bias = -dy * 0.15
+                    shading = (dot + vertical_bias + 1.0) / 2.0
+                    shading = max(0.0, min(1.0, shading))
+
+                    ramp_idx = int(shading * (ramp_len - 1))
+                    ramp_idx = max(0, min(ramp_len - 1, ramp_idx))
+                    color = self._skin_ramp[ramp_idx]
+                    canvas.set_pixel(x, y, color)
+
+                    if abs(dx) < 0.4 and abs(dy) < 0.4:
+                        if side * dx < 0:
+                            canvas.set_pixel(x, y, inner_color)
+
     def _render_blush(self, canvas: Canvas) -> None:
         """Render subtle cheek blush with a feathered gradient."""
         if not self.config.has_blush:
@@ -1114,7 +1312,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Eye positioning (matching _render_eyes)
-        eye_y = cy - fh // 8
+        eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
@@ -1221,7 +1419,7 @@ class PortraitGenerator:
         seed = self.config.seed
         rng = random.Random(seed + 2400) if seed is not None else random.Random()
 
-        eye_y = cy - fh // 8
+        eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
         eye_width = max(1, fw // 6)
         eye_height = max(1, int(eye_width * 0.6 * max(0.3, self.config.eye_openness)))
@@ -1371,6 +1569,137 @@ class PortraitGenerator:
         if fw > 80:
             canvas.set_pixel(bx + 1, by, mark_color)
 
+    def _render_face_tattoo(self, canvas: Canvas) -> None:
+        """Render a small facial tattoo design."""
+        if not self.config.has_face_tattoo:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        position = (self.config.face_tattoo_position or "cheek").lower()
+        tattoo_type = (self.config.face_tattoo_type or "tear").lower()
+        color_key = (self.config.face_tattoo_color or "black").lower()
+
+        color_map = {
+            "black": (20, 20, 25),
+            "blue": (35, 60, 120),
+            "red": (140, 40, 50),
+        }
+        base_color = color_map.get(color_key, color_map["black"])
+        ink_color = (*base_color, 220)
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        if position == "forehead":
+            anchor_x = cx
+            anchor_y = cy - fh // 4
+        elif position == "temple":
+            anchor_x = cx + eye_spacing + fw // 12
+            anchor_y = eye_y - fh // 12
+        else:
+            anchor_x = cx + eye_spacing - fw // 18
+            anchor_y = eye_y + fh // 10
+
+        def in_face(px: int, py: int) -> bool:
+            dx = (px - cx) / rx if rx > 0 else 0
+            dy = (py - cy) / ry if ry > 0 else 0
+            return dx * dx + dy * dy <= 1.0
+
+        def draw_pixels(points: List[Tuple[int, int]]) -> None:
+            for dx, dy in points:
+                px, py = anchor_x + dx, anchor_y + dy
+                if in_face(px, py):
+                    canvas.set_pixel(px, py, ink_color)
+
+        if tattoo_type == "star":
+            draw_pixels([
+                (0, 0), (-1, 0), (1, 0), (0, -1), (0, 1),
+                (-1, -1), (1, -1)
+            ])
+        elif tattoo_type == "tribal":
+            draw_pixels([
+                (-2, 0), (-1, 0), (0, 1), (1, 1), (2, 2), (3, 2)
+            ])
+            draw_pixels([
+                (-1, -1), (0, -1), (1, -2), (2, -2)
+            ])
+        elif tattoo_type == "dots":
+            draw_pixels([(0, 0), (2, 1), (4, 2)])
+        else:
+            draw_pixels([(0, 0), (0, 1), (-1, 2), (0, 2), (1, 2), (0, 3)])
+
+    def _render_cheekbones(self, canvas: Canvas) -> None:
+        """Render cheekbone prominence with highlight and shadow shading."""
+        prominence = self.config.cheekbone_prominence.lower()
+        if prominence == "normal":
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning reference
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+
+        # Cheekbone position: below outer eye area
+        cheek_y = eye_y + fh // 6
+        cheek_offset = eye_spacing + fw // 12
+
+        # Get skin colors for blending
+        light_skin = self._skin_ramp[-1]
+        dark_skin = self._skin_ramp[1]
+
+        # Prominence settings
+        if prominence == "low":
+            highlight_alpha = 15
+            shadow_alpha = 10
+            rx, ry = max(2, fw // 10), max(1, fh // 20)
+        elif prominence == "high":
+            highlight_alpha = 40
+            shadow_alpha = 30
+            rx, ry = max(4, fw // 7), max(2, fh // 14)
+        elif prominence == "sculpted":
+            highlight_alpha = 55
+            shadow_alpha = 45
+            rx, ry = max(5, fw // 6), max(3, fh // 12)
+        else:
+            return
+
+        for side in (-1, 1):
+            bone_cx = cx + side * cheek_offset
+
+            # Highlight on top of cheekbone
+            highlight_y = cheek_y - ry // 2
+            for dy in range(-ry, ry + 1):
+                for dx in range(-rx, rx + 1):
+                    nx = dx / rx if rx > 0 else 0
+                    ny = dy / ry if ry > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.5
+                        alpha = int(highlight_alpha * falloff)
+                        if alpha > 0:
+                            px, py = bone_cx + dx, highlight_y + dy
+                            canvas.set_pixel(px, py, (*light_skin[:3], alpha))
+
+            # Shadow below cheekbone
+            shadow_y = cheek_y + ry
+            shadow_ry = max(1, ry // 2)
+            for dy in range(-shadow_ry, shadow_ry + 1):
+                for dx in range(-rx, rx + 1):
+                    nx = dx / rx if rx > 0 else 0
+                    ny = dy / shadow_ry if shadow_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.5
+                        alpha = int(shadow_alpha * falloff)
+                        if alpha > 0:
+                            px, py = bone_cx + dx, shadow_y + dy
+                            canvas.set_pixel(px, py, (*dark_skin[:3], alpha))
+
     def _render_scar(self, canvas: Canvas) -> None:
         """Render a subtle facial scar line."""
         if not self.config.has_scar:
@@ -1461,7 +1790,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Eye positioning (matching _render_eyes)
-        eye_y = cy - fh // 8
+        eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
@@ -1544,7 +1873,7 @@ class PortraitGenerator:
 
         # Crow's feet (lines at outer corners of eyes)
         if areas in ("all", "eyes"):
-            eye_y = cy - fh // 8
+            eye_y = self._get_eye_y(cy, fh)
             eye_spacing = fw // 4
             eye_width = fw // 6
 
@@ -1603,7 +1932,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Eye positioning
-        eye_y = cy - fh // 8
+        eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
@@ -1663,7 +1992,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        eye_y = cy - fh // 8
+        eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
         eye_width = max(1, fw // 6)
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
@@ -2184,21 +2513,48 @@ class PortraitGenerator:
             highlight_ramp = self._highlight_ramp
             highlight_intensity = self.config.highlight_intensity
 
-        render_hair(
-            canvas=canvas,
-            style=hair_style,
-            center_x=float(cx),
-            top_y=float(hair_top),
-            width=float(hair_width),
-            length=float(hair_length),
-            color_ramp=self._hair_ramp,
-            light_direction=self.config.light_direction,
-            count=cluster_count,
-            seed=self.config.seed,
-            include_strays=True,
-            highlight_ramp=highlight_ramp,
-            highlight_intensity=highlight_intensity,
-        )
+        segments = self._get_hair_parting_segments(float(cx), float(hair_width))
+        if len(segments) == 1:
+            render_hair(
+                canvas=canvas,
+                style=hair_style,
+                center_x=float(cx),
+                top_y=float(hair_top),
+                width=float(hair_width),
+                length=float(hair_length),
+                color_ramp=self._hair_ramp,
+                light_direction=self.config.light_direction,
+                count=cluster_count,
+                seed=self.config.seed,
+                include_strays=True,
+                highlight_ramp=highlight_ramp,
+                highlight_intensity=highlight_intensity,
+            )
+            return
+
+        total_width = sum(segment_width for _, segment_width in segments)
+        for index, (segment_center, segment_width) in enumerate(segments):
+            ratio = segment_width / total_width if total_width > 0 else 0.5
+            segment_count = max(3, int(round(cluster_count * ratio)))
+            segment_seed = None
+            if self.config.seed is not None:
+                segment_seed = self.config.seed + 2000 + index * 137
+
+            render_hair(
+                canvas=canvas,
+                style=hair_style,
+                center_x=float(segment_center),
+                top_y=float(hair_top),
+                width=float(segment_width),
+                length=float(hair_length),
+                color_ramp=self._hair_ramp,
+                light_direction=self.config.light_direction,
+                count=segment_count,
+                seed=segment_seed,
+                include_strays=True,
+                highlight_ramp=highlight_ramp,
+                highlight_intensity=highlight_intensity,
+            )
 
     def _render_bangs(self, canvas: Canvas) -> None:
         """Render front bangs/fringe over the forehead."""
@@ -2235,17 +2591,38 @@ class PortraitGenerator:
 
         # Use different seed for bangs variation
         bangs_seed = (self.config.seed + 1000) if self.config.seed else None
-        bangs_rng = random.Random(bangs_seed)
+        segments = self._get_hair_parting_segments(float(cx), float(bangs_width))
+        if len(segments) == 1:
+            bangs_rng = random.Random(bangs_seed)
+            bangs = generate_bangs_clusters(
+                center_x=float(cx),
+                forehead_y=float(forehead_y),
+                width=float(bangs_width),
+                length=float(bangs_length),
+                count=bangs_count,
+                style=hair_style,
+                rng=bangs_rng
+            )
+        else:
+            bangs = []
+            total_width = sum(segment_width for _, segment_width in segments)
+            for index, (segment_center, segment_width) in enumerate(segments):
+                ratio = segment_width / total_width if total_width > 0 else 0.5
+                segment_count = max(2, int(round(bangs_count * ratio)))
+                segment_seed = None
+                if bangs_seed is not None:
+                    segment_seed = bangs_seed + index * 113
+                segment_rng = random.Random(segment_seed)
 
-        bangs = generate_bangs_clusters(
-            center_x=float(cx),
-            forehead_y=float(forehead_y),
-            width=float(bangs_width),
-            length=float(bangs_length),
-            count=bangs_count,
-            style=hair_style,
-            rng=bangs_rng
-        )
+                bangs.extend(generate_bangs_clusters(
+                    center_x=float(segment_center),
+                    forehead_y=float(forehead_y),
+                    width=float(segment_width),
+                    length=float(bangs_length),
+                    count=segment_count,
+                    style=hair_style,
+                    rng=segment_rng
+                ))
 
         # Render bangs
         render_hair_clusters(
@@ -2315,7 +2692,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Eye positions (matching _render_eyes)
-        eye_y = cy - fh // 8
+        eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
         eye_width = fw // 6
 
@@ -2653,6 +3030,8 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_cheekbones(canvas)  # Cheekbone shading
+        self._render_ears(canvas)
         self._render_blush(canvas)
         self._render_dimples(canvas)
         self._render_wrinkles(canvas)  # Age lines on face
@@ -2670,6 +3049,7 @@ class PortraitGenerator:
         self._render_scar(canvas)
         self._render_piercings(canvas)
         self._render_earrings(canvas)  # Earrings on side of face
+        self._render_face_tattoo(canvas)
         self._render_glasses(canvas)  # Glasses over eyes
         self._render_bangs(canvas)  # Front hair over forehead
         self._render_hair_accessory(canvas)  # Hair accessories on top
