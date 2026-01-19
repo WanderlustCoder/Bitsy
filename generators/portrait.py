@@ -156,6 +156,7 @@ class PortraitConfig:
     lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
+    philtrum_width: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide philtrum
     lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
     lip_pout: float = 0.0  # 0.0 = flat, 0.5 = subtle pout, 1.0 = full pout (enhanced curves)
     vermillion_border: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
@@ -1278,6 +1279,16 @@ class PortraitGenerator:
         self.config.philtrum_depth = max(0.0, min(1.0, depth))
         return self
 
+    def set_philtrum_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set philtrum width (groove between nose and upper lip).
+
+        Args:
+            width: Philtrum width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = wide)
+        """
+        self.config.philtrum_width = max(0.7, min(1.3, width))
+        return self
+
     def set_lip_texture(self, intensity: float = 0.5) -> 'PortraitGenerator':
         """
         Set lip texture visibility (horizontal lines on lips).
@@ -2314,7 +2325,10 @@ class PortraitGenerator:
         elif ear_type == "pointed":
             ear_h = int(ear_h * 1.1)
 
-        ear_center_y = cy - fh // 10
+        ear_height_offset = getattr(self.config, 'ear_height_offset', 0.0)
+        ear_height_offset = max(-0.5, min(0.5, ear_height_offset))
+        ear_offset_range = max(2, int(fh * 0.18))
+        ear_center_y = cy - fh // 10 - int(ear_height_offset * ear_offset_range)
 
         lx, ly = self.config.light_direction
         light_len = (lx * lx + ly * ly) ** 0.5
@@ -3543,6 +3557,67 @@ class PortraitGenerator:
                         if alpha > 0:
                             px, py = bone_cx + dx, shadow_y + dy
                             canvas.set_pixel(px, py, (*dark_skin[:3], alpha))
+
+    def _render_cheekbone_definition(self, canvas: Canvas) -> None:
+        """Render cheekbone definition with subtle highlight and shadow."""
+        definition = max(0.0, min(1.0, getattr(self.config, 'cheekbone_definition', 0.0)))
+        if definition <= 0.0 or not self._skin_ramp:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        cheek_y = eye_y + fh // 6
+        cheek_offset = eye_spacing + fw // 12
+
+        light_skin = self._skin_ramp[-1]
+        shadow_idx = 1 if len(self._skin_ramp) > 1 else 0
+        shadow_skin = self._skin_ramp[shadow_idx]
+
+        base_rx = max(3, fw // 9)
+        base_ry = max(2, fh // 18)
+        rx = max(2, int(base_rx * (0.8 + definition * 0.6)))
+        ry = max(2, int(base_ry * (0.8 + definition * 0.6)))
+
+        highlight_alpha = int(12 + 45 * definition)
+        shadow_alpha = int(18 + 55 * definition)
+
+        for side in (-1, 1):
+            bone_cx = cx + side * cheek_offset
+
+            # Highlight on upper cheekbone ridge
+            highlight_y = cheek_y - max(1, ry // 2)
+            for dy in range(-ry, ry + 1):
+                for dx in range(-rx, rx + 1):
+                    nx = dx / rx if rx > 0 else 0
+                    ny = dy / ry if ry > 0 else 0
+                    angle_offset = side * nx * 0.2
+                    dist = nx * nx + (ny + angle_offset) * (ny + angle_offset)
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.4
+                        alpha = int(highlight_alpha * falloff)
+                        if alpha > 0:
+                            px, py = bone_cx + dx, highlight_y + dy
+                            canvas.set_pixel(px, py, (*light_skin[:3], alpha))
+
+            # Shadow just under cheekbone ridge
+            shadow_y = cheek_y + max(1, ry // 2)
+            shadow_ry = max(1, ry // 2)
+            for dy in range(-shadow_ry, shadow_ry + 1):
+                for dx in range(-rx, rx + 1):
+                    nx = dx / rx if rx > 0 else 0
+                    ny = dy / shadow_ry if shadow_ry > 0 else 0
+                    angle_offset = side * nx * 0.25
+                    dist = nx * nx + (ny + angle_offset) * (ny + angle_offset)
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.3
+                        alpha = int(shadow_alpha * falloff)
+                        if alpha > 0:
+                            px, py = bone_cx + dx, shadow_y + dy
+                            canvas.set_pixel(px, py, (*shadow_skin[:3], alpha))
 
     def _render_cheek_hollows(self, canvas: Canvas) -> None:
         """Render sunken cheek hollows for angular/gaunt appearance."""
@@ -5491,10 +5566,17 @@ class PortraitGenerator:
             highlight_alpha = int(20 + 40 * philtrum_depth)
 
             # Draw philtrum groove (two shadow lines with highlight between)
+            width_mult = getattr(self.config, 'philtrum_width', 1.0)
+            groove_offset = max(1, int(1 * width_mult))
             for py in range(philtrum_top, philtrum_bottom):
                 # Shadow on sides (creating groove effect)
-                canvas.set_pixel(cx - 1, py, (*shadow_color[:3], shadow_alpha))
-                canvas.set_pixel(cx + 1, py, (*shadow_color[:3], shadow_alpha))
+                canvas.set_pixel(cx - groove_offset, py, (*shadow_color[:3], shadow_alpha))
+                canvas.set_pixel(cx + groove_offset, py, (*shadow_color[:3], shadow_alpha))
+                # Wide philtrum gets additional shadow lines
+                if width_mult >= 1.2:
+                    outer_alpha = int(shadow_alpha * 0.5)
+                    canvas.set_pixel(cx - groove_offset - 1, py, (*shadow_color[:3], outer_alpha))
+                    canvas.set_pixel(cx + groove_offset + 1, py, (*shadow_color[:3], outer_alpha))
                 # Optional: center highlight ridge
                 if philtrum_depth > 0.5:
                     canvas.set_pixel(cx, py, (*highlight_color, highlight_alpha))
@@ -6409,7 +6491,10 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Ear position - on the sides of the face, slightly below eye level
-        ear_y = cy + fh // 12  # Slightly below center
+        ear_height_offset = getattr(self.config, 'ear_height_offset', 0.0)
+        ear_height_offset = max(-0.5, min(0.5, ear_height_offset))
+        ear_offset_range = max(2, int(fh * 0.18))
+        ear_y = cy + fh // 12 - int(ear_height_offset * ear_offset_range)
         ear_offset = fw // 2 + 2  # Just outside face edge
 
         # Map style string to enum
@@ -6800,6 +6885,7 @@ class PortraitGenerator:
         self._render_double_chin(canvas)  # Double chin fold
         self._render_neck_crease(canvas)  # Neck fold lines
         self._render_cheekbones(canvas)  # Cheekbone shading
+        self._render_cheekbone_definition(canvas)  # Cheekbone definition
         self._render_cheek_hollows(canvas)  # Sunken cheeks for angular look
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
         self._render_face_powder(canvas)  # Matte powder overlay to reduce shine
