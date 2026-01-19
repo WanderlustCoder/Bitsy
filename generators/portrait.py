@@ -8145,6 +8145,7 @@ class PortraitGenerator:
         self._render_jowls(canvas)  # Jaw corner sagging
         self._render_jawline(canvas)  # Sharp jawline definition
         self._render_highlight(canvas)  # Highlight on high points
+        self._render_cheek_highlight(canvas)  # Cheekbone highlight
         self._render_skin_glow(canvas)  # Skin glow/radiance
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
