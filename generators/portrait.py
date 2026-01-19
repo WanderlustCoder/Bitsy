@@ -129,6 +129,12 @@ class PortraitConfig:
     eyeliner_style: str = "thin"  # thin, thick, winged, smoky
     eyeliner_color: str = "black"  # black, brown, blue, purple
 
+    # Eye Shadow
+    has_eyeshadow: bool = False
+    eyeshadow_color: str = "pink"  # pink, purple, gold, smoky, blue, green, brown
+    eyeshadow_intensity: float = 0.6  # 0.0 to 1.0
+    eyeshadow_style: str = "natural"  # natural, dramatic, gradient
+
     # Eyebrows
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
     eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
@@ -263,6 +269,18 @@ EYELINER_COLORS = {
     "brown": (70, 50, 40),
     "blue": (40, 60, 120),
     "purple": (85, 55, 125),
+}
+
+EYESHADOW_COLORS = {
+    "pink": (210, 140, 160),
+    "purple": (140, 90, 160),
+    "gold": (200, 170, 100),
+    "smoky": (80, 75, 80),
+    "blue": (100, 130, 180),
+    "green": (90, 150, 120),
+    "brown": (140, 100, 80),
+    "copper": (180, 120, 90),
+    "silver": (180, 180, 195),
 }
 
 LIPSTICK_COLORS = {
@@ -645,6 +663,23 @@ class PortraitGenerator:
         self.config.has_eyeliner = True
         self.config.eyeliner_style = style
         self.config.eyeliner_color = color
+        return self
+
+    def set_eyeshadow(self, color: str = "pink",
+                      intensity: float = 0.6,
+                      style: str = "natural") -> 'PortraitGenerator':
+        """
+        Add eye shadow makeup.
+
+        Args:
+            color: Shadow color - pink, purple, gold, smoky, blue, green, brown
+            intensity: Opacity/intensity from 0.0 to 1.0
+            style: Application style - natural, dramatic, gradient
+        """
+        self.config.has_eyeshadow = True
+        self.config.eyeshadow_color = color
+        self.config.eyeshadow_intensity = max(0.0, min(1.0, intensity))
+        self.config.eyeshadow_style = style
         return self
 
     def set_nose(self, nose_type: NoseType, size: float = 1.0) -> 'PortraitGenerator':
@@ -2339,6 +2374,70 @@ class PortraitGenerator:
                     for t in range(thickness):
                         canvas.set_pixel(px, py + t, (*base_color, alpha))
 
+    def _render_eyeshadow(self, canvas: Canvas) -> None:
+        """Render eye shadow on the eyelid area above the eye."""
+        if not self.config.has_eyeshadow:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+
+        # Get shadow color
+        shadow_color = EYESHADOW_COLORS.get(
+            self.config.eyeshadow_color.lower(),
+            EYESHADOW_COLORS["pink"]
+        )
+        intensity = self.config.eyeshadow_intensity
+        style = (self.config.eyeshadow_style or "natural").lower()
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+
+            # Apply eye tilt offset (must match _render_eyes)
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            # Shadow extends above the eye
+            shadow_height = eye_height if style == "dramatic" else int(eye_height * 0.7)
+            shadow_top = ey - eye_height - shadow_height
+
+            # Draw shadow on eyelid
+            for dy in range(shadow_height):
+                # Fade from top (lighter) to bottom (darker)
+                if style == "gradient":
+                    # Gradient from lighter at bottom to darker at top
+                    fade = 1.0 - (dy / shadow_height) * 0.4
+                else:
+                    # Standard: darker at crease (top), lighter at lid edge
+                    fade = 0.6 + (dy / shadow_height) * 0.4
+
+                base_alpha = int(intensity * 180 * fade)
+
+                for dx in range(-eye_width, eye_width + 1):
+                    # Ellipse mask for shadow area
+                    nx = dx / eye_width if eye_width else 0
+                    ny = dy / shadow_height if shadow_height > 0 else 0
+                    dist = nx * nx + ny * ny * 0.5  # Wider than tall
+
+                    if dist > 1.2:
+                        continue
+
+                    # Fade at edges
+                    edge_fade = max(0.0, 1.0 - dist)
+                    alpha = int(base_alpha * edge_fade)
+
+                    if alpha > 0:
+                        py = shadow_top + dy
+                        px = ex + dx
+                        canvas.set_pixel(px, py, (*shadow_color, alpha))
+
     def _render_nose(self, canvas: Canvas) -> None:
         """Render nose with subtle shading based on nose type."""
         cx, cy = self._get_face_center()
@@ -3387,6 +3486,7 @@ class PortraitGenerator:
         self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
+        self._render_eyeshadow(canvas)  # Eye shadow on eyelid before eye
         self._render_eyes(canvas)
         self._render_eyelashes(canvas)
         self._render_eyeliner(canvas)
