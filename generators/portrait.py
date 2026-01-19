@@ -148,6 +148,9 @@ class PortraitConfig:
     lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
     lip_pout: float = 0.0  # 0.0 = flat, 0.5 = subtle pout, 1.0 = full pout (enhanced curves)
     vermillion_border: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
+    has_lip_liner: bool = False  # Whether to apply lip liner
+    lip_liner_color: str = "matching"  # matching (darker lip), red, nude, berry, plum
+    lip_liner_thickness: float = 0.5  # 0.0 = thin, 0.5 = normal, 1.0 = thick
 
     # Teeth
     show_teeth: bool = False
@@ -1020,6 +1023,23 @@ class PortraitGenerator:
         self.config.has_lipstick = True
         self.config.lipstick_color = color
         self.config.lipstick_intensity = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_lip_liner(self, color: str = "matching",
+                      thickness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Add lip liner for defined lip edges.
+
+        Lip liner creates a defined border around the lips,
+        enhancing shape and creating a polished makeup look.
+
+        Args:
+            color: Liner color (matching, red, nude, berry, plum)
+            thickness: Liner thickness (0.0 = thin, 0.5 = normal, 1.0 = thick)
+        """
+        self.config.has_lip_liner = True
+        self.config.lip_liner_color = color
+        self.config.lip_liner_thickness = max(0.0, min(1.0, thickness))
         return self
 
     def set_lip_thickness(self, thickness: float = 1.0,
@@ -5028,6 +5048,9 @@ class PortraitGenerator:
         # Render lip corner shadows
         self._render_lip_corner_shadow(canvas, cx, lip_y, lip_width, lip_height)
 
+        # Render lip liner if enabled
+        self._render_lip_liner(canvas, cx, lip_y, lip_width, lip_height)
+
     def _render_lip_corner_shadow(self, canvas: Canvas, cx: int, lip_y: int,
                                    lip_width: int, lip_height: int) -> None:
         """Render shadows at the corners of the lips for definition."""
@@ -5071,6 +5094,90 @@ class PortraitGenerator:
                             px = corner_x + dx
                             py = corner_y + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
+    def _render_lip_liner(self, canvas: Canvas, cx: int, lip_y: int,
+                          lip_width: int, lip_height: int) -> None:
+        """Render lip liner for defined lip edges."""
+        if not getattr(self.config, 'has_lip_liner', False):
+            return
+
+        liner_color_name = getattr(self.config, 'lip_liner_color', 'matching')
+        thickness = getattr(self.config, 'lip_liner_thickness', 0.5)
+
+        # Lip liner colors
+        liner_colors = {
+            'red': (120, 30, 40),
+            'nude': (160, 110, 95),
+            'berry': (100, 40, 60),
+            'plum': (80, 30, 50),
+            'matching': None,  # Will derive from lip color
+        }
+
+        if liner_color_name == 'matching':
+            # Derive from lip color - get darker version
+            lip_base = LIP_COLORS.get(self.config.lip_color, (200, 140, 130))
+            liner_color = (
+                max(0, lip_base[0] - 60),
+                max(0, lip_base[1] - 40),
+                max(0, lip_base[2] - 30),
+            )
+        else:
+            liner_color = liner_colors.get(liner_color_name, (120, 30, 40))
+
+        # Thickness determines alpha and spread
+        base_alpha = int(80 + 80 * thickness)  # 80-160
+        spread = int(1 + thickness)  # 1-2 pixels
+
+        # Get lip shape parameters
+        shape = self.config.lip_shape
+        thickness_mult = getattr(self.config, 'lip_thickness', 1.0)
+        upper_scale = 0.4 if shape in (LipShape.THIN, LipShape.HEART) else 0.5
+        lower_scale = 0.6 if shape == LipShape.FULL else 0.5
+
+        # Draw liner around lip edge
+        # Upper lip outline
+        upper_height = int(lip_height * upper_scale * thickness_mult)
+        cupid_bow = getattr(self.config, 'cupid_bow', 0.5)
+        cupid_depth = int(upper_height * 0.4 * cupid_bow)
+        cupid_width = max(1, lip_width // 3)
+
+        for dx in range(-lip_width, lip_width + 1):
+            edge_dist = abs(dx) / lip_width if lip_width > 0 else 0
+            alpha = int(base_alpha * (1.0 - edge_dist * 0.3))
+
+            # Upper lip edge with cupid's bow
+            if abs(dx) <= cupid_width and cupid_bow > 0:
+                dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
+                y_upper = lip_y - upper_height + dip
+            else:
+                y_upper = lip_y - upper_height
+
+            for s in range(spread):
+                if alpha > 10:
+                    canvas.set_pixel(cx + dx, y_upper - s, (*liner_color, alpha // (s + 1)))
+
+        # Lower lip outline
+        lower_height = int(lip_height * lower_scale * thickness_mult)
+        for dx in range(-lip_width, lip_width + 1):
+            edge_dist = abs(dx) / lip_width if lip_width > 0 else 0
+            # Curved lower lip
+            curve = int((1 - edge_dist ** 2) * lower_height * 0.5)
+            alpha = int(base_alpha * (1.0 - edge_dist * 0.3))
+
+            y_lower = lip_y + lower_height - curve
+
+            for s in range(spread):
+                if alpha > 10:
+                    canvas.set_pixel(cx + dx, y_lower + s, (*liner_color, alpha // (s + 1)))
+
+        # Side edges
+        for side in (-1, 1):
+            x_edge = cx + side * lip_width
+            for dy in range(-upper_height, lower_height + 1):
+                y_fade = 1.0 - abs(dy) / (upper_height + lower_height + 1)
+                alpha = int(base_alpha * y_fade * 0.7)
+                if alpha > 10:
+                    canvas.set_pixel(x_edge, lip_y + dy, (*liner_color, alpha))
 
     def _render_teeth(self, canvas: Canvas) -> None:
         """Render teeth visible through smile gap."""
@@ -5913,6 +6020,7 @@ class PortraitGenerator:
         self._render_moles(canvas)
         self._render_beauty_mark(canvas)
         self._render_nose(canvas)
+        self._render_under_nose_shadow(canvas)
         self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
