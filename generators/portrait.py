@@ -78,6 +78,7 @@ class PortraitConfig:
     skin_undertone: str = "neutral"  # warm, cool, neutral
     skin_shine: float = 0.3  # 0.0 = matte, 0.5 = natural, 1.0 = dewy/shiny
     skin_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle pores, 1.0 = visible pores
+    face_powder: float = 0.0  # 0.0 = none, 0.5 = subtle matte, 1.0 = full matte
 
     # Hair
     hair_style: HairStyle = HairStyle.WAVY
@@ -286,6 +287,7 @@ class PortraitConfig:
 
     # Lighting
     light_direction: Tuple[float, float] = (1.0, -1.0)  # (x, y) normalized
+    face_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = strong backlight glow
 
     # Quality
     shading_levels: int = 7  # Number of colors in shading ramps
@@ -608,6 +610,18 @@ class PortraitGenerator:
             texture: Pore visibility (0.0 = smooth, 0.5 = subtle, 1.0 = visible pores)
         """
         self.config.skin_texture = max(0.0, min(1.0, texture))
+        return self
+
+    def set_face_powder(self, amount: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set face powder/matte effect strength.
+
+        Reduces skin shine by overlaying a subtle matte layer on the T-zone and cheeks.
+
+        Args:
+            amount: Matte powder strength (0.0 = none, 0.5 = subtle, 1.0 = full matte)
+        """
+        self.config.face_powder = max(0.0, min(1.0, amount))
         return self
 
     def set_face_shape(self, shape: str = "oval") -> 'PortraitGenerator':
@@ -1668,6 +1682,19 @@ class PortraitGenerator:
         mag = math.sqrt(direction[0]**2 + direction[1]**2)
         if mag > 0:
             self.config.light_direction = (direction[0]/mag, direction[1]/mag)
+        return self
+
+    def set_face_rim_light(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set face rim light (backlight glow effect).
+
+        Creates a subtle glow along face edges, simulating
+        backlighting for a more dramatic/ethereal look.
+
+        Args:
+            intensity: Glow strength (0.0 = none, 0.5 = subtle, 1.0 = strong)
+        """
+        self.config.face_rim_light = max(0.0, min(1.0, intensity))
         return self
 
     def set_background(self, color: Optional[Tuple] = None,
@@ -3360,6 +3387,113 @@ class PortraitGenerator:
                         alpha = int(base_alpha * falloff * shine * 0.7)
                         if alpha > 0:
                             canvas.set_pixel(cheek_cx + dx, cheek_y + dy, (255, 255, 255, alpha))
+
+    def _render_face_powder(self, canvas: Canvas) -> None:
+        """Render matte powder layer to soften skin highlights."""
+        powder = getattr(self.config, 'face_powder', 0.0)
+        if powder <= 0.0 or not self._skin_ramp:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        mid_idx = len(self._skin_ramp) // 2
+        matte_color = self._skin_ramp[max(0, mid_idx - 1)]
+        base_alpha = int(10 + 35 * powder)  # 10-45 alpha range
+
+        # Forehead matte pass (T-zone)
+        forehead_y = cy - fh // 3
+        forehead_rx = max(2, fw // 8)
+        forehead_ry = max(1, fh // 14)
+        for dy in range(-forehead_ry, forehead_ry + 1):
+            for dx in range(-forehead_rx, forehead_rx + 1):
+                nx = dx / forehead_rx if forehead_rx > 0 else 0
+                ny = dy / forehead_ry if forehead_ry > 0 else 0
+                dist = nx * nx + ny * ny
+                if dist <= 1.0:
+                    falloff = (1.0 - dist) ** 1.6
+                    alpha = int(base_alpha * falloff)
+                    if alpha > 0:
+                        canvas.set_pixel(cx + dx, forehead_y + dy,
+                                         (matte_color[0], matte_color[1], matte_color[2], alpha))
+
+        # Nose bridge matte pass
+        nose_y = cy - fh // 20
+        nose_rx = max(1, fw // 20)
+        nose_ry = max(1, fh // 10)
+        for dy in range(-nose_ry, nose_ry + 1):
+            for dx in range(-nose_rx, nose_rx + 1):
+                nx = dx / nose_rx if nose_rx > 0 else 0
+                ny = dy / nose_ry if nose_ry > 0 else 0
+                dist = nx * nx + ny * ny
+                if dist <= 1.0:
+                    falloff = (1.0 - dist) ** 1.6
+                    alpha = int(base_alpha * falloff)
+                    if alpha > 0:
+                        canvas.set_pixel(cx + dx, nose_y + dy,
+                                         (matte_color[0], matte_color[1], matte_color[2], alpha))
+
+        # Cheek matte pass
+        cheek_y = cy + fh // 12
+        cheek_spacing = fw // 4
+        cheek_rx = max(2, fw // 10)
+        cheek_ry = max(1, fh // 16)
+        for side in (-1, 1):
+            cheek_cx = cx + side * cheek_spacing
+            for dy in range(-cheek_ry, cheek_ry + 1):
+                for dx in range(-cheek_rx, cheek_rx + 1):
+                    nx = dx / cheek_rx if cheek_rx > 0 else 0
+                    ny = dy / cheek_ry if cheek_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 1.6
+                        alpha = int(base_alpha * falloff * 0.8)
+                        if alpha > 0:
+                            canvas.set_pixel(cheek_cx + dx, cheek_y + dy,
+                                             (matte_color[0], matte_color[1], matte_color[2], alpha))
+
+    def _render_face_rim_light(self, canvas: Canvas) -> None:
+        """Render rim light (backlight glow) along face edges."""
+        intensity = getattr(self.config, 'face_rim_light', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        # Rim light color (warm white)
+        rim_color = (255, 250, 240)
+        base_alpha = int(25 + 60 * intensity)  # 25-85 alpha range
+
+        # Light direction determines which side gets rim light
+        light_dir = getattr(self.config, 'light_direction', (1.0, -1.0))
+
+        # Render glow on opposite side of light
+        for angle_deg in range(360):
+            angle = math.radians(angle_deg)
+            # Edge position on face ellipse
+            edge_x = int(cx + rx * math.cos(angle))
+            edge_y = int(cy + ry * math.sin(angle) * 0.9)
+
+            # Check if this edge faces away from light (rim light position)
+            nx, ny = math.cos(angle), math.sin(angle)
+            dot = nx * light_dir[0] + ny * light_dir[1]
+
+            # Stronger rim light on edges facing away from light source
+            if dot < 0.2:
+                rim_strength = (0.2 - dot) / 1.2  # 0 to 1
+                alpha = int(base_alpha * rim_strength)
+
+                # Draw glow pixels extending inward
+                glow_depth = int(2 + intensity * 2)
+                for d in range(glow_depth):
+                    depth_fade = 1.0 - d / glow_depth
+                    px = int(edge_x - nx * d)
+                    py = int(edge_y - ny * d * 0.9)
+                    pixel_alpha = int(alpha * depth_fade)
+                    if pixel_alpha > 5:
+                        canvas.set_pixel(px, py, (*rim_color, pixel_alpha))
 
     def _render_skin_texture(self, canvas: Canvas) -> None:
         """Render subtle skin texture/pores on the face."""
@@ -6259,6 +6393,8 @@ class PortraitGenerator:
         self._render_cheekbones(canvas)  # Cheekbone shading
         self._render_cheek_hollows(canvas)  # Sunken cheeks for angular look
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
+        self._render_face_powder(canvas)  # Matte powder overlay to reduce shine
+        self._render_face_rim_light(canvas)  # Backlight glow on face edges
         self._render_skin_texture(canvas)  # Subtle skin pores/texture
         self._render_ears(canvas)
         self._render_blush(canvas)
