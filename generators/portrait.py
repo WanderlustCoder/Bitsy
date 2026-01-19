@@ -117,9 +117,9 @@ class PortraitConfig:
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
     earlobe_attached: bool = False  # False = detached/free-hanging lobe, True = attached to jaw
     ear_cartilage: float = 0.0  # 0.0 = none, 0.5 = subtle inner structure, 1.0 = defined
-    ear_size: float = 1.0  # 0.7-1.3, multiplier for ear size
     ear_angle: float = 0.0  # 0.0 = flat against head, 0.5 = slight stick out, 1.0 = prominent ears
     ear_height_offset: float = 0.0  # -0.3 = low ears, 0.0 = normal, 0.3 = high ears
+    ear_size: float = 1.0  # 0.7 = small ears, 1.0 = normal, 1.3 = large ears
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
