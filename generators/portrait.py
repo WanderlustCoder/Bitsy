@@ -120,6 +120,7 @@ class PortraitConfig:
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
+    cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
 
     # Teeth
     show_teeth: bool = False
@@ -807,6 +808,16 @@ class PortraitGenerator:
             gloss: Gloss level (0.0 = matte, 0.5 = subtle, 1.0 = glossy)
         """
         self.config.lip_gloss = max(0.0, min(1.0, gloss))
+        return self
+
+    def set_cupid_bow(self, definition: float = 0.7) -> 'PortraitGenerator':
+        """
+        Set cupid's bow (upper lip shape) definition.
+
+        Args:
+            definition: How pronounced the cupid's bow is (0.0 = flat, 0.5 = normal, 1.0 = pronounced)
+        """
+        self.config.cupid_bow = max(0.0, min(1.0, definition))
         return self
 
     def set_teeth(self, whiteness: float = 0.9) -> 'PortraitGenerator':
@@ -2979,11 +2990,23 @@ class PortraitGenerator:
         if shape == LipShape.NEUTRAL:
             # Keep the default rendering for neutral lips.
             upper_lip_color = lip_ramp[1]
+
+            # Cupid's bow effect for upper lip
+            cupid_bow_val = getattr(self.config, 'cupid_bow', 0.5)
+            cupid_bow_width = max(1, lip_width // 3)
+            cupid_bow_depth = int(lip_height * 0.4 * cupid_bow_val)
+
             for dx in range(-lip_width, lip_width + 1):
                 # Corner offset: positive corner_val lifts corners up (negative y)
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                 corner_offset = int(-corner_val * max_corner_shift * edge_factor)
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
+
+                # Apply cupid's bow dip in center of upper lip
+                if abs(dx) <= cupid_bow_width and cupid_bow_val > 0:
+                    dip = int((1 - (abs(dx) / cupid_bow_width)) * cupid_bow_depth)
+                    curve = max(0, curve - dip)
+
                 for dy in range(curve):
                     canvas.set_pixel(cx + dx, lip_y - dy + corner_offset, upper_lip_color)
 
