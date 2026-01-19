@@ -226,6 +226,7 @@ class PortraitConfig:
     eyebrow_thickness: int = 2  # 1-4 pixels thick
     eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
+    eyebrow_inner_extend: float = 0.0  # -0.3 = shorter inner edge, 0.0 = normal, 0.3 = extends toward nose
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
     eyebrow_taper: float = 0.5  # 0.0 = uniform width, 0.5 = natural taper, 1.0 = dramatic taper to point
@@ -1872,6 +1873,16 @@ class PortraitGenerator:
             length: Length multiplier (0.7 = short, 1.0 = normal, 1.3 = extended)
         """
         self.config.eyebrow_tail_length = max(0.7, min(1.3, length))
+        return self
+
+    def set_eyebrow_inner_extend(self, extend: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set how far the inner edge of the eyebrow extends toward the nose.
+
+        Args:
+            extend: Extension amount (-0.3 = shorter, 0.0 = normal, 0.3 = toward nose)
+        """
+        self.config.eyebrow_inner_extend = max(-0.3, min(0.3, extend))
         return self
 
     def set_brow_thickness(self, thickness: float = 1.0) -> 'PortraitGenerator':
@@ -7696,10 +7707,17 @@ class PortraitGenerator:
             # Angle is mirrored for left/right eyebrows
             effective_angle = angle * side
 
-            # Get eyebrow taper for this brow
+            # Get eyebrow taper and inner extension
             taper = getattr(self.config, 'eyebrow_taper', 0.5)
+            inner_extend = getattr(self.config, 'eyebrow_inner_extend', 0.0)
+            inner_extra = int(inner_extend * half_width)  # Extra pixels toward nose
 
-            for dx in range(-half_width, half_width + 1):
+            # Adjust loop range based on inner extension
+            # Inner edge is at -side * half_width (toward center of face)
+            inner_start = -half_width - (inner_extra * side)
+            outer_end = half_width + 1
+
+            for dx in range(inner_start, outer_end):
                 # Normalized position (-1 to 1)
                 t = dx / half_width if half_width > 0 else 0
 
