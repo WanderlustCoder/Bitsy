@@ -103,6 +103,7 @@ class PortraitConfig:
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
     inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
+    tear_duct: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible pink caruncle
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -698,6 +699,16 @@ class PortraitGenerator:
             intensity: Brightness from 0.0 (none) to 1.0 (bright)
         """
         self.config.inner_corner_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_tear_duct(self, visibility: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set tear duct (caruncle) visibility in inner eye corner.
+
+        Args:
+            visibility: How visible the pink tear duct is (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.tear_duct = max(0.0, min(1.0, visibility))
         return self
 
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
@@ -2615,6 +2626,31 @@ class PortraitGenerator:
                             px = inner_x + dx
                             py = inner_y + dy
                             canvas.set_pixel(px, py, (*highlight_color, alpha))
+
+            # Layer 7: Tear duct (caruncle) - pink tissue in inner eye corner
+            tear_duct_vis = getattr(self.config, 'tear_duct', 0.0)
+            if tear_duct_vis > 0.0:
+                # Caruncle is at inner corner, slightly toward nose
+                caruncle_x = ex - side * eye_width
+                caruncle_y = ey
+
+                # Pinkish color blended with skin tone
+                base_skin = self._skin_ramp[len(self._skin_ramp) // 2] if self._skin_ramp else (200, 160, 140)
+                pink = (210, 150, 150)  # Soft pinkish-red
+                caruncle_color = (
+                    int(base_skin[0] * 0.4 + pink[0] * 0.6),
+                    int(base_skin[1] * 0.4 + pink[1] * 0.6),
+                    int(base_skin[2] * 0.4 + pink[2] * 0.6),
+                )
+                caruncle_alpha = int(80 + 120 * tear_duct_vis)
+
+                # Small oval shape for caruncle
+                canvas.set_pixel(caruncle_x, caruncle_y, (*caruncle_color, caruncle_alpha))
+                if tear_duct_vis > 0.3:
+                    canvas.set_pixel(caruncle_x, caruncle_y - 1, (*caruncle_color, int(caruncle_alpha * 0.6)))
+                    canvas.set_pixel(caruncle_x, caruncle_y + 1, (*caruncle_color, int(caruncle_alpha * 0.6)))
+                if tear_duct_vis > 0.6:
+                    canvas.set_pixel(caruncle_x - side, caruncle_y, (*caruncle_color, int(caruncle_alpha * 0.4)))
 
     def _render_eyelashes(self, canvas: Canvas) -> None:
         """Render eyelashes along the upper eyelid."""
