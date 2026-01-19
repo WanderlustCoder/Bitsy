@@ -325,6 +325,7 @@ class PortraitConfig:
     cheekbone_definition: float = 0.0  # 0.0 = soft, 0.5 = defined, 1.0 = sharp/angular
     cheek_hollows: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = gaunt/sunken cheeks
     cheek_fullness: float = 0.0  # 0.0 = normal, 0.5 = slightly full, 1.0 = chubby/baby face cheeks
+    cheek_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright cheekbone highlight
 
     # Clothing
     clothing_style: str = "casual"
@@ -856,6 +857,18 @@ class PortraitGenerator:
             projection: Projection level (0.7 = recessed, 1.0 = normal, 1.3 = prominent)
         """
         self.config.chin_projection = max(0.7, min(1.3, projection))
+        return self
+
+    def set_chin_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set chin width.
+
+        Controls how wide or narrow/pointed the chin appears.
+
+        Args:
+            width: Width multiplier (0.7 = narrow/pointed, 1.0 = normal, 1.3 = wide/square)
+        """
+        self.config.chin_width = max(0.7, min(1.3, width))
         return self
 
     def set_smile_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -2212,6 +2225,11 @@ class PortraitGenerator:
             fullness: Fullness level (0.0 = normal, 0.5 = slightly full, 1.0 = chubby)
         """
         self.config.cheek_fullness = max(0.0, min(1.0, fullness))
+        return self
+
+    def set_cheek_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """Set cheekbone highlight intensity."""
+        self.config.cheek_highlight = max(0.0, min(1.0, intensity))
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -3698,7 +3716,8 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         chin_y = cy + fh // 2 - 3
-        chin_width = max(4, fw // 4)
+        chin_width_mult = getattr(self.config, 'chin_width', 1.0)
+        chin_width = max(4, int(fw // 4 * chin_width_mult))
         chin_height = max(3, fh // 8)
 
         mid_idx = len(self._skin_ramp) // 2
@@ -3903,6 +3922,39 @@ class PortraitGenerator:
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, lip_y, (*highlight_color, alpha))
 
+
+    def _render_cheek_highlight(self, canvas: Canvas) -> None:
+        """Render bright cheekbone highlights."""
+        intensity = max(0.0, min(1.0, getattr(self.config, 'cheek_highlight', 0.0)))
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+
+        highlight_color = (255, 252, 248)
+        max_alpha = int(40 + 90 * intensity)
+        cheek_y = eye_y + fh // 14
+        cheek_rx = max(2, int(fw // 9 * (0.7 + 0.5 * intensity)))
+        cheek_ry = max(1, int(fh // 18 * (0.7 + 0.6 * intensity)))
+
+        for side in (-1, 1):
+            highlight_cx = cx + side * (eye_spacing + fw // 14)
+
+            for dy in range(-cheek_ry, cheek_ry + 1):
+                for dx in range(-cheek_rx, cheek_rx + 1):
+                    nx = dx / cheek_rx if cheek_rx > 0 else 0
+                    ny = dy / cheek_ry if cheek_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        falloff = (1.0 - dist) ** 2
+                        alpha = int(max_alpha * falloff)
+                        if alpha > 0:
+                            px = highlight_cx + dx
+                            py = cheek_y + dy
+                            canvas.set_pixel(px, py, (*highlight_color, alpha))
 
     def _render_skin_glow(self, canvas: Canvas) -> None:
         """Render subtle skin glow/radiance on face high points."""
