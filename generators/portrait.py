@@ -112,6 +112,7 @@ class PortraitConfig:
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
     ear_cartilage: float = 0.0  # 0.0 = none, 0.5 = subtle inner structure, 1.0 = defined
     ear_size: float = 1.0  # 0.7-1.3, multiplier for ear size
+    ear_angle: float = 0.0  # 0.0 = flat against head, 0.5 = slight stick out, 1.0 = prominent ears
     ear_height_offset: float = 0.0  # -0.3 = low ears, 0.0 = normal, 0.3 = high ears
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
@@ -147,6 +148,7 @@ class PortraitConfig:
     nose_tip_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = shiny
     nose_tip_shape: str = "rounded"  # rounded, pointed, bulbous, upturned
     nose_bridge_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined bridge highlight
+    nasal_bridge_definition: float = 0.5  # 0.0 = flat/wide bridge, 0.5 = normal, 1.0 = sharp/narrow
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
     nostril_flare: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide/flared nostrils
     under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
@@ -166,6 +168,7 @@ class PortraitConfig:
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
     philtrum_width: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide philtrum
+    philtrum_length: float = 1.0  # 0.7 = short (nose closer to lips), 1.0 = normal, 1.3 = long
     lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
     lip_pout: float = 0.0  # 0.0 = flat, 0.5 = subtle pout, 1.0 = full pout (enhanced curves)
     lower_lip_protrusion: float = 0.0  # 0.0 = normal, 0.5 = subtle protrusion, 1.0 = pouty
@@ -867,6 +870,16 @@ class PortraitGenerator:
         self.config.ear_height_offset = max(-0.5, min(0.5, offset))
         return self
 
+    def set_ear_angle(self, angle: float = 0.3) -> 'PortraitGenerator':
+        """
+        Set ear angle (how much ears stick out).
+
+        Args:
+            angle: Angle level (0.0 = flat, 0.5 = slight, 1.0 = prominent)
+        """
+        self.config.ear_angle = max(0.0, min(1.0, angle))
+        return self
+
     def set_ear_lobe_detail(self, detail: float = 0.5) -> 'PortraitGenerator':
         """
         Set ear lobe detail and shading level.
@@ -1210,6 +1223,18 @@ class PortraitGenerator:
         self.config.nose_bridge_highlight = max(0.0, min(1.0, intensity))
         return self
 
+    def set_nasal_bridge(self, definition: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set nasal bridge definition.
+
+        Controls how defined the bridge of the nose appears.
+
+        Args:
+            definition: Definition level (0.0 = flat/wide, 0.5 = normal, 1.0 = sharp/narrow)
+        """
+        self.config.nasal_bridge_definition = max(0.0, min(1.0, definition))
+        return self
+
     def set_nostril_flare(self, flare: float = 1.0) -> 'PortraitGenerator':
         """
         Set nostril flare/width.
@@ -1396,6 +1421,16 @@ class PortraitGenerator:
             width: Philtrum width multiplier (0.7 = narrow, 1.0 = normal, 1.3 = wide)
         """
         self.config.philtrum_width = max(0.7, min(1.3, width))
+        return self
+
+    def set_philtrum_length(self, length: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set philtrum length (distance between nose and upper lip).
+
+        Args:
+            length: Length multiplier (0.7 = short, 1.0 = normal, 1.3 = long)
+        """
+        self.config.philtrum_length = max(0.7, min(1.3, length))
         return self
 
     def set_lip_texture(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -2675,6 +2710,77 @@ class PortraitGenerator:
                 tragus_offset = -side * max(1, int(ear_w * 0.08))
                 tragus_curve = max(1, int(ear_w * 0.05))
                 draw_cartilage_curve(tragus_start, tragus_end, tragus_offset, tragus_curve, 0.8)
+
+    def _render_ear_angle(self, canvas: Canvas) -> None:
+        """Render ear angle effect (ears sticking out)."""
+        angle = getattr(self.config, 'ear_angle', 0.0)
+        if angle <= 0.05:
+            return
+
+        ear_type = (self.config.ear_type or "normal").lower()
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        base_w = max(3, fw // 8)
+        base_h = max(6, fh // 4)
+
+        scale = 1.0
+        if ear_type == "large":
+            scale = 1.25
+        elif ear_type == "small":
+            scale = 0.75
+
+        ear_size_mult = getattr(self.config, 'ear_size', 1.0)
+        scale *= ear_size_mult
+
+        ear_w = max(3, int(base_w * scale))
+        ear_h = max(5, int(base_h * scale))
+
+        if ear_type == "round":
+            ear_w = int(ear_w * 1.15)
+            ear_h = int(ear_h * 0.9)
+        elif ear_type == "pointed":
+            ear_h = int(ear_h * 1.1)
+
+        ear_height_offset = getattr(self.config, 'ear_height_offset', 0.0)
+        ear_height_offset = max(-0.5, min(0.5, ear_height_offset))
+        ear_offset_range = max(2, int(fh * 0.18))
+        ear_center_y = cy - fh // 10 - int(ear_height_offset * ear_offset_range)
+
+        ramp_len = len(self._skin_ramp)
+        mid_idx = ramp_len // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 3)]
+        highlight_color = self._skin_ramp[min(ramp_len - 1, mid_idx + 2)]
+
+        shadow_alpha = int(20 + 80 * angle)
+        highlight_alpha = int(15 + 60 * angle)
+        shadow_width = max(1, int(1 + angle * 2))
+
+        for side in (-1, 1):
+            ear_center_x = cx + side * (rx + ear_w // 3)
+            ear_top = ear_center_y - ear_h // 2
+            ear_bottom = ear_center_y + ear_h // 2
+
+            shadow_x = ear_center_x - side * (ear_w // 2 + 1)
+            for y in range(ear_top, ear_bottom + 1):
+                fade = 1.0 - abs(y - ear_center_y) / max(1, ear_h // 2)
+                alpha = int(shadow_alpha * fade)
+                if alpha <= 0:
+                    continue
+                for dx in range(shadow_width):
+                    x = shadow_x - side * dx
+                    face_dx = (x - cx) / rx if rx > 0 else 0
+                    face_dy = (y - cy) / ry if ry > 0 else 0
+                    if face_dx * face_dx + face_dy * face_dy <= 1.0:
+                        canvas.set_pixel(x, y, (*shadow_color[:3], alpha))
+
+            highlight_x = ear_center_x + side * (ear_w // 2)
+            for y in range(ear_top, ear_bottom + 1):
+                fade = 1.0 - abs(y - ear_center_y) / max(1, ear_h // 2)
+                alpha = int(highlight_alpha * fade)
+                if alpha > 0:
+                    canvas.set_pixel(highlight_x, y, (*highlight_color[:3], alpha))
 
     def _render_blush(self, canvas: Canvas) -> None:
         """Render subtle cheek blush with a feathered gradient."""
@@ -5975,6 +6081,62 @@ class PortraitGenerator:
                 if philtrum_depth > 0.5:
                     canvas.set_pixel(cx, py, (*highlight_color, highlight_alpha))
 
+    def _render_nasal_bridge(self, canvas: Canvas) -> None:
+        """Render nasal bridge definition."""
+        definition = getattr(self.config, 'nasal_bridge_definition', 0.5)
+        if abs(definition - 0.5) < 0.1:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        eye_y = self._get_eye_y(cy, fh)
+        nose_y = cy + fh // 16
+        bridge_top = eye_y - 2
+        bridge_bottom = nose_y + fh // 12
+        bridge_length = max(1, bridge_bottom - bridge_top)
+        bridge_mid = (bridge_top + bridge_bottom) // 2
+        cx = self._apply_head_tilt(cx, cy, bridge_mid)
+
+        bridge_width_mult = max(0.7, min(1.3, getattr(self.config, 'nose_bridge_width', 1.0)))
+        strength = min(1.0, abs(definition - 0.5) / 0.5)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        highlight_color = (255, 252, 248)
+
+        if definition > 0.5:
+            max_alpha = int(15 + 55 * strength)
+            side_alpha = int(10 + 35 * strength)
+            side_offset = max(1, int(round(bridge_width_mult)))
+            for dy in range(bridge_length):
+                t = dy / bridge_length
+                y_fade = math.sin(t * math.pi)
+                alpha = int(max_alpha * y_fade)
+                if alpha > 0:
+                    canvas.set_pixel(cx, bridge_top + dy, (*highlight_color, alpha))
+                if strength > 0.35:
+                    shade_alpha = int(side_alpha * y_fade)
+                    if shade_alpha > 0:
+                        canvas.set_pixel(cx - side_offset, bridge_top + dy,
+                                         (*shadow_color[:3], shade_alpha))
+                        canvas.set_pixel(cx + side_offset, bridge_top + dy,
+                                         (*shadow_color[:3], shade_alpha))
+        else:
+            side_alpha = int(12 + 45 * strength)
+            side_offset = max(1, int(round(1 + bridge_width_mult)))
+            spread = 1 if strength < 0.6 else 2
+            for dy in range(bridge_length):
+                t = dy / bridge_length
+                y_fade = 0.6 + 0.4 * math.sin(t * math.pi)
+                alpha = int(side_alpha * y_fade)
+                if alpha <= 0:
+                    continue
+                for dx in range(spread):
+                    offset = side_offset + dx
+                    canvas.set_pixel(cx - offset, bridge_top + dy, (*shadow_color[:3], alpha))
+                    canvas.set_pixel(cx + offset, bridge_top + dy, (*shadow_color[:3], alpha))
+
     def _render_under_nose_shadow(self, canvas: Canvas) -> None:
         """Render a subtle curved shadow directly under the nose base."""
         intensity = getattr(self.config, 'under_nose_shadow', 0.0)
@@ -6032,7 +6194,10 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        lip_y = cy + fh // 4
+        # Apply philtrum length offset
+        philtrum_len = getattr(self.config, 'philtrum_length', 1.0)
+        philtrum_offset = int((philtrum_len - 1.0) * fh // 10)
+        lip_y = cy + fh // 4 + philtrum_offset
         width_mult = getattr(self.config, 'lip_width', 1.0)
         lip_width = int(fw // 5 * width_mult)
         base_lip_height = fh // 20
@@ -7355,6 +7520,7 @@ class PortraitGenerator:
         self._render_temple_veins(canvas)  # Subtle temple veins near hairline
         self._render_skin_texture(canvas)  # Subtle skin pores/texture
         self._render_ears(canvas)
+        self._render_ear_angle(canvas)
         self._render_blush(canvas)
         self._render_contour(canvas)  # Facial contouring for definition
         self._render_temple_shadow(canvas)  # Temple shadow for depth
@@ -7380,6 +7546,7 @@ class PortraitGenerator:
         self._render_beauty_mark(canvas)
         self._render_nose(canvas)
         self._render_under_nose_shadow(canvas)
+        self._render_nasal_bridge(canvas)
         self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
         self._render_cupids_bow(canvas)
