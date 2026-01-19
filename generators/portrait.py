@@ -102,6 +102,7 @@ class PortraitConfig:
     catchlight_style: str = "double"  # none, single, double, sparkle
     limbal_ring: float = 0.3  # 0.0 = none, 0.5 = subtle, 1.0 = defined (dark ring around iris)
     iris_pattern: str = "solid"  # solid, ringed, starburst, speckled
+    inner_corner_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (inner eye corner)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
@@ -673,6 +674,16 @@ class PortraitGenerator:
             style: Catchlight style - none, single, double (default), or sparkle
         """
         self.config.catchlight_style = style
+        return self
+
+    def set_inner_corner_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Add highlight to inner eye corners for a brighter, more awake look.
+
+        Args:
+            intensity: Brightness from 0.0 (none) to 1.0 (bright)
+        """
+        self.config.inner_corner_highlight = max(0.0, min(1.0, intensity))
         return self
 
     def set_eyeliner(self, style: str = "thin",
@@ -2522,6 +2533,25 @@ class PortraitGenerator:
                 py = ey - eye_height + 1
                 if canvas.get_pixel(px, py) and canvas.get_pixel(px, py)[3] > 100:
                     canvas.set_pixel(px, py, eyelid_shadow)
+
+            # Layer 6: Inner corner highlight
+            inner_highlight = getattr(self.config, 'inner_corner_highlight', 0.0)
+            if inner_highlight > 0.0:
+                # Inner corner is toward the nose (opposite of side direction)
+                inner_x = ex - side * (eye_width - 1)
+                inner_y = ey
+                highlight_color = (255, 250, 245)  # Warm white
+                max_alpha = int(60 + 100 * inner_highlight)
+
+                # Small highlight spot at inner corner
+                for dy in range(-1, 2):
+                    for dx in range(-1, 2):
+                        dist = abs(dx) + abs(dy)
+                        if dist <= 1:
+                            alpha = max_alpha if dist == 0 else int(max_alpha * 0.5)
+                            px = inner_x + dx
+                            py = inner_y + dy
+                            canvas.set_pixel(px, py, (*highlight_color, alpha))
 
     def _render_eyelashes(self, canvas: Canvas) -> None:
         """Render eyelashes along the upper eyelid."""
