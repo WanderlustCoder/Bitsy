@@ -227,6 +227,7 @@ class PortraitConfig:
     eyeshadow_color: str = "pink"  # pink, purple, gold, smoky, blue, green, brown
     eyeshadow_intensity: float = 0.6  # 0.0 to 1.0
     eyeshadow_style: str = "natural"  # natural, dramatic, gradient
+    eyeshadow_spread: float = 0.5  # 0.0 = tight to lash line, 0.5 = normal, 1.0 = extended to brow bone
 
     # Eyebrows
     eyebrow_arch: float = 0.3  # 0.0 to 1.0, controls arch height
@@ -1423,6 +1424,19 @@ class PortraitGenerator:
         self.config.eyeshadow_color = color
         self.config.eyeshadow_intensity = max(0.0, min(1.0, intensity))
         self.config.eyeshadow_style = style
+        return self
+
+    def set_eyeshadow_spread(self, spread: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set how far eyeshadow extends above the lash line.
+
+        Controls the vertical spread of eyeshadow from tight to the
+        lash line to extended up toward the brow bone.
+
+        Args:
+            spread: Spread amount (0.0 = tight, 0.5 = normal, 1.0 = to brow bone)
+        """
+        self.config.eyeshadow_spread = max(0.0, min(1.0, spread))
         return self
 
     def set_nose(self, nose_type: NoseType, size: float = 1.0,
@@ -6819,7 +6833,11 @@ class PortraitGenerator:
             ey = eye_y - side * tilt_offset
 
             # Shadow extends above the eye
-            shadow_height = eye_height if style == "dramatic" else int(eye_height * 0.7)
+            spread = getattr(self.config, 'eyeshadow_spread', 0.5)
+            base_height = eye_height if style == "dramatic" else int(eye_height * 0.7)
+            # Spread modifies height: 0.0 = 50% height, 0.5 = 100%, 1.0 = 150%
+            spread_mult = 0.5 + spread
+            shadow_height = max(1, int(base_height * spread_mult))
             shadow_top = ey - eye_height - shadow_height
 
             # Draw shadow on eyelid
