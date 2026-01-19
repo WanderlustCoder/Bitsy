@@ -95,6 +95,7 @@ class PortraitConfig:
     # Face
     face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
+    face_height: float = 1.0  # 0.8 = short/compact face, 1.0 = normal, 1.2 = long/elongated face
     face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
     head_tilt: float = 0.0  # -0.3 = tilted right, 0.0 = straight, 0.3 = tilted left
     jaw_width: float = 1.0  # 0.8 = narrow/V-shaped, 1.0 = normal, 1.2 = wide/square jaw
@@ -684,6 +685,18 @@ class PortraitGenerator:
             width: Multiplier for face width (0.8-1.2, default 1.0)
         """
         self.config.face_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_face_height(self, height: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set face height/length multiplier.
+
+        Controls the vertical proportion of the face.
+
+        Args:
+            height: Multiplier for face height (0.8 = short/compact, 1.0 = normal, 1.2 = long)
+        """
+        self.config.face_height = max(0.8, min(1.2, height))
         return self
 
     def set_face_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
@@ -2256,8 +2269,9 @@ class PortraitGenerator:
         """Calculate face width and height."""
         # Face takes about 60% of width, 50% of height
         width_mult = getattr(self.config, 'face_width', 1.0)
+        height_mult = getattr(self.config, 'face_height', 1.0)
         fw = int(self.config.width * 0.6 * width_mult)
-        fh = int(self.config.height * 0.5)
+        fh = int(self.config.height * 0.5 * height_mult)
         return fw, fh
 
     def _get_neckline_y(self, cy: int, fh: int) -> int:
