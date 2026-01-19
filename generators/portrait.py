@@ -116,6 +116,7 @@ class PortraitConfig:
     tear_duct: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible pink caruncle
     eye_crease: float = 0.0  # 0.0 = none/monolid, 0.5 = subtle, 1.0 = defined crease
     eye_socket_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined depth
+    orbital_rim_light: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined rim light
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
@@ -130,6 +131,7 @@ class PortraitConfig:
     nose_tip_shape: str = "rounded"  # rounded, pointed, bulbous, upturned
     nose_bridge_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined bridge highlight
     nostril_definition: float = 0.5  # 0.0 = subtle, 0.5 = normal, 1.0 = pronounced
+    under_nose_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined shadow
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
     has_lipstick: bool = False
@@ -145,6 +147,7 @@ class PortraitConfig:
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
     lip_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle lines, 1.0 = visible texture
     lip_pout: float = 0.0  # 0.0 = flat, 0.5 = subtle pout, 1.0 = full pout (enhanced curves)
+    vermillion_border: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
 
     # Teeth
     show_teeth: bool = False
@@ -174,6 +177,7 @@ class PortraitConfig:
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
+    glabella_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle depth, 1.0 = defined shadow between brows
 
     # Eyebags
     has_eyebags: bool = False
@@ -883,6 +887,16 @@ class PortraitGenerator:
         self.config.eye_socket_shadow = max(0.0, min(1.0, depth))
         return self
 
+    def set_orbital_rim_light(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set orbital rim lighting intensity around the eye socket edge.
+
+        Args:
+            intensity: Rim light strength (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.orbital_rim_light = max(0.0, min(1.0, intensity))
+        return self
+
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
         """
         Add color to the waterline (inner eyelid rim).
@@ -960,6 +974,16 @@ class PortraitGenerator:
             intensity: Highlight intensity (0.0 = none, 0.5 = subtle, 1.0 = defined)
         """
         self.config.nose_bridge_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_under_nose_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set under-nose shadow intensity for the nose base.
+
+        Args:
+            intensity: Shadow intensity (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.under_nose_shadow = max(0.0, min(1.0, intensity))
         return self
 
     def set_lips(self, shape: LipShape, color: str = "natural") -> 'PortraitGenerator':
@@ -1049,6 +1073,16 @@ class PortraitGenerator:
             depth: Shadow depth (0.0 = none, 0.5 = normal, 1.0 = deep shadow at corners)
         """
         self.config.lip_corner_shadow = max(0.0, min(1.0, depth))
+        return self
+
+    def set_vermillion_border(self, intensity: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set vermillion border definition along the lip edge.
+
+        Args:
+            intensity: Border definition (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.vermillion_border = max(0.0, min(1.0, intensity))
         return self
 
     def set_cupid_bow(self, definition: float = 0.7) -> 'PortraitGenerator':
@@ -1184,6 +1218,19 @@ class PortraitGenerator:
             prominence: Ridge prominence (0.0 = flat, 0.5 = subtle, 1.0 = prominent)
         """
         self.config.brow_bone = max(0.0, min(1.0, prominence))
+        return self
+
+    def set_glabella_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set glabella (between eyebrows) shadow depth.
+
+        The glabella is the smooth area between the eyebrows above
+        the nose bridge. Adding shadow here creates facial depth.
+
+        Args:
+            intensity: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = defined)
+        """
+        self.config.glabella_shadow = max(0.0, min(1.0, intensity))
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -4146,6 +4193,54 @@ class PortraitGenerator:
                             py = ey + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
 
+    def _render_orbital_rim_light(self, canvas: Canvas) -> None:
+        """Render subtle rim lighting along the eye socket edge."""
+        intensity = getattr(self.config, 'orbital_rim_light', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
+
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_idx = min(len(self._skin_ramp) - 1, mid_idx + 2)
+        rim_color = self._skin_ramp[highlight_idx]
+        max_alpha = int(15 + 40 * intensity)
+
+        rim_rx = eye_width + 3
+        rim_ry = eye_height + 4
+        inner_thresh = 0.78
+        outer_thresh = 1.05
+
+        for side in (-1, 1):
+            ex = cx + side * eye_spacing
+
+            # Apply eye tilt offset
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            ey = eye_y - side * tilt_offset
+
+            for dy in range(-rim_ry, rim_ry // 2 + 1):
+                for dx in range(-rim_rx, rim_rx + 1):
+                    nx = dx / rim_rx if rim_rx > 0 else 0
+                    ny = (dy + rim_ry // 3) / rim_ry if rim_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if inner_thresh < dist <= outer_thresh:
+                        upper_boost = 1.0 + (0.4 if dy < 0 else 0.0)
+                        falloff = (outer_thresh - dist) / (outer_thresh - inner_thresh)
+                        alpha = int(max_alpha * falloff * upper_boost * 0.7)
+                        if alpha > 0:
+                            px = ex + dx
+                            py = ey + dy
+                            canvas.set_pixel(px, py, (*rim_color[:3], alpha))
+
     def _render_brow_bone(self, canvas: Canvas) -> None:
         """Render brow bone/ridge prominence with highlight and shadow."""
         prominence = getattr(self.config, 'brow_bone', 0.0)
@@ -4202,6 +4297,43 @@ class PortraitGenerator:
                         alpha = int(max_shadow_alpha * x_fade * y_fade)
                         if alpha > 0:
                             canvas.set_pixel(brow_cx + dx, shadow_y + dy, (*shadow_color[:3], alpha))
+
+    def _render_glabella_shadow(self, canvas: Canvas) -> None:
+        """Render shadow in the glabella area (between eyebrows, above nose bridge)."""
+        shadow_depth = getattr(self.config, 'glabella_shadow', 0.0)
+        if shadow_depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        # Glabella is in the center, above the nose bridge, between eyebrows
+        glabella_y = eye_y - 2
+        glabella_width = max(2, eye_spacing // 2)
+        glabella_height = max(3, fh // 12)
+
+        # Shadow color
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_idx = max(0, mid_idx - 2)
+        shadow_color = self._skin_ramp[shadow_idx]
+
+        max_alpha = int(20 + 45 * shadow_depth)
+
+        # Render oval shadow in glabella region
+        for dy in range(-glabella_height // 2, glabella_height // 2 + 1):
+            for dx in range(-glabella_width, glabella_width + 1):
+                nx = dx / glabella_width if glabella_width > 0 else 0
+                ny = dy / (glabella_height // 2 + 1) if glabella_height > 1 else 0
+                dist = nx * nx + ny * ny
+
+                if dist <= 1.0:
+                    # Stronger in center
+                    falloff = (1.0 - dist) ** 0.8
+                    alpha = int(max_alpha * falloff)
+                    if alpha > 3:
+                        canvas.set_pixel(cx + dx, glabella_y + dy, (*shadow_color[:3], alpha))
 
     def _render_eyeshadow(self, canvas: Canvas) -> None:
         """Render eye shadow on the eyelid area above the eye."""
@@ -4571,6 +4703,58 @@ class PortraitGenerator:
                 if philtrum_depth > 0.5:
                     canvas.set_pixel(cx, py, (*highlight_color, highlight_alpha))
 
+    def _render_under_nose_shadow(self, canvas: Canvas) -> None:
+        """Render a subtle curved shadow directly under the nose base."""
+        intensity = getattr(self.config, 'under_nose_shadow', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        nose_size_mult = getattr(self.config, 'nose_size', 1.0)
+        nose_type = self.config.nose_type
+        nose_y = cy + fh // 10
+
+        if nose_type == NoseType.SMALL:
+            n_height = int(fh // 10 * nose_size_mult)
+            n_width = max(1, fw // 14)
+        elif nose_type == NoseType.BUTTON:
+            n_height = int(fh // 9 * nose_size_mult)
+            n_width = max(2, fw // 12)
+        elif nose_type == NoseType.POINTED:
+            n_height = int(fh // 7 * nose_size_mult)
+            n_width = max(1, fw // 16)
+        elif nose_type == NoseType.WIDE:
+            n_height = int(fh // 8 * nose_size_mult)
+            n_width = max(3, fw // 10)
+        else:
+            n_height = int(fh // 8 * nose_size_mult)
+            n_width = max(2, fw // 12)
+
+        base_y = nose_y + n_height + 1
+        shadow_rx = max(2, int(n_width * 1.2))
+        shadow_ry = max(1, int(1 + intensity))
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+        base_alpha = int(20 + 60 * intensity)
+
+        for dx in range(-shadow_rx, shadow_rx + 1):
+            nx = dx / shadow_rx if shadow_rx > 0 else 0.0
+            curve = 1.0 - nx * nx
+            if curve <= 0.0:
+                continue
+            dy = int(round(curve * shadow_ry))
+            alpha = int(base_alpha * (0.6 + 0.4 * curve))
+            if alpha <= 0:
+                continue
+            py = base_y + dy
+            canvas.set_pixel(cx + dx, py, (*shadow_color[:3], alpha))
+            if shadow_ry > 1 and dy > 0:
+                soft_alpha = int(alpha * 0.5)
+                if soft_alpha > 0:
+                    canvas.set_pixel(cx + dx, py - 1, (*shadow_color[:3], soft_alpha))
+
     def _render_lips(self, canvas: Canvas) -> None:
         """Render lips with gradient and highlight."""
         cx, cy = self._get_face_center()
@@ -4588,6 +4772,37 @@ class PortraitGenerator:
         # Mouth corner adjustment
         corner_val = getattr(self.config, 'mouth_corners', 0.0)
         max_corner_shift = max(1, lip_height // 2)  # Max pixel shift at corners
+
+        vermillion_border = max(0.0, min(1.0, getattr(self.config, 'vermillion_border', 0.0)))
+        if vermillion_border > 0.0:
+            mid_skin = self._skin_ramp[len(self._skin_ramp) // 2]
+            base_border = lip_ramp[0]
+            mix = 0.35
+            border_color = (
+                int(base_border[0] * (1 - mix) + mid_skin[0] * mix),
+                int(base_border[1] * (1 - mix) + mid_skin[1] * mix),
+                int(base_border[2] * (1 - mix) + mid_skin[2] * mix),
+                int(20 + 70 * vermillion_border),
+            )
+
+            def draw_vermillion_border(upper_scale: float,
+                                       lower_scale: float,
+                                       cupid_width: int = 0,
+                                       cupid_depth: int = 0) -> None:
+                for dx in range(-lip_width, lip_width + 1):
+                    edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+                    corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                    upper_curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale)
+                    if cupid_width and abs(dx) <= cupid_width:
+                        dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
+                        upper_curve = max(0, upper_curve - dip)
+                    if upper_curve > 0:
+                        border_y = lip_y - max(upper_curve - 1, 0) + corner_offset
+                        canvas.set_pixel(cx + dx, border_y, border_color)
+                    lower_curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale)
+                    if lower_curve > 0:
+                        border_y = lip_y + lower_curve + corner_offset
+                        canvas.set_pixel(cx + dx, border_y, border_color)
 
         if self.config.has_lipstick:
             intensity = max(0.0, min(1.0, self.config.lipstick_intensity))
@@ -4692,6 +4907,14 @@ class PortraitGenerator:
                     alpha = int(gloss_alpha * gloss_fade)
                     if alpha > 0:
                         canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
+
+            if vermillion_border > 0.0:
+                draw_vermillion_border(
+                    upper_scale=0.5,
+                    lower_scale=0.8,
+                    cupid_width=cupid_bow_width,
+                    cupid_depth=cupid_bow_depth,
+                )
             return
 
         upper_scale = 0.5
@@ -4769,6 +4992,14 @@ class PortraitGenerator:
                 alpha = int(gloss_alpha * gloss_fade)
                 if alpha > 0:
                     canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
+
+        if vermillion_border > 0.0:
+            draw_vermillion_border(
+                upper_scale=upper_scale,
+                lower_scale=lower_scale,
+                cupid_width=cupid_width,
+                cupid_depth=cupid_depth,
+            )
 
         # Lip pout effect (enhanced fullness/volume)
         lip_pout = getattr(self.config, 'lip_pout', 0.0)
@@ -5686,7 +5917,9 @@ class PortraitGenerator:
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
+        self._render_orbital_rim_light(canvas)  # Subtle rim light around eye socket
         self._render_brow_bone(canvas)  # Brow ridge prominence
+        self._render_glabella_shadow(canvas)  # Shadow between eyebrows
         self._render_eyeshadow(canvas)  # Eye shadow on eyelid before eye
         self._render_eyes(canvas)
         self._render_eyelashes(canvas)
