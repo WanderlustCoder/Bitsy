@@ -1122,6 +1122,20 @@ class PortraitGenerator:
         self.config.iris_pattern = iris_pattern
         return self
 
+    def set_iris_brightness(self, brightness: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set iris color brightness/vividness.
+
+        Controls how bright and vivid the iris color appears.
+        Lower values create darker, more muted iris colors.
+        Higher values create brighter, more vivid colors.
+
+        Args:
+            brightness: Brightness multiplier (0.5 = dark/muted, 1.0 = normal, 1.5 = bright/vivid)
+        """
+        self.config.iris_brightness = max(0.5, min(1.5, brightness))
+        return self
+
     def set_eye_spacing(self, spacing: float = 1.0) -> 'PortraitGenerator':
         """Set eye spacing multiplier (0.8-1.2, default 1.0)."""
         self.config.eye_spacing = max(0.8, min(1.2, spacing))
@@ -7371,7 +7385,8 @@ class PortraitGenerator:
         base_lip_height = fh // 20
         thickness = getattr(self.config, 'lip_thickness', 1.0)
         lip_height = int(base_lip_height * thickness)
-        lip_asymmetry = max(0.0, min(1.0, getattr(self.config, 'lip_fullness_asymmetry', 0.0)))
+        lip_fullness_asymmetry = max(0.0, min(1.0, getattr(self.config, 'lip_fullness_asymmetry', 0.0)))
+        lip_asymmetry = max(0.0, min(1.0, getattr(self.config, 'lip_asymmetry', 0.0)))
         shape = self.config.lip_shape
         lip_ramp = self._lip_ramp
 
@@ -7381,12 +7396,18 @@ class PortraitGenerator:
         # Mouth corner adjustment
         corner_val = getattr(self.config, 'mouth_corners', 0.0)
         max_corner_shift = max(1, lip_height // 2)  # Max pixel shift at corners
-        asym_strength = 0.4 * lip_asymmetry
+        asym_strength = 0.4 * lip_fullness_asymmetry
+        asym_shift = int(round(lip_height * 0.35 * lip_asymmetry))
 
         def asym_scale(dx: int) -> float:
             if lip_width == 0 or asym_strength == 0.0:
                 return 1.0
             return 1.0 + asym_strength * (dx / lip_width)
+
+        def asym_offset(dx: int) -> int:
+            if lip_width == 0 or asym_shift == 0:
+                return 0
+            return int(round(asym_shift * (dx / lip_width)))
 
         vermillion_border = max(0.0, min(1.0, getattr(self.config, 'vermillion_border', 0.0)))
         if vermillion_border > 0.0:
@@ -7406,7 +7427,7 @@ class PortraitGenerator:
                                        cupid_depth: int = 0) -> None:
                 for dx in range(-lip_width, lip_width + 1):
                     edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-                    corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                    corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
                     upper_curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale * asym_scale(dx))
                     if cupid_width and abs(dx) <= cupid_width:
                         dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
@@ -7465,7 +7486,7 @@ class PortraitGenerator:
             for dx in range(-lip_width, lip_width + 1):
                 # Corner offset: positive corner_val lifts corners up (negative y)
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-                corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_ratio * asym_scale(dx))
 
                 # Apply cupid's bow dip in center of upper lip
@@ -7479,7 +7500,7 @@ class PortraitGenerator:
             lip_line_color = lip_ramp[0]
             for dx in range(-lip_width + 2, lip_width - 1):
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-                corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
                 canvas.set_pixel(cx + dx, lip_y + corner_offset, lip_line_color)
 
             # Lip parting gap (mouth interior showing)
@@ -7489,7 +7510,7 @@ class PortraitGenerator:
                 parting_width = int(lip_width * 0.7)  # Gap doesnt extend to corners
                 for dx in range(-parting_width, parting_width + 1):
                     edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-                    corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                    corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
                     center_fade = 1.0 - (abs(dx) / parting_width) ** 2 if parting_width > 0 else 1.0
                     gap_height = max(1, int(parting_height * center_fade))
                     for dy in range(1, gap_height + 1):
@@ -7501,7 +7522,7 @@ class PortraitGenerator:
             highlight_color = lip_ramp[3]
             for dx in range(-lip_width + 1, lip_width):
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-                corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
                 curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_ratio * asym_scale(dx))
                 for dy in range(1, curve + 1):
                     color = highlight_color if dy == 1 else lower_lip_color
@@ -7521,7 +7542,8 @@ class PortraitGenerator:
                         if dy < curve:
                             # Alternating dark/light for texture effect
                             if (dx + dy) % 3 == 0:
-                                canvas.set_pixel(cx + dx, lip_y - dy, (*texture_color_dark[:3], texture_alpha))
+                                canvas.set_pixel(cx + dx, lip_y - dy + asym_offset(dx),
+                                                 (*texture_color_dark[:3], texture_alpha))
 
                 # Lower lip texture lines
                 for dy in range(2, int(lip_height * 0.8), 2):  # Every other pixel
@@ -7529,7 +7551,8 @@ class PortraitGenerator:
                         curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8 * asym_scale(dx))
                         if dy < curve:
                             if (dx + dy) % 3 == 0:
-                                canvas.set_pixel(cx + dx, lip_y + dy, (*texture_color_dark[:3], texture_alpha))
+                                canvas.set_pixel(cx + dx, lip_y + dy + asym_offset(dx),
+                                                 (*texture_color_dark[:3], texture_alpha))
 
             # Lip gloss highlight for NEUTRAL shape
             gloss_level = getattr(self.config, 'lip_gloss', 0.0)
@@ -7543,7 +7566,8 @@ class PortraitGenerator:
                     gloss_fade = 1.0 - abs(dx) / gloss_span if gloss_span > 0 else 1.0
                     alpha = int(gloss_alpha * gloss_fade)
                     if alpha > 0:
-                        canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
+                        canvas.set_pixel(cx + dx, lip_y + gloss_y_offset + asym_offset(dx),
+                                         (255, 255, 255, alpha))
 
             if vermillion_border > 0.0:
                 draw_vermillion_border(
@@ -7592,7 +7616,7 @@ class PortraitGenerator:
         upper_lip_color = lip_ramp[1]
         for dx in range(-lip_width, lip_width + 1):
             edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-            corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+            corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
             curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale * asym_scale(dx))
             if shape == LipShape.HEART and abs(dx) <= cupid_width:
                 dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
@@ -7603,14 +7627,14 @@ class PortraitGenerator:
         lip_line_color = lip_ramp[0]
         for dx in range(-lip_width + line_inset, lip_width - line_inset + 1):
             edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-            corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+            corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
             canvas.set_pixel(cx + dx, lip_y + corner_offset, lip_line_color)
 
         lower_lip_color = lip_ramp[2]
         highlight_color = lip_ramp[3]
         for dx in range(-lip_width + 1, lip_width):
             edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
-            corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+            corner_offset = int(-corner_val * max_corner_shift * edge_factor) + asym_offset(dx)
             curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale * asym_scale(dx))
             for dy in range(1, curve + 1):
                 if dy <= highlight_rows and abs(dx) <= highlight_span:
@@ -7631,7 +7655,8 @@ class PortraitGenerator:
                 gloss_fade = 1.0 - abs(dx) / gloss_span if gloss_span > 0 else 1.0
                 alpha = int(gloss_alpha * gloss_fade)
                 if alpha > 0:
-                    canvas.set_pixel(cx + dx, lip_y + gloss_y_offset, (255, 255, 255, alpha))
+                    canvas.set_pixel(cx + dx, lip_y + gloss_y_offset + asym_offset(dx),
+                                     (255, 255, 255, alpha))
 
         if vermillion_border > 0.0:
             draw_vermillion_border(
@@ -7652,7 +7677,7 @@ class PortraitGenerator:
                 alpha = int(pout_hl_alpha * fade)
                 if alpha > 5:
                     # Highlight on lower lip
-                    canvas.set_pixel(cx + dx, lip_y + 2, (255, 252, 248, alpha))
+                    canvas.set_pixel(cx + dx, lip_y + 2 + asym_offset(dx), (255, 252, 248, alpha))
 
             # Shadow below lower lip for volume/depth
             pout_sh_alpha = int(20 + 40 * lip_pout)
@@ -7663,7 +7688,8 @@ class PortraitGenerator:
                 edge_fade = 1.0 - (abs(dx) / lip_width) ** 2 if lip_width > 0 else 1.0
                 alpha = int(pout_sh_alpha * edge_fade)
                 if alpha > 5:
-                    canvas.set_pixel(cx + dx, lip_y + lower_curve + 1, (*pout_shadow[:3], alpha))
+                    canvas.set_pixel(cx + dx, lip_y + lower_curve + 1 + asym_offset(dx),
+                                     (*pout_shadow[:3], alpha))
 
         # Render lip corner shadows
         self._render_lip_corner_crease(canvas, cx, lip_y, lip_width, lip_height)
@@ -7751,12 +7777,14 @@ class PortraitGenerator:
 
         mouth_corners = getattr(self.config, 'mouth_corners', 0.0)
         max_corner_shift = max(1, lip_height // 2)
+        lip_asymmetry = max(0.0, min(1.0, getattr(self.config, 'lip_asymmetry', 0.0)))
+        asym_shift = int(round(lip_height * 0.35 * lip_asymmetry))
         corner_offset = int(-mouth_corners * max_corner_shift)
         vertical_dir = 0.2 - 0.4 * mouth_corners
 
         for side in (-1, 1):
             corner_x = cx + side * (lip_width + 1)
-            corner_y = lip_y + corner_offset
+            corner_y = lip_y + corner_offset + side * asym_shift
             for step in range(1, line_len + 1):
                 t = step / max(1, line_len)
                 dx = side * step
@@ -7785,12 +7813,14 @@ class PortraitGenerator:
         # Get mouth corner offset for expression
         mouth_corners = getattr(self.config, 'mouth_corners', 0.0)
         max_corner_shift = max(1, lip_height // 2)
+        lip_asymmetry = max(0.0, min(1.0, getattr(self.config, 'lip_asymmetry', 0.0)))
+        asym_shift = int(round(lip_height * 0.35 * lip_asymmetry))
         corner_offset = int(mouth_corners * max_corner_shift)
 
         for side in (-1, 1):
             # Corner position at edge of lips
             corner_x = cx + side * (lip_width + 1)
-            corner_y = lip_y + corner_offset
+            corner_y = lip_y + corner_offset + side * asym_shift
 
             # Draw shadow in small ellipse at corner
             for dy in range(-corner_radius // 2, corner_radius // 2 + 1):
