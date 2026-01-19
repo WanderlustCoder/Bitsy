@@ -93,8 +93,10 @@ class PortraitConfig:
     ear_type: str = "normal"  # normal, pointed, round, large, small
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
+    eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
+    nose_size: float = 1.0  # 0.7-1.3, multiplier for nose size
     lip_shape: LipShape = LipShape.NEUTRAL
     lip_color: str = "natural"
     has_lipstick: bool = False
@@ -557,7 +559,8 @@ class PortraitGenerator:
 
     def set_eyes(self, shape: EyeShape, color: str,
                  openness: float = 1.0,
-                 right_color: Optional[str] = None) -> 'PortraitGenerator':
+                 right_color: Optional[str] = None,
+                 size: float = 1.0) -> 'PortraitGenerator':
         """
         Set eye shape and color.
 
@@ -566,11 +569,13 @@ class PortraitGenerator:
             color: Left eye color (and right if right_color not set)
             openness: How open the eyes are (0.0-1.0)
             right_color: Right eye color for heterochromia (None = same as left)
+            size: Eye size multiplier (0.7-1.3, default 1.0)
         """
         self.config.eye_shape = shape
         self.config.eye_color = color
         self.config.right_eye_color = right_color
         self.config.eye_openness = openness
+        self.config.eye_size = max(0.7, min(1.3, size))
         return self
 
     def set_eyeliner(self, style: str = "thin",
@@ -581,9 +586,16 @@ class PortraitGenerator:
         self.config.eyeliner_color = color
         return self
 
-    def set_nose(self, nose_type: NoseType) -> 'PortraitGenerator':
-        """Set nose type."""
+    def set_nose(self, nose_type: NoseType, size: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set nose type and size.
+
+        Args:
+            nose_type: Nose shape type
+            size: Size multiplier (0.7-1.3, default 1.0)
+        """
         self.config.nose_type = nose_type
+        self.config.nose_size = max(0.7, min(1.3, size))
         return self
 
     def set_lips(self, shape: LipShape, color: str = "natural") -> 'PortraitGenerator':
@@ -1961,7 +1973,8 @@ class PortraitGenerator:
         # Eye positioning
         eye_y = self._get_eye_y(cy, fh)
         eye_spacing = fw // 4
-        eye_width = fw // 6
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = int(fw // 6 * size_mult)
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
         for side in [-1, 1]:  # Left (-1) and right (1) eye
@@ -2087,6 +2100,8 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
+        # Apply nose size multiplier
+        nose_size_mult = getattr(self.config, 'nose_size', 1.0)
         nose_y = cy + fh // 10
 
         # Nose shadow on one side (based on lighting)
@@ -2102,7 +2117,7 @@ class PortraitGenerator:
 
         if nose_type == NoseType.SMALL:
             # Small nose: minimal shadow, small highlight
-            nose_height = fh // 10
+            nose_height = int(fh // 10 * nose_size_mult)
             # Very subtle shadow line
             for dy in range(nose_height):
                 py = nose_y + dy
@@ -2113,7 +2128,7 @@ class PortraitGenerator:
 
         elif nose_type == NoseType.BUTTON:
             # Button nose: round, prominent tip
-            nose_height = fh // 9
+            nose_height = int(fh // 9 * nose_size_mult)
             nose_width = fw // 14
             # Rounded shadow
             for dy in range(nose_height):
@@ -2131,7 +2146,7 @@ class PortraitGenerator:
 
         elif nose_type == NoseType.POINTED:
             # Pointed nose: sharper, narrower shadow
-            nose_height = fh // 7
+            nose_height = int(fh // 7 * nose_size_mult)
             # Sharp, narrow shadow line
             for dy in range(nose_height):
                 py = nose_y + dy
@@ -2148,7 +2163,7 @@ class PortraitGenerator:
 
         elif nose_type == NoseType.WIDE:
             # Wide nose: broader shadow area, larger nostrils hint
-            nose_height = fh // 8
+            nose_height = int(fh // 8 * nose_size_mult)
             nose_width = fw // 10
             # Wider shadow area
             for dy in range(nose_height):
@@ -2171,7 +2186,7 @@ class PortraitGenerator:
 
         else:
             # Default: basic small nose rendering
-            nose_height = fh // 8
+            nose_height = int(fh // 8 * nose_size_mult)
             for dy in range(nose_height):
                 py = nose_y + dy
                 px = cx + shadow_side * 2
