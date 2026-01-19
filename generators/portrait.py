@@ -97,6 +97,7 @@ class PortraitConfig:
     forehead_size: str = "normal"  # normal, large, small
     ear_type: str = "normal"  # normal, pointed, round, large, small
     ear_lobe_detail: float = 0.5  # 0.0 = minimal, 0.5 = normal, 1.0 = detailed with shading
+    ear_size: float = 1.0  # 0.7-1.3, multiplier for ear size
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
@@ -639,14 +640,26 @@ class PortraitGenerator:
         self.config.forehead_size = size
         return self
 
-    def set_ears(self, ear_type: str = "normal") -> 'PortraitGenerator':
+    def set_ears(self, ear_type: str = "normal", size: float = 1.0) -> 'PortraitGenerator':
         """
-        Set ear type.
+        Set ear type and size.
 
         Args:
             ear_type: One of 'normal', 'pointed', 'round', 'large', 'small'
+            size: Size multiplier (0.7-1.3, default 1.0)
         """
         self.config.ear_type = ear_type
+        self.config.ear_size = max(0.7, min(1.3, size))
+        return self
+
+    def set_ear_size(self, size: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set ear size multiplier.
+
+        Args:
+            size: Size multiplier (0.7 = small, 1.0 = normal, 1.3 = large)
+        """
+        self.config.ear_size = max(0.7, min(1.3, size))
         return self
 
     def set_ear_lobe_detail(self, detail: float = 0.5) -> 'PortraitGenerator':
@@ -1845,11 +1858,16 @@ class PortraitGenerator:
         base_w = max(3, fw // 8)
         base_h = max(6, fh // 4)
 
+        # Base scale from ear_type
         scale = 1.0
         if ear_type == "large":
             scale = 1.25
         elif ear_type == "small":
             scale = 0.75
+
+        # Apply ear_size multiplier
+        ear_size_mult = getattr(self.config, 'ear_size', 1.0)
+        scale *= ear_size_mult
 
         ear_w = max(3, int(base_w * scale))
         ear_h = max(5, int(base_h * scale))
