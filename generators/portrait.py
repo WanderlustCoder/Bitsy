@@ -77,6 +77,7 @@ class PortraitConfig:
     skin_tone: str = "light"  # light, medium, tan, dark, pale
     skin_undertone: str = "neutral"  # warm, cool, neutral
     skin_shine: float = 0.3  # 0.0 = matte, 0.5 = natural, 1.0 = dewy/shiny
+    skin_texture: float = 0.0  # 0.0 = smooth, 0.5 = subtle pores, 1.0 = visible pores
 
     # Hair
     hair_style: HairStyle = HairStyle.WAVY
@@ -563,6 +564,16 @@ class PortraitGenerator:
         self.config.skin_tone = tone
         self.config.skin_undertone = undertone
         self.config.skin_shine = max(0.0, min(1.0, shine))
+        return self
+
+    def set_skin_texture(self, texture: float = 0.3) -> 'PortraitGenerator':
+        """
+        Set skin texture/pore visibility.
+
+        Args:
+            texture: Pore visibility (0.0 = smooth, 0.5 = subtle, 1.0 = visible pores)
+        """
+        self.config.skin_texture = max(0.0, min(1.0, texture))
         return self
 
     def set_face_shape(self, shape: str = "oval") -> 'PortraitGenerator':
@@ -2607,6 +2618,60 @@ class PortraitGenerator:
                         alpha = int(base_alpha * falloff * shine * 0.7)
                         if alpha > 0:
                             canvas.set_pixel(cheek_cx + dx, cheek_y + dy, (255, 255, 255, alpha))
+
+    def _render_skin_texture(self, canvas: Canvas) -> None:
+        """Render subtle skin texture/pores on the face."""
+        texture = getattr(self.config, 'skin_texture', 0.0)
+        if texture <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        rx, ry = fw // 2, fh // 2
+
+        # Pore/texture colors
+        mid_idx = len(self._skin_ramp) // 2
+        dark_idx = max(0, mid_idx - 1)
+        light_idx = min(len(self._skin_ramp) - 1, mid_idx + 1)
+        pore_color = self._skin_ramp[dark_idx]
+        highlight_color = self._skin_ramp[light_idx]
+
+        # Texture density based on intensity
+        # Create pseudo-random but deterministic pattern
+        max_alpha = int(8 + 15 * texture)
+        pore_spacing = max(3, int(6 - 3 * texture))  # Denser at higher texture
+
+        # Areas with more visible pores: nose, cheeks, forehead
+        pore_zones = [
+            (cx, cy - fh // 6, fw // 5, fh // 6, 1.0),  # Forehead center
+            (cx, cy + fh // 10, fw // 6, fh // 12, 1.2),  # Nose area
+            (cx - fw // 4, cy + fh // 12, fw // 6, fh // 8, 0.8),  # Left cheek
+            (cx + fw // 4, cy + fh // 12, fw // 6, fh // 8, 0.8),  # Right cheek
+        ]
+
+        for zone_cx, zone_cy, zone_w, zone_h, intensity_mult in pore_zones:
+            for dy in range(-zone_h, zone_h + 1, pore_spacing):
+                for dx in range(-zone_w, zone_w + 1, pore_spacing):
+                    x, y = zone_cx + dx, zone_cy + dy
+
+                    # Check if within face ellipse
+                    fdx = (x - cx) / rx if rx > 0 else 0
+                    fdy = (y - cy) / ry if ry > 0 else 0
+                    if fdx * fdx + fdy * fdy > 0.85:  # Slight margin from edge
+                        continue
+
+                    # Pseudo-random variation using position
+                    seed = (x * 17 + y * 31) % 100
+                    if seed > 60:  # ~40% of positions get a pore
+                        # Small dark spot (pore)
+                        alpha = int(max_alpha * intensity_mult * (0.7 + seed % 30 / 100))
+                        if alpha > 0:
+                            canvas.set_pixel(x, y, (*pore_color[:3], alpha))
+                    elif seed > 40 and texture > 0.4:  # ~20% get highlight at higher texture
+                        # Tiny highlight next to pore
+                        alpha = int(max_alpha * 0.5 * intensity_mult)
+                        if alpha > 0:
+                            canvas.set_pixel(x, y, (*highlight_color[:3], alpha))
 
     def _render_scar(self, canvas: Canvas) -> None:
         """Render a subtle facial scar line."""
@@ -4808,6 +4873,7 @@ class PortraitGenerator:
         self._render_neck_shadow(canvas)  # Shadow under chin
         self._render_cheekbones(canvas)  # Cheekbone shading
         self._render_skin_shine(canvas)  # Skin shine/dewy effect
+        self._render_skin_texture(canvas)  # Subtle skin pores/texture
         self._render_ears(canvas)
         self._render_blush(canvas)
         self._render_contour(canvas)  # Facial contouring for definition
