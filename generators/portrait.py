@@ -220,6 +220,7 @@ class PortraitConfig:
     has_eyebags: bool = False
     eyebag_intensity: float = 0.5  # 0.0 to 1.0
     eyebag_color: str = "shadow"  # shadow (gray), purple (dark circles), brown (natural)
+    tear_trough: float = 0.0  # 0.0 = none, 0.5 = subtle hollow, 1.0 = visible groove under inner eye
     under_eye_highlight: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = bright (concealer effect)
     malar_bags: float = 0.0  # 0.0 = none, 0.5 = subtle puffiness, 1.0 = visible festoons
 
@@ -1777,6 +1778,19 @@ class PortraitGenerator:
         self.config.eyebag_intensity = max(0.0, min(1.0, intensity))
         valid_colors = ["shadow", "purple", "brown"]
         self.config.eyebag_color = color.lower() if color.lower() in valid_colors else "shadow"
+        return self
+
+    def set_tear_trough(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set tear trough (infraorbital groove) visibility.
+
+        Creates a shadow in the groove that runs from inner eye corner
+        diagonally toward the cheek. More visible with age or fatigue.
+
+        Args:
+            intensity: Groove depth (0.0 = none, 0.5 = subtle, 1.0 = visible hollow)
+        """
+        self.config.tear_trough = max(0.0, min(1.0, intensity))
         return self
 
     def set_under_eye_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -4711,6 +4725,47 @@ class PortraitGenerator:
                         if alpha > 0:
                             canvas.set_pixel(px, py, (*base_color[:3], alpha))
 
+
+    def _render_tear_trough(self, canvas: Canvas) -> None:
+        """Render tear trough (infraorbital groove from inner eye to cheek)."""
+        intensity = getattr(self.config, 'tear_trough', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Eye positioning
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+        eye_width = fw // 6
+
+        # Shadow color
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+        max_alpha = int(20 + 45 * intensity)
+        trough_length = max(3, int(eye_width * 0.5))
+
+        for side in [-1, 1]:
+            # Start at inner eye corner
+            start_x = cx + side * (eye_spacing - eye_width // 2)
+            start_y = eye_y + eye_width // 4
+
+            # Draw diagonal groove toward cheek
+            for i in range(trough_length):
+                t = i / max(1, trough_length - 1)
+                px = start_x + int(side * i * 0.7)  # Slight diagonal outward
+                py = start_y + i  # Downward
+
+                # Fade toward end
+                fade = 1.0 - t * 0.6
+                alpha = int(max_alpha * fade)
+                if alpha > 5 and 0 <= px < canvas.width and 0 <= py < canvas.height:
+                    canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+                    # Slight width to the groove
+                    if i > 0 and intensity > 0.4:
+                        canvas.set_pixel(px + side, py, (*shadow_color[:3], int(alpha * 0.5)))
     def _render_under_eye_highlight(self, canvas: Canvas) -> None:
         """Render under-eye highlight (concealer/brightening effect)."""
         intensity = getattr(self.config, 'under_eye_highlight', 0.0)
@@ -7804,6 +7859,7 @@ class PortraitGenerator:
         self._render_nasolabial_folds(canvas)  # Smile lines (independent of wrinkles)
         self._render_marionette_lines(canvas)  # Mouth corner lines
         self._render_eyebags(canvas)
+        self._render_tear_trough(canvas)  # Tear trough (infraorbital groove)
         self._render_under_eye_highlight(canvas)  # Concealer/brightening effect
         self._render_malar_bags(canvas)  # Under-eye puffiness/festoons
         self._render_freckles(canvas)
