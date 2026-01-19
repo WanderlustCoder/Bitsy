@@ -1723,6 +1723,10 @@ class PortraitGenerator:
         self.config.eyebrow_hair_detail = max(0.0, min(1.0, detail))
         return self
 
+    def set_brow_thickness(self, thickness: float = 1.0) -> 'PortraitGenerator':
+        """Set eyebrow thickness/boldness."""
+        self.config.brow_thickness = max(0.5, min(1.5, thickness))
+        return self
 
     def set_eyebrow_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
         """
@@ -7287,6 +7291,8 @@ class PortraitGenerator:
             thickness = max(1, thickness - 1)
         elif shape == "feathered":
             thickness = 1
+        brow_thickness = getattr(self.config, 'brow_thickness', 1.0)
+        thickness = max(1, min(6, int(round(thickness * brow_thickness))))
 
         hair_detail = getattr(self.config, 'eyebrow_hair_detail', 0.0)
         seed = self.config.seed
