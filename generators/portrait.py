@@ -108,6 +108,7 @@ class PortraitConfig:
     mentolabial_fold: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep groove under lower lip
     chin_projection: float = 1.0  # 0.7 = recessed chin, 1.0 = normal, 1.3 = prominent/strong chin
     smile_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep nasolabial folds
+    bunny_lines: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible nose scrunch wrinkles
     forehead_size: str = "normal"  # normal, large, small
     forehead_height: float = 1.0  # 0.8 = short, 1.0 = normal, 1.2 = tall forehead
     ear_type: str = "normal"  # normal, pointed, round, large, small
@@ -845,6 +846,19 @@ class PortraitGenerator:
         self.config.smile_lines = max(0.0, min(1.0, intensity))
         return self
 
+    def set_bunny_lines(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set bunny lines intensity (nose scrunch wrinkles).
+
+        Adds diagonal wrinkle lines on the sides of the nose bridge,
+        creating the appearance of a nose scrunch or smile.
+
+        Args:
+            intensity: Line visibility (0.0 = none, 0.5 = subtle, 1.0 = visible)
+        """
+        self.config.bunny_lines = max(0.0, min(1.0, intensity))
+        return self
+
     def set_forehead(self, size: str = "normal") -> 'PortraitGenerator':
         """
         Set forehead size.
@@ -1175,7 +1189,6 @@ class PortraitGenerator:
         """
         self.config.hooded_eyes = max(0.0, min(1.0, intensity))
         return self
-
     def set_waterline(self, color: str = "nude") -> 'PortraitGenerator':
         """
         Add color to the waterline (inner eyelid rim).
@@ -3626,6 +3639,40 @@ class PortraitGenerator:
                         if highlight_alpha > 0:
                             canvas.set_pixel(px - side, py + 1, (*highlight_color[:3], highlight_alpha))
 
+
+    def _render_bunny_lines(self, canvas: Canvas) -> None:
+        """Render bunny lines (diagonal wrinkles on nose sides when scrunching)."""
+        intensity = getattr(self.config, 'bunny_lines', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Nose position reference
+        nose_y = cy + fh // 16
+        nose_x_offset = max(2, fw // 14)
+
+        # Shadow color for wrinkle lines
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+        # Each bunny line is 2-3 short diagonal strokes on each side of nose
+        line_alpha = int(25 + 50 * intensity)
+        line_length = max(2, int(fw * 0.03))
+
+        for side in (-1, 1):
+            base_x = cx + side * nose_x_offset
+            # Two short diagonal lines
+            for line_idx in range(2):
+                start_y = nose_y - 2 + line_idx * 2
+                for i in range(line_length):
+                    px = base_x + side * i
+                    py = start_y + i
+                    fade = 1.0 - (i / line_length) * 0.5
+                    alpha = int(line_alpha * fade)
+                    if alpha > 5 and 0 <= px < canvas.width and 0 <= py < canvas.height:
+                        canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
     def _render_highlight(self, canvas: Canvas) -> None:
         """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
         if not self.config.has_highlight:
@@ -7721,6 +7768,7 @@ class PortraitGenerator:
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
         self._render_smile_lines(canvas)  # Smile lines after base face rendering
+        self._render_bunny_lines(canvas)  # Bunny lines (nose scrunch wrinkles)
         self._render_hairline(canvas)  # Hairline shape adjustments
         self._render_temple_shading(canvas)  # Temple width shading
         self._render_neck_shadow(canvas)  # Shadow under chin
