@@ -103,6 +103,20 @@ class PortraitConfig:
     has_eyebags: bool = False
     eyebag_intensity: float = 0.5  # 0.0 to 1.0
 
+    # Blush
+    has_blush: bool = False
+    blush_color: str = "pink"  # pink, peach, coral, rose
+    blush_intensity: float = 0.5  # 0.0 to 1.0
+
+    # Dimples
+    has_dimples: bool = False
+    dimple_depth: float = 0.5  # 0.0 to 1.0
+
+    # Wrinkles/aging
+    has_wrinkles: bool = False
+    wrinkle_intensity: float = 0.5  # 0.0 to 1.0, controls visibility
+    wrinkle_areas: str = "all"  # all, forehead, eyes, mouth
+
     # Accessories
     has_glasses: bool = False
     glasses_style: str = "round"
@@ -565,10 +579,38 @@ class PortraitGenerator:
         self.config.freckle_density = max(0.0, min(1.0, density))
         return self
 
+    def set_dimples(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """Add cheek dimples with depth from 0.0 to 1.0."""
+        self.config.has_dimples = True
+        self.config.dimple_depth = max(0.0, min(1.0, depth))
+        return self
+
     def set_eyebags(self, intensity: float = 0.5) -> 'PortraitGenerator':
         """Add eyebags with intensity from 0.0 to 1.0."""
         self.config.has_eyebags = True
         self.config.eyebag_intensity = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_blush(self, color: str = "pink",
+                  intensity: float = 0.5) -> 'PortraitGenerator':
+        """Add blush with configurable color and intensity (0.0-1.0)."""
+        self.config.has_blush = True
+        self.config.blush_color = color
+        self.config.blush_intensity = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_wrinkles(self, intensity: float = 0.5,
+                     areas: str = "all") -> 'PortraitGenerator':
+        """
+        Add wrinkles/aging lines.
+
+        Args:
+            intensity: How visible the wrinkles are (0.0-1.0)
+            areas: Which areas to affect - "all", "forehead", "eyes", "mouth"
+        """
+        self.config.has_wrinkles = True
+        self.config.wrinkle_intensity = max(0.0, min(1.0, intensity))
+        self.config.wrinkle_areas = areas
         return self
 
     def set_beauty_mark(self, position: str = "cheek") -> 'PortraitGenerator':
@@ -870,9 +912,6 @@ class PortraitGenerator:
         # Add subtle nose shadow
         self._render_nose_shadow(canvas)
 
-        # Add optional cheek blush
-        self._render_cheek_blush(canvas)
-
     def _render_nose_shadow(self, canvas: Canvas) -> None:
         """Render subtle nose shadow for depth."""
         cx, cy = self._get_face_center()
@@ -892,32 +931,60 @@ class PortraitGenerator:
             if alpha > 0:
                 canvas.set_pixel(shadow_x, nose_y + dy, (*shadow_color[:3], alpha))
 
-    def _render_cheek_blush(self, canvas: Canvas) -> None:
-        """Render subtle cheek blush for liveliness."""
+    def _render_blush(self, canvas: Canvas) -> None:
+        """Render subtle cheek blush with a feathered gradient."""
+        if not self.config.has_blush:
+            return
+
+        intensity = max(0.0, min(1.0, self.config.blush_intensity))
+        if intensity <= 0.0:
+            return
+
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        # Blush positions on both cheeks
-        cheek_y = cy + fh // 8
-        cheek_offset = fw // 4
+        # Eye positioning (matching _render_eyes)
+        eye_y = cy - fh // 8
+        eye_spacing = fw // 4
+        eye_width = fw // 6
+        eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
-        # Subtle pink/peach blush color
+        # Blush position: upper cheeks, below eyes
+        cheek_y = eye_y + eye_height + max(2, fh // 10)
+        cheek_offset = eye_spacing
+
         base_skin = self._skin_ramp[len(self._skin_ramp) // 2]
+        blush_palette = {
+            "pink": (230, 150, 170),
+            "peach": (240, 170, 140),
+            "coral": (235, 120, 110),
+            "rose": (210, 110, 140),
+        }
+        target = blush_palette.get(self.config.blush_color.lower(), blush_palette["pink"])
+
+        # Blend blush toward skin tone for a natural mix
+        blend_factor = 0.6
         blush_color = (
-            min(255, base_skin[0] + 15),
-            max(0, base_skin[1] - 10),
-            max(0, base_skin[2] - 5),
+            int(base_skin[0] + (target[0] - base_skin[0]) * blend_factor),
+            int(base_skin[1] + (target[1] - base_skin[1]) * blend_factor),
+            int(base_skin[2] + (target[2] - base_skin[2]) * blend_factor),
         )
 
-        blush_radius = fw // 8
-        for side in [-1, 1]:
+        rx = max(3, fw // 7)
+        ry = max(2, fh // 12)
+        max_alpha = int(80 * intensity)
+
+        for side in (-1, 1):
             blush_cx = cx + side * cheek_offset
-            for dy in range(-blush_radius, blush_radius + 1):
-                for dx in range(-blush_radius, blush_radius + 1):
-                    dist = (dx * dx + dy * dy) ** 0.5
-                    if dist < blush_radius:
-                        # Fade out toward edges
-                        alpha = int(25 * (1 - dist / blush_radius))
+            for dy in range(-ry - 1, ry + 2):
+                for dx in range(-rx - 1, rx + 2):
+                    nx = dx / rx if rx > 0 else 0
+                    ny = dy / ry if ry > 0 else 0
+                    dist = nx * nx + ny * ny
+                    if dist <= 1.0:
+                        # Feathered falloff for a soft gradient
+                        falloff = (1.0 - dist) ** 2
+                        alpha = int(max_alpha * falloff)
                         if alpha > 0:
                             px, py = blush_cx + dx, cheek_y + dy
                             canvas.set_pixel(px, py, (*blush_color, alpha))
@@ -968,6 +1035,38 @@ class PortraitGenerator:
                     if rng.random() < 0.2:
                         canvas.set_pixel(px + 1, py, freckle_color)
                     break
+
+    def _render_dimples(self, canvas: Canvas) -> None:
+        """Render subtle cheek dimples for smiling expressions."""
+        if not self.config.has_dimples:
+            return
+
+        expression = (self.config.expression or "").lower()
+        if "happy" not in expression and "smile" not in expression and expression != "loving":
+            return
+
+        depth = max(0.0, min(1.0, self.config.dimple_depth))
+        if depth <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        lip_y = cy + fh // 4
+        cheek_y = lip_y + max(1, fh // 20)
+        cheek_offset = max(3, fw // 6)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        base_color = self._skin_ramp[shade_idx]
+
+        radius = max(1, int(fw * (0.02 + 0.015 * depth)))
+        alpha = int(40 + 60 * depth)
+        dimple_color = (base_color[0], base_color[1], base_color[2], alpha)
+
+        for side in [-1, 1]:
+            dimple_x = cx + side * cheek_offset
+            canvas.fill_circle_aa(dimple_x, cheek_y, radius, dimple_color)
 
     def _render_beauty_mark(self, canvas: Canvas) -> None:
         """Render a small beauty mark at a specified position."""
@@ -1039,6 +1138,104 @@ class PortraitGenerator:
                     if dist <= 1.0:
                         fade = max(0.0, 1.0 - dist)
                         alpha = int(base_alpha * (0.4 + 0.6 * fade))
+                        if alpha > 0:
+                            canvas.set_pixel(px, py, (*base_color[:3], alpha))
+
+    def _render_wrinkles(self, canvas: Canvas) -> None:
+        """Render wrinkle lines for an aged appearance."""
+        if not self.config.has_wrinkles:
+            return
+
+        intensity = max(0.0, min(1.0, self.config.wrinkle_intensity))
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        areas = (self.config.wrinkle_areas or "all").lower()
+
+        # Wrinkle color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        base_color = self._skin_ramp[shade_idx]
+        base_alpha = int(40 + 80 * intensity)
+
+        # Forehead wrinkles (horizontal lines)
+        if areas in ("all", "forehead"):
+            forehead_y = cy - fh // 3
+            forehead_w = int(fw * 0.6)
+
+            # 2-3 horizontal forehead lines
+            num_lines = 2 if intensity < 0.7 else 3
+            for i in range(num_lines):
+                ly = forehead_y + i * int(fh * 0.05)
+                line_w = int(forehead_w * (0.7 + 0.3 * (1 - i / num_lines)))
+
+                for px in range(cx - line_w // 2, cx + line_w // 2):
+                    # Slight wave in the line
+                    wave = int(math.sin(px * 0.1) * 1.5)
+                    py = ly + wave
+
+                    if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                        # Fade at edges
+                        dist_from_center = abs(px - cx) / (line_w / 2)
+                        fade = 1.0 - dist_from_center ** 2
+                        alpha = int(base_alpha * fade * 0.7)
+                        if alpha > 0:
+                            canvas.set_pixel(px, py, (*base_color[:3], alpha))
+
+        # Crow's feet (lines at outer corners of eyes)
+        if areas in ("all", "eyes"):
+            eye_y = cy - fh // 8
+            eye_spacing = fw // 4
+            eye_width = fw // 6
+
+            for side in [-1, 1]:
+                corner_x = cx + side * (eye_spacing + eye_width // 2)
+                corner_y = eye_y
+
+                # 2-4 radiating lines
+                num_lines = 2 + int(intensity * 2)
+                for i in range(num_lines):
+                    angle = side * (0.3 + i * 0.15)  # Spread out from corner
+                    line_len = int(fw * 0.06 * (1 + 0.5 * intensity))
+
+                    for t in range(line_len):
+                        px = int(corner_x + side * t * math.cos(angle))
+                        py = int(corner_y + t * math.sin(angle) - t * 0.3)
+
+                        if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                            fade = 1.0 - (t / line_len)
+                            alpha = int(base_alpha * fade * 0.6)
+                            if alpha > 0:
+                                canvas.set_pixel(px, py, (*base_color[:3], alpha))
+
+        # Nasolabial folds (lines from nose to mouth corners)
+        if areas in ("all", "mouth"):
+            nose_y = cy + fh // 16
+            mouth_corner_y = cy + fh // 4
+            nose_x_offset = fw // 12
+            mouth_x_offset = fw // 6
+
+            for side in [-1, 1]:
+                start_x = cx + side * nose_x_offset
+                start_y = nose_y
+                end_x = cx + side * mouth_x_offset
+                end_y = mouth_corner_y
+
+                # Draw curved line
+                steps = int(abs(end_y - start_y) * 1.5)
+                for i in range(steps):
+                    t = i / max(1, steps - 1)
+                    # Curve outward then inward
+                    curve = math.sin(t * math.pi) * fw * 0.02 * side
+                    px = int(start_x + (end_x - start_x) * t + curve)
+                    py = int(start_y + (end_y - start_y) * t)
+
+                    if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                        # Stronger in middle, fade at ends
+                        fade = math.sin(t * math.pi)
+                        alpha = int(base_alpha * fade * 0.8)
                         if alpha > 0:
                             canvas.set_pixel(px, py, (*base_color[:3], alpha))
 
@@ -1879,6 +2076,9 @@ class PortraitGenerator:
         self._render_necklace(canvas)  # Necklace on top of clothing
         self._render_hair(canvas)  # Back hair with cluster system
         self._render_face_base(canvas)
+        self._render_blush(canvas)
+        self._render_dimples(canvas)
+        self._render_wrinkles(canvas)  # Age lines on face
         self._render_eyebags(canvas)
         self._render_freckles(canvas)
         self._render_beauty_mark(canvas)

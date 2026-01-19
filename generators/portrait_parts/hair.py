@@ -676,6 +676,179 @@ def generate_bun_clusters(center_x: float, top_y: float,
     return clusters
 
 
+def generate_ponytail_clusters(center_x: float, top_y: float,
+                                width: float, length: float,
+                                count: int = 30,
+                                rng: Optional[random.Random] = None) -> List[HairCluster]:
+    """
+    Generate a ponytail hairstyle with swept-back hair and a hanging tail.
+
+    Creates:
+    - Hair swept back from the front/sides
+    - A gathered point at the back of the head
+    - A flowing tail extending downward
+    """
+    if rng is None:
+        rng = random.Random()
+
+    clusters = []
+
+    # Ponytail gather point (back of head, slightly elevated)
+    gather_x = center_x
+    gather_y = top_y + length * 0.15
+    tail_length = length * 1.2
+
+    # 1. Swept-back side hair leading to gather point
+    side_count = count // 3
+    for i in range(side_count):
+        side = 1 if i % 2 == 0 else -1
+        t = (i // 2) / max(1, side_count // 2)
+
+        # Start from the hairline on the side
+        start_x = center_x + side * width * (0.35 + t * 0.15)
+        start_y = top_y + length * 0.02 * t
+
+        # Curve toward the gather point
+        p0 = (start_x, start_y)
+        p1 = (
+            start_x + side * width * 0.05,
+            start_y + length * 0.08
+        )
+        p2 = (
+            gather_x + side * width * 0.08,
+            gather_y - length * 0.05
+        )
+        p3 = (
+            gather_x + rng.uniform(-3, 3),
+            gather_y + rng.uniform(-2, 2)
+        )
+
+        base_width = rng.uniform(2.5, 4.0)
+        width_profile = [
+            (0.0, base_width * 0.75),
+            (0.3, base_width),
+            (0.7, base_width * 0.6),
+            (1.0, base_width * 0.25),
+        ]
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=0.2 + rng.uniform(0, 0.15),
+            color_offset=rng.uniform(-0.15, 0.15),
+            is_highlight=side > 0,
+        ))
+
+    # 2. Top hair swept back
+    top_count = count // 4
+    for i in range(top_count):
+        t = (i + 0.5) / top_count
+        start_x = center_x - width * 0.25 + t * width * 0.5
+        start_y = top_y - length * 0.02
+
+        p0 = (start_x, start_y)
+        p1 = (start_x + rng.uniform(-2, 2), start_y + length * 0.06)
+        p2 = (gather_x + rng.uniform(-5, 5), gather_y - length * 0.04)
+        p3 = (gather_x + rng.uniform(-2, 2), gather_y + rng.uniform(-1, 2))
+
+        base_width = rng.uniform(2.8, 4.2)
+        width_profile = [
+            (0.0, base_width * 0.8),
+            (0.35, base_width),
+            (0.7, base_width * 0.55),
+            (1.0, base_width * 0.2),
+        ]
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=0.3 + rng.uniform(0, 0.1),
+            color_offset=rng.uniform(-0.2, 0.2),
+            is_highlight=t > 0.5,
+        ))
+
+    # 3. The ponytail itself (flowing downward from gather point)
+    tail_count = count // 2
+    tail_width = width * 0.35
+
+    for i in range(tail_count):
+        t = (i + 0.5) / tail_count
+        # Distribute across the tail width
+        offset_x = (t - 0.5) * tail_width
+
+        start_x = gather_x + offset_x + rng.uniform(-2, 2)
+        start_y = gather_y + rng.uniform(-2, 3)
+
+        # Tail hangs down with gentle wave
+        wave_amp = rng.uniform(width * 0.02, width * 0.06)
+        wave_phase = rng.uniform(0, math.pi * 2)
+
+        strand_length = tail_length * rng.uniform(0.85, 1.0)
+
+        # Side strands spread outward slightly
+        spread = offset_x * 0.6
+
+        p0 = (start_x, start_y)
+        p1 = (
+            start_x + spread * 0.3 + wave_amp * math.sin(wave_phase),
+            start_y + strand_length * 0.33
+        )
+        p2 = (
+            start_x + spread * 0.6 + wave_amp * math.sin(wave_phase + 1.5),
+            start_y + strand_length * 0.66
+        )
+        p3 = (
+            start_x + spread * 0.8 + wave_amp * math.sin(wave_phase + 3.0),
+            start_y + strand_length
+        )
+
+        base_width = rng.uniform(2.2, 3.8)
+        width_profile = [
+            (0.0, base_width * 0.9),
+            (0.25, base_width),
+            (0.55, base_width * 0.85),
+            (0.8, base_width * 0.5),
+            (1.0, base_width * 0.15),
+        ]
+
+        # Center strands in front, edge strands behind
+        z_depth = 0.5 - abs(t - 0.5) * 0.3 + rng.uniform(0, 0.1)
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2, p3],
+            width_profile=width_profile,
+            z_depth=z_depth,
+            color_offset=rng.uniform(-0.25, 0.25),
+            is_highlight=(t - 0.5) > 0.15,
+        ))
+
+    # 4. Hair tie/scrunchie band at gather point (rendered as thick short clusters)
+    band_count = 6
+    band_radius = width * 0.08
+    for i in range(band_count):
+        angle = (i / band_count) * 2 * math.pi
+        bx = gather_x + band_radius * math.cos(angle) * 0.5
+        by = gather_y + band_radius * math.sin(angle) * 0.3
+
+        p0 = (bx, by)
+        p1 = (gather_x, gather_y)
+        p2 = (
+            gather_x + band_radius * math.cos(angle + math.pi) * 0.5,
+            gather_y + band_radius * math.sin(angle + math.pi) * 0.3
+        )
+
+        clusters.append(HairCluster(
+            control_points=[p0, p1, p2],
+            width_profile=[(0.0, 3.0), (0.5, 4.0), (1.0, 3.0)],
+            z_depth=0.7,  # In front of tail
+            color_offset=-0.4,  # Darker for band
+            is_highlight=False,
+        ))
+
+    clusters.sort(key=lambda c: c.z_depth)
+    return clusters
+
+
 def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
                            width: float, length: float,
                            count: int = 20,
@@ -693,8 +866,7 @@ def generate_hair_clusters(style: HairStyle, center_x: float, top_y: float,
         # Short hair: reduced length
         return generate_wavy_clusters(center_x, top_y, width, length * 0.4, int(count * 0.8), rng)
     elif style == HairStyle.PONYTAIL:
-        # Use bun style for ponytail
-        return generate_bun_clusters(center_x, top_y, width, length, count, rng)
+        return generate_ponytail_clusters(center_x, top_y, width, length, count, rng)
     elif style == HairStyle.BRAIDED:
         return generate_braided_clusters(center_x, top_y, width, length, count, rng)
     elif style == HairStyle.LONG:
