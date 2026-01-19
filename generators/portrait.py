@@ -156,6 +156,11 @@ class PortraitConfig:
     contour_intensity: float = 0.5  # 0.0 to 1.0, shadow depth
     contour_areas: str = "all"  # all, cheeks, jawline, nose
 
+    # Highlight (opposite of contour - brightens high points)
+    has_highlight: bool = False
+    highlight_intensity: float = 0.5  # 0.0 to 1.0, brightness
+    highlight_areas: str = "all"  # all, cheekbones, nose, brow, cupid
+
     # Dimples
     has_dimples: bool = False
     dimple_depth: float = 0.5  # 0.0 to 1.0
@@ -942,6 +947,20 @@ class PortraitGenerator:
         self.config.contour_areas = areas
         return self
 
+    def set_highlight(self, intensity: float = 0.5,
+                      areas: str = "all") -> 'PortraitGenerator':
+        """
+        Add facial highlighting on high points.
+
+        Args:
+            intensity: Brightness from 0.0 to 1.0
+            areas: Which areas to highlight - "all", "cheekbones", "nose", "brow", "cupid"
+        """
+        self.config.has_highlight = True
+        self.config.highlight_intensity = max(0.0, min(1.0, intensity))
+        self.config.highlight_areas = areas
+        return self
+
     def set_wrinkles(self, intensity: float = 0.5,
                      areas: str = "all") -> 'PortraitGenerator':
         """
@@ -1646,6 +1665,93 @@ class PortraitGenerator:
                         # 1-2 pixel wide contour
                         canvas.set_pixel(nose_cx, py, (*contour_color, alpha))
                         canvas.set_pixel(nose_cx + side, py, (*contour_color, alpha // 2))
+
+    def _render_highlight(self, canvas: Canvas) -> None:
+        """Render facial highlights on high points (cheekbones, nose bridge, etc.)."""
+        if not self.config.has_highlight:
+            return
+
+        intensity = max(0.0, min(1.0, self.config.highlight_intensity))
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        areas = (self.config.highlight_areas or "all").lower()
+
+        # Highlight color: bright white/cream
+        highlight_color = (255, 250, 245)
+        max_alpha = int(50 * intensity)
+
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        # Cheekbone highlights (top of cheekbones)
+        if areas in ("all", "cheekbones"):
+            cheek_y = eye_y + fh // 12
+            cheek_rx = max(3, fw // 8)
+            cheek_ry = max(1, fh // 16)
+
+            for side in (-1, 1):
+                highlight_cx = cx + side * (eye_spacing + fw // 12)
+
+                for dy in range(-cheek_ry, cheek_ry + 1):
+                    for dx in range(-cheek_rx, cheek_rx + 1):
+                        nx = dx / cheek_rx if cheek_rx > 0 else 0
+                        ny = dy / cheek_ry if cheek_ry > 0 else 0
+                        dist = nx * nx + ny * ny
+                        if dist <= 1.0:
+                            falloff = (1.0 - dist) ** 2
+                            alpha = int(max_alpha * falloff)
+                            if alpha > 0:
+                                px = highlight_cx + dx
+                                py = cheek_y + dy
+                                canvas.set_pixel(px, py, (*highlight_color, alpha))
+
+        # Nose bridge highlight (center of nose)
+        if areas in ("all", "nose"):
+            nose_y = cy - fh // 20
+            nose_height = fh // 8
+            nose_rx = max(1, fw // 20)
+
+            for dy in range(nose_height):
+                y_fade = 1.0 - (dy / nose_height) * 0.3
+                alpha = int(max_alpha * 0.8 * y_fade)
+                if alpha > 0:
+                    py = nose_y + dy
+                    for dx in range(-nose_rx, nose_rx + 1):
+                        dist = abs(dx) / nose_rx if nose_rx > 0 else 0
+                        px_alpha = int(alpha * (1.0 - dist * 0.5))
+                        if px_alpha > 0:
+                            canvas.set_pixel(cx + dx, py, (*highlight_color, px_alpha))
+
+        # Brow bone highlight (under eyebrow)
+        if areas in ("all", "brow"):
+            brow_y = eye_y - fh // 10
+            brow_rx = max(2, fw // 10)
+
+            for side in (-1, 1):
+                brow_cx = cx + side * eye_spacing
+
+                for dx in range(-brow_rx, brow_rx + 1):
+                    dist = abs(dx) / brow_rx if brow_rx > 0 else 0
+                    alpha = int(max_alpha * 0.6 * (1.0 - dist))
+                    if alpha > 0:
+                        canvas.set_pixel(brow_cx + dx, brow_y, (*highlight_color, alpha))
+                        canvas.set_pixel(brow_cx + dx, brow_y + 1, (*highlight_color, alpha // 2))
+
+        # Cupid's bow highlight (above upper lip)
+        if areas in ("all", "cupid"):
+            lip_y = cy + fh // 4 - fh // 16
+            cupid_rx = max(2, fw // 14)
+
+            for dx in range(-cupid_rx, cupid_rx + 1):
+                dist = abs(dx) / cupid_rx if cupid_rx > 0 else 0
+                # Double peak shape for cupid's bow
+                cupid_shape = 1.0 - abs(abs(dx) - cupid_rx // 2) / (cupid_rx // 2 + 1)
+                alpha = int(max_alpha * 0.5 * cupid_shape)
+                if alpha > 0:
+                    canvas.set_pixel(cx + dx, lip_y, (*highlight_color, alpha))
 
     def _render_freckles(self, canvas: Canvas) -> None:
         """Render freckles across nose and cheeks."""
@@ -3586,6 +3692,7 @@ class PortraitGenerator:
         self._render_ears(canvas)
         self._render_blush(canvas)
         self._render_contour(canvas)  # Facial contouring for definition
+        self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_wrinkles(canvas)  # Age lines on face
         self._render_eyebags(canvas)
