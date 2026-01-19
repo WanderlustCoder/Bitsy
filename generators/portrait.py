@@ -25,6 +25,25 @@ from core.canvas import Canvas
 from core.color import Color
 from core.palette import Palette, rgb_to_lch, lch_to_rgb, rgb_to_hsv, hsv_to_rgb
 
+# Anime rendering components
+from generators.portrait_parts.anime_eyes import (
+    AnimeEyeExpression, AnimeEyeParams, render_anime_eyes, get_anime_eye_position
+)
+from generators.portrait_parts.face import (
+    AnimeNoseStyle, AnimeMouthStyle, render_anime_nose, render_anime_mouth,
+    render_anime_eyebrows, render_anime_blush, get_anime_face_proportions
+)
+from generators.portrait_parts.hair import (
+    render_anime_hair
+)
+from generators.color_utils import (
+    get_anime_hair_ramp, get_anime_eye_ramp, ANIME_SKIN_RAMP,
+    create_hue_shifted_ramp
+)
+from generators.portrait_parts.post_processing import (
+    apply_outline, apply_selective_aa, enforce_palette
+)
+
 
 class RenderMode(Enum):
     """Rendering style mode."""
@@ -8896,6 +8915,209 @@ class PortraitGenerator:
 
                 canvas.set_pixel(x, y, (r, g, b, 255))
 
+    def _render_anime(self) -> Canvas:
+        """
+        Render portrait in anime style.
+
+        Uses volumetric hair, large expressive eyes, simplified features,
+        and hue-shifted color palettes with rim lighting.
+
+        Returns:
+            Canvas with anime-style portrait
+        """
+        # Create canvas
+        canvas = Canvas(self.config.width, self.config.height)
+
+        # Dark background for anime style
+        bg_color = (26, 26, 46, 255)  # Navy blue like reference
+        for y in range(canvas.height):
+            for x in range(canvas.width):
+                canvas.set_pixel_solid(x, y, bg_color)
+
+        # Calculate positions
+        center_x = canvas.width // 2
+        face_top = int(canvas.height * 0.15)
+        face_height = int(canvas.height * 0.35)
+        face_bottom = face_top + face_height
+        face_center_y = face_top + face_height // 2
+        face_width = int(face_height * 0.7 * self.config.face_width)
+
+        # Get anime face proportions
+        proportions = get_anime_face_proportions(
+            face_width, face_height, self.config.anime_eye_scale
+        )
+
+        # Prepare color ramps
+        skin_color = SKIN_TONES.get(self.config.skin_tone, SKIN_TONES["light"])
+        skin_ramp = create_hue_shifted_ramp(skin_color, 6)
+
+        hair_color_name = self.config.hair_color
+        if hair_color_name in ["gray", "white", "black", "brown", "blonde", "red", "purple", "blue", "pink", "green"]:
+            hair_ramp = get_anime_hair_ramp(hair_color_name)
+        else:
+            hair_base = HAIR_COLORS.get(hair_color_name, HAIR_COLORS["brown"])
+            hair_ramp = create_hue_shifted_ramp(hair_base, 6)
+
+        eye_color_name = self.config.eye_color
+        if eye_color_name in ["brown", "blue", "green", "purple", "amber", "red"]:
+            eye_ramp = get_anime_eye_ramp(eye_color_name)
+        else:
+            eye_base = EYE_COLORS.get(eye_color_name, EYE_COLORS["brown"])
+            eye_ramp = create_hue_shifted_ramp(eye_base, 5)
+
+        # --- Layer 1: Back hair ---
+        # Calculate hair dimensions
+        hair_width = face_width * self.config.hair_volume
+        hair_top = face_top - int(face_height * 0.2)  # Hair starts above face
+
+        # Hair length varies by style
+        hair_lengths = {
+            HairStyle.SHORT: face_height * 0.6,
+            HairStyle.STRAIGHT: face_height * 1.2,
+            HairStyle.LONG: face_height * 1.8,
+            HairStyle.WAVY: face_height * 1.2,
+            HairStyle.CURLY: face_height * 1.0,
+            HairStyle.PONYTAIL: face_height * 1.5,
+            HairStyle.BUN: face_height * 0.5,
+            HairStyle.BRAIDED: face_height * 1.6,
+        }
+        hair_length = hair_lengths.get(self.config.hair_style, face_height * 1.0)
+
+        render_anime_hair(
+            canvas,
+            self.config.hair_style,
+            center_x, hair_top,
+            hair_width, hair_length,
+            hair_ramp,
+            rim_color=self.config.rim_light_color if self.config.rim_light_enabled else None,
+            rim_intensity=self.config.rim_light_intensity,
+            seed=self.config.seed,
+            foreground_only=False
+        )
+
+        # --- Layer 2: Face base (simple oval) ---
+        for y in range(face_top, face_bottom + 5):
+            # Oval shape with pointed chin
+            t = (y - face_top) / face_height
+            if t < 0.8:
+                row_width = int(face_width * math.sqrt(1 - ((t - 0.4) / 0.6) ** 2) * 0.9)
+            else:
+                # Chin taper
+                chin_t = (t - 0.8) / 0.2
+                row_width = int(face_width * 0.5 * (1 - chin_t * 0.7))
+
+            for x in range(center_x - row_width, center_x + row_width + 1):
+                if 0 <= x < canvas.width and 0 <= y < canvas.height:
+                    dist = abs(x - center_x) / max(1, row_width)
+                    # Anime-style shading
+                    if dist > 0.85:
+                        if self.config.rim_light_enabled:
+                            color = self._blend_rim(skin_ramp[4], self.config.rim_light_color, 0.3)
+                        else:
+                            color = skin_ramp[2]
+                    elif dist > 0.6:
+                        color = skin_ramp[2]
+                    elif dist < 0.2:
+                        color = skin_ramp[4]
+                    else:
+                        color = skin_ramp[3]
+                    canvas.set_pixel(x, y, color)
+
+        # --- Layer 3: Anime eyes ---
+        render_anime_eyes(
+            canvas,
+            center_x, face_center_y,
+            face_width, face_height,
+            eye_ramp,  # Already list of tuples
+            eye_scale=self.config.anime_eye_scale,
+            expression=AnimeEyeExpression.NEUTRAL,
+            openness=0.9
+        )
+
+        # --- Layer 4: Anime nose ---
+        nose_y = proportions["nose_y"]
+        render_anime_nose(
+            canvas, center_x, nose_y,
+            AnimeNoseStyle.DOT,
+            skin_ramp
+        )
+
+        # --- Layer 5: Anime mouth ---
+        mouth_y = proportions["mouth_y"]
+        lip_color = (200, 120, 120, 255)  # Subtle lip color
+        render_anime_mouth(
+            canvas, center_x, mouth_y,
+            AnimeMouthStyle.SMALL,
+            width=8,
+            lip_color=lip_color,
+            skin_ramp=skin_ramp
+        )
+
+        # --- Layer 6: Anime eyebrows ---
+        eye_y = face_top + proportions["eye_y"]
+        eye_spacing = proportions["eye_spacing"]
+        eye_height = proportions["eye_height"]
+        brow_y = face_top + proportions["brow_y"]
+        brow_color = hair_ramp[1]  # Dark from hair palette
+        brow_width = proportions.get("brow_width", eye_spacing // 2)
+        render_anime_eyebrows(
+            canvas,
+            left_x=center_x - eye_spacing,
+            right_x=center_x + eye_spacing,
+            y=brow_y,
+            width=brow_width,
+            color=brow_color,
+            thickness=2
+        )
+
+        # --- Layer 7: Optional blush ---
+        if getattr(self.config, 'blush_intensity', 0) > 0:
+            blush_y = eye_y + eye_height // 2
+            blush_radius = face_width // 8
+            blush_color = (255, 150, 150, 255)  # Soft pink
+            render_anime_blush(
+                canvas,
+                left_x=center_x - eye_spacing,
+                right_x=center_x + eye_spacing,
+                y=blush_y,
+                radius=blush_radius,
+                color=blush_color,
+                intensity=self.config.blush_intensity
+            )
+
+        # --- Layer 8: Front hair ---
+        render_anime_hair(
+            canvas,
+            self.config.hair_style,
+            center_x, hair_top,
+            hair_width, hair_length,
+            hair_ramp,
+            rim_color=self.config.rim_light_color if self.config.rim_light_enabled else None,
+            rim_intensity=self.config.rim_light_intensity,
+            seed=self.config.seed,
+            foreground_only=True
+        )
+
+        # --- Post-processing ---
+        if self.config.outline_mode == "thin":
+            apply_outline(canvas, (*self.config.outline_color, 255), 1)
+        elif self.config.outline_mode == "thick":
+            apply_outline(canvas, (*self.config.outline_color, 255), 2)
+
+        if self.config.selective_aa:
+            apply_selective_aa(canvas, bg_color)
+
+        return canvas
+
+    def _blend_rim(self, base_color, rim_color, intensity):
+        """Blend rim light into base color."""
+        return (
+            int(base_color[0] * (1 - intensity) + rim_color[0] * intensity),
+            int(base_color[1] * (1 - intensity) + rim_color[1] * intensity),
+            int(base_color[2] * (1 - intensity) + rim_color[2] * intensity),
+            base_color[3] if len(base_color) > 3 else 255
+        )
+
     def render(self) -> Canvas:
         """
         Render the complete portrait.
@@ -8903,7 +9125,11 @@ class PortraitGenerator:
         Returns:
             Canvas with the rendered portrait
         """
-        # Prepare color ramps
+        # Check for anime mode
+        if self.config.render_mode == RenderMode.ANIME:
+            return self._render_anime()
+
+        # Realistic mode - prepare color ramps
         self._prepare_ramps()
 
         # Create canvas
