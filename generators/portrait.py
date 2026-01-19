@@ -208,6 +208,7 @@ class PortraitConfig:
 
     # Temple shadow (adds depth to face structure)
     temple_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
+    jawline_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle contour, 1.0 = defined
 
     # Neck shadow (chin to neck transition)
     neck_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
@@ -1297,6 +1298,19 @@ class PortraitGenerator:
         self.config.temple_shadow = max(0.0, min(1.0, intensity))
         return self
 
+    def set_jawline_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set jawline shadow/contouring for a defined jaw.
+
+        Adds shadow along the jawline for a more sculpted appearance,
+        similar to makeup contouring.
+
+        Args:
+            intensity: Shadow depth (0.0 = none, 0.5 = subtle contour, 1.0 = defined)
+        """
+        self.config.jawline_shadow = max(0.0, min(1.0, intensity))
+        return self
+
     def set_neck_shadow(self, depth: float = 0.5) -> 'PortraitGenerator':
         """
         Set neck shadow (under chin) for depth.
@@ -2135,6 +2149,45 @@ class PortraitGenerator:
                             px = temple_cx + dx
                             py = temple_y + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
+
+    def _render_jawline_shadow(self, canvas: Canvas) -> None:
+        """Render jawline shadow/contouring for a defined jaw."""
+        intensity = getattr(self.config, 'jawline_shadow', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Shadow color - slightly darker than skin
+        mid_idx = len(self._skin_ramp) // 2
+        shade_idx = max(0, mid_idx - 2)
+        shadow_color = self._skin_ramp[shade_idx]
+        max_alpha = int(25 + 50 * intensity)
+
+        # Jawline runs from chin area outward and upward
+        chin_y = cy + fh // 3
+        jaw_width = fw // 2 - 2
+
+        for side in (-1, 1):
+            # Draw shadow along jawline curve
+            for t in range(jaw_width):
+                # Curve from chin outward and upward
+                progress = t / jaw_width if jaw_width > 0 else 0
+                px = cx + side * t
+                # Jawline curves upward as it goes outward
+                py = chin_y - int(progress * progress * fh // 6)
+
+                # Shadow intensity fades toward outer edge
+                fade = 1.0 - progress * 0.5
+                alpha = int(max_alpha * fade)
+
+                if alpha > 5:
+                    # Draw small shadow area (2-3 pixels down from jawline)
+                    for dy in range(1, 4):
+                        pixel_alpha = int(alpha * (1.0 - dy / 4))
+                        if pixel_alpha > 0:
+                            canvas.set_pixel(px, py + dy, (*shadow_color[:3], pixel_alpha))
 
     def _render_neck_shadow(self, canvas: Canvas) -> None:
         """Render shadow under the chin for neck transition depth."""
@@ -5108,6 +5161,7 @@ class PortraitGenerator:
         self._render_blush(canvas)
         self._render_contour(canvas)  # Facial contouring for definition
         self._render_temple_shadow(canvas)  # Temple shadow for depth
+        self._render_jawline_shadow(canvas)  # Jawline contouring
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
