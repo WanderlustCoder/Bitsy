@@ -106,6 +106,7 @@ class PortraitConfig:
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
+    eyelash_curl: float = 0.5  # 0.0 = straight, 0.5 = natural curl, 1.0 = dramatic curl
     eye_tilt: float = 0.0  # -0.3 to 0.3, negative=downward tilt, positive=upward tilt
     right_eye_color: Optional[str] = None  # None = same as left, set for heterochromia
     nose_type: NoseType = NoseType.SMALL
@@ -662,14 +663,17 @@ class PortraitGenerator:
         self.config.iris_pattern = iris_pattern
         return self
 
-    def set_eyelashes(self, length: float = 0.5) -> 'PortraitGenerator':
+    def set_eyelashes(self, length: float = 0.5,
+                      curl: float = 0.5) -> 'PortraitGenerator':
         """
-        Set eyelash length.
+        Set eyelash length and curl.
 
         Args:
             length: Eyelash length (0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic)
+            curl: Eyelash curl (0.0 = straight, 0.5 = natural, 1.0 = dramatic curl)
         """
         self.config.eyelash_length = max(0.0, min(1.5, length))
+        self.config.eyelash_curl = max(0.0, min(1.0, curl))
         return self
 
     def set_catchlight(self, style: str = "double") -> 'PortraitGenerator':
@@ -2651,9 +2655,17 @@ class PortraitGenerator:
                 # Angle outward from center
                 angle = (t - 0.5) * 0.3 * side
 
-                # Draw the lash
+                # Curl factor - curves lashes backward as they extend
+                curl = getattr(self.config, 'eyelash_curl', 0.5)
+                curl_strength = curl * 0.15  # Max curl at 1.0 = 0.15 curve factor
+
+                # Draw the lash with curl
                 for ly in range(this_lash_len):
-                    py = lid_y - ly
+                    # Apply curl: quadratic curve that increases with distance
+                    progress = ly / this_lash_len if this_lash_len > 0 else 0
+                    curl_offset = int(curl_strength * ly * progress * ly)
+
+                    py = lid_y - ly + curl_offset  # Curl makes tip bend back (higher y = more curved back)
                     px = lash_x + int(angle * ly)
                     canvas.set_pixel(px, py, lash_color)
 
