@@ -227,6 +227,7 @@ class PortraitConfig:
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
     eyebrow_taper: float = 0.5  # 0.0 = uniform width, 0.5 = natural taper, 1.0 = dramatic taper to point
+    eyebrow_tail_length: float = 1.0  # 0.7 = short brows, 1.0 = normal, 1.3 = extended/long tail
     brow_thickness: float = 1.0  # 0.5 = thin/fine brows, 1.0 = normal, 1.5 = thick/bold brows
     eyebrow_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle height diff, 0.6 = noticeable
     eyebrow_height: float = 0.0  # -0.3 = low (close to eyes), 0.0 = normal, 0.3 = high (raised)
@@ -330,6 +331,7 @@ class PortraitConfig:
     # Cheekbone prominence
     cheekbone_prominence: str = "normal"  # low, normal, high, sculpted
     cheekbone_highlight: float = 0.5  # 0.0 = no highlight, 0.5 = normal, 1.0 = intense
+    cheekbone_height: float = 0.5  # 0.0 = low cheekbones, 0.5 = normal, 1.0 = high cheekbones
     cheekbone_definition: float = 0.0  # 0.0 = soft, 0.5 = defined, 1.0 = sharp/angular
     cheek_hollows: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = gaunt/sunken cheeks
     cheek_fullness: float = 0.0  # 0.0 = normal, 0.5 = slightly full, 1.0 = chubby/baby face cheeks
@@ -1845,6 +1847,16 @@ class PortraitGenerator:
         self.config.eyebrow_taper = max(0.0, min(1.0, taper))
         return self
 
+    def set_eyebrow_tail_length(self, length: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set eyebrow tail length (how far the brow extends outward).
+
+        Args:
+            length: Length multiplier (0.7 = short, 1.0 = normal, 1.3 = extended)
+        """
+        self.config.eyebrow_tail_length = max(0.7, min(1.3, length))
+        return self
+
     def set_brow_thickness(self, thickness: float = 1.0) -> 'PortraitGenerator':
         """Set eyebrow thickness/boldness."""
         self.config.brow_thickness = max(0.5, min(1.5, thickness))
@@ -2285,6 +2297,11 @@ class PortraitGenerator:
             intensity: Highlight intensity (0.0 = none, 0.5 = normal, 1.0 = intense)
         """
         self.config.cheekbone_highlight = max(0.0, min(1.0, intensity))
+        return self
+
+    def set_cheekbone_height(self, height: float = 0.5) -> 'PortraitGenerator':
+        """Set cheekbone position (0.0 = low, 0.5 = normal, 1.0 = high)."""
+        self.config.cheekbone_height = max(0.0, min(1.0, height))
         return self
 
     def set_cheekbone_definition(self, definition: float = 0.5) -> 'PortraitGenerator':
@@ -3952,7 +3969,9 @@ class PortraitGenerator:
 
         # Cheekbone highlights (top of cheekbones)
         if areas in ("all", "cheekbones"):
-            cheek_y = eye_y + fh // 12
+            cheek_height = max(0.0, min(1.0, getattr(self.config, 'cheekbone_height', 0.5)))
+            y_range = max(2, fh // 10)
+            cheek_y = eye_y + fh // 12 + int((0.5 - cheek_height) * y_range * 2)
             cheek_rx = max(3, fw // 8)
             cheek_ry = max(1, fh // 16)
 
@@ -4031,7 +4050,9 @@ class PortraitGenerator:
 
         highlight_color = (255, 252, 248)
         max_alpha = int(40 + 90 * intensity)
-        cheek_y = eye_y + fh // 14
+        cheek_height = max(0.0, min(1.0, getattr(self.config, 'cheekbone_height', 0.5)))
+        y_range = max(2, fh // 10)
+        cheek_y = eye_y + fh // 14 + int((0.5 - cheek_height) * y_range * 2)
         cheek_rx = max(2, int(fw // 9 * (0.7 + 0.5 * intensity)))
         cheek_ry = max(1, int(fh // 18 * (0.7 + 0.6 * intensity)))
 
@@ -7564,7 +7585,8 @@ class PortraitGenerator:
         brow_y = cy - fh // 5 - int(height_offset * fh // 4)
         gap_mult = getattr(self.config, 'eyebrow_gap', 1.0)
         eye_spacing = int(self._get_eye_spacing(fw) * gap_mult)  # Apply gap multiplier
-        brow_width = fw // 6
+        tail_length = getattr(self.config, 'eyebrow_tail_length', 1.0)
+        brow_width = int((fw // 6) * tail_length)
         half_width = brow_width // 2
         tilt_cx = self._apply_head_tilt(cx, cy, brow_y)
 
