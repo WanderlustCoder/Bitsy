@@ -151,6 +151,7 @@ class PortraitConfig:
     has_waterline: bool = False
     waterline_color: str = "nude"  # nude, white, black (tightline)
     eyelash_length: float = 0.0  # 0.0 = none, 0.5 = natural, 1.0 = long, 1.5 = dramatic
+    eyelash_density: float = 0.5  # 0.0 = sparse lashes, 0.5 = normal, 1.0 = thick/dense lashes
     eyelash_curl: float = 0.5  # 0.0 = straight, 0.5 = natural curl, 1.0 = dramatic curl
     lower_lashes: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible lower lashes
     lower_lid_curve: float = 0.5  # 0.0 = straight/flat lower lid, 0.5 = normal, 1.0 = curved/rounded
@@ -193,6 +194,7 @@ class PortraitConfig:
     lip_corner_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = prominent corner creases
     cupids_bow: float = 0.5  # 0.0 = flat/subtle, 0.5 = normal, 1.0 = pronounced M-shape
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
+    lip_bow_depth: float = 0.5  # 0.0 = flat upper lip, 0.5 = normal bow, 1.0 = deep pronounced bow
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
     philtrum_width: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide philtrum
     philtrum_length: float = 1.0  # 0.7 = short (nose closer to lips), 1.0 = normal, 1.3 = long
@@ -1141,6 +1143,11 @@ class PortraitGenerator:
         self.config.lower_lashes = max(0.0, min(1.0, lower))
         return self
 
+    def set_eyelash_density(self, density: float = 0.5) -> 'PortraitGenerator':
+        """Set eyelash density/thickness from sparse to dense."""
+        self.config.eyelash_density = max(0.0, min(1.0, density))
+        return self
+
     def set_lower_lid_curve(self, curve: float = 0.5) -> 'PortraitGenerator':
         """
         Set lower eyelid curvature.
@@ -1750,6 +1757,11 @@ class PortraitGenerator:
             definition: Definition level (0.0 = flat, 0.5 = normal, 1.0 = pronounced)
         """
         self.config.cupids_bow = max(0.0, min(1.0, definition))
+        return self
+
+    def set_lip_bow_depth(self, depth: float = 0.5) -> 'PortraitGenerator':
+        """Set the depth of the cupid's bow curve on the upper lip."""
+        self.config.lip_bow_depth = max(0.0, min(1.0, depth))
         return self
 
     def set_philtrum(self, depth: float = 0.5) -> 'PortraitGenerator':
@@ -7392,8 +7404,10 @@ class PortraitGenerator:
 
             # Cupid's bow effect for upper lip
             cupid_bow_val = getattr(self.config, 'cupid_bow', 0.5)
+            bow_depth = max(0.0, min(1.0, getattr(self.config, 'lip_bow_depth', 0.5)))
+            depth_scale = bow_depth * 2.0
             cupid_bow_width = max(1, lip_width // 3)
-            cupid_bow_depth = int(lip_height * 0.4 * cupid_bow_val)
+            cupid_bow_depth = int(lip_height * 0.4 * cupid_bow_val * depth_scale)
 
             for dx in range(-lip_width, lip_width + 1):
                 # Corner offset: positive corner_val lifts corners up (negative y)
@@ -7495,6 +7509,8 @@ class PortraitGenerator:
         line_inset = 2
         cupid_width = 0
         cupid_depth = 0
+        bow_depth = max(0.0, min(1.0, getattr(self.config, 'lip_bow_depth', 0.5)))
+        depth_scale = bow_depth * 2.0
 
         if shape == LipShape.THIN:
             lip_height = max(1, int(lip_height * 0.6))
@@ -7518,7 +7534,7 @@ class PortraitGenerator:
             highlight_span = max(1, lip_width - 2)
             line_inset = 2
             cupid_width = max(1, lip_width // 4)
-            cupid_depth = max(1, int(lip_height * 0.35))
+            cupid_depth = max(1, int(lip_height * 0.35 * depth_scale))
 
         upper_lip_color = lip_ramp[1]
         for dx in range(-lip_width, lip_width + 1):
@@ -7785,7 +7801,9 @@ class PortraitGenerator:
         # Upper lip outline
         upper_height = int(lip_height * upper_scale * thickness_mult)
         cupid_bow = getattr(self.config, 'cupid_bow', 0.5)
-        cupid_depth = int(upper_height * 0.4 * cupid_bow)
+        bow_depth = max(0.0, min(1.0, getattr(self.config, 'lip_bow_depth', 0.5)))
+        depth_scale = bow_depth * 2.0
+        cupid_depth = int(upper_height * 0.4 * cupid_bow * depth_scale)
         cupid_width = max(1, lip_width // 3)
 
         for dx in range(-lip_width, lip_width + 1):
