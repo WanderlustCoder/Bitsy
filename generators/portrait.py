@@ -6230,7 +6230,9 @@ class PortraitGenerator:
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
         tilt_cx = self._apply_head_tilt(cx, cy, eye_y)
 
-        lash_color = (20, 15, 15, 255)  # Dark brown/black
+        lash_density = max(0.0, min(1.0, getattr(self.config, 'eyelash_density', 0.5)))
+        lash_alpha = int(140 + 115 * lash_density)
+        lash_color = (20, 15, 15, lash_alpha)  # Dark brown/black
         base_lash_len = max(1, int(eye_height * 0.4 * lash_length))
 
         for side in (-1, 1):  # Left and right eye
@@ -6242,7 +6244,8 @@ class PortraitGenerator:
             ey = eye_y - side * tilt_offset
 
             # Draw lashes along upper lid
-            num_lashes = max(3, eye_width // 2)
+            base_lash_count = max(3, eye_width // 2)
+            num_lashes = max(2, int(round(base_lash_count * (0.5 + lash_density))))
             for i in range(num_lashes):
                 # Position along the eye width
                 t = i / (num_lashes - 1) if num_lashes > 1 else 0.5
@@ -6275,7 +6278,8 @@ class PortraitGenerator:
         # Render lower lashes if enabled
         lower_lash_intensity = getattr(self.config, 'lower_lashes', 0.0)
         if lower_lash_intensity > 0.0:
-            lower_lash_color = (30, 25, 25, int(180 * lower_lash_intensity))  # Softer, more transparent
+            lower_alpha = int(180 * lower_lash_intensity * (0.6 + 0.4 * lash_density))
+            lower_lash_color = (30, 25, 25, lower_alpha)  # Softer, more transparent
             lower_lash_len = max(1, int(base_lash_len * 0.4 * lower_lash_intensity))
 
             for side in (-1, 1):
@@ -6285,7 +6289,8 @@ class PortraitGenerator:
                 ey = eye_y - side * tilt_offset
 
                 # Lower lashes: fewer, shorter, pointing downward
-                num_lower = max(2, eye_width // 3)
+                base_lower_count = max(2, eye_width // 3)
+                num_lower = max(1, int(round(base_lower_count * (0.5 + lash_density))))
                 for i in range(num_lower):
                     t = i / (num_lower - 1) if num_lower > 1 else 0.5
                     # Skip very outer corners
