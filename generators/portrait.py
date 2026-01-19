@@ -158,6 +158,7 @@ class PortraitConfig:
     eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
+    brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
 
     # Eyebags
     has_eyebags: bool = False
@@ -987,6 +988,16 @@ class PortraitGenerator:
         self.config.eyebrow_color = color
         self.config.eyebrow_gap = max(0.7, min(1.3, gap))
         self.config.eyebrow_shape = shape
+        return self
+
+    def set_brow_bone(self, prominence: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set brow bone/ridge prominence.
+
+        Args:
+            prominence: Ridge prominence (0.0 = flat, 0.5 = subtle, 1.0 = prominent)
+        """
+        self.config.brow_bone = max(0.0, min(1.0, prominence))
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -3228,6 +3239,63 @@ class PortraitGenerator:
                             py = ey + dy
                             canvas.set_pixel(px, py, (*shadow_color[:3], alpha))
 
+    def _render_brow_bone(self, canvas: Canvas) -> None:
+        """Render brow bone/ridge prominence with highlight and shadow."""
+        prominence = getattr(self.config, 'brow_bone', 0.0)
+        if prominence <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = fw // 4
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+
+        # Brow ridge is above the eyes
+        ridge_y = eye_y - eye_width - 2
+        ridge_height = max(2, int(3 * prominence))
+        ridge_extension = eye_width + 2
+
+        # Colors
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_idx = min(len(self._skin_ramp) - 1, mid_idx + 2)
+        shadow_idx = max(0, mid_idx - 2)
+        highlight_color = self._skin_ramp[highlight_idx]
+        shadow_color = self._skin_ramp[shadow_idx]
+
+        max_highlight_alpha = int(25 + 40 * prominence)
+        max_shadow_alpha = int(20 + 35 * prominence)
+
+        for side in (-1, 1):
+            brow_cx = cx + side * eye_spacing
+
+            # Apply eye tilt offset
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            brow_y = ridge_y - side * tilt_offset
+
+            # Highlight on top of ridge
+            for dx in range(-ridge_extension, ridge_extension + 1):
+                x_fade = 1.0 - (abs(dx) / ridge_extension) ** 1.5
+                for dy in range(ridge_height):
+                    y_fade = 1.0 - dy / ridge_height
+                    alpha = int(max_highlight_alpha * x_fade * y_fade)
+                    if alpha > 0:
+                        canvas.set_pixel(brow_cx + dx, brow_y - dy, (*highlight_color[:3], alpha))
+
+            # Shadow below ridge (above eye socket)
+            if prominence > 0.3:
+                shadow_y = brow_y + 1
+                for dx in range(-ridge_extension + 1, ridge_extension):
+                    x_fade = 1.0 - (abs(dx) / ridge_extension) ** 2
+                    for dy in range(max(1, ridge_height - 1)):
+                        y_fade = 1.0 - dy / (ridge_height - 1 + 1)
+                        alpha = int(max_shadow_alpha * x_fade * y_fade)
+                        if alpha > 0:
+                            canvas.set_pixel(brow_cx + dx, shadow_y + dy, (*shadow_color[:3], alpha))
+
     def _render_eyeshadow(self, canvas: Canvas) -> None:
         """Render eye shadow on the eyelid area above the eye."""
         if not self.config.has_eyeshadow:
@@ -4531,6 +4599,7 @@ class PortraitGenerator:
         self._render_lips(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
+        self._render_brow_bone(canvas)  # Brow ridge prominence
         self._render_eyeshadow(canvas)  # Eye shadow on eyelid before eye
         self._render_eyes(canvas)
         self._render_eyelashes(canvas)
