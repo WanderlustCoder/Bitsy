@@ -82,6 +82,7 @@ class PortraitConfig:
     hair_style: HairStyle = HairStyle.WAVY
     hair_color: str = "brown"  # brown, black, blonde, red, gray, etc.
     hair_length: float = 1.0  # 0.5 = short, 1.0 = medium, 1.5 = long
+    hair_volume: float = 1.0  # 0.7-1.5, multiplier for hair width/fullness
     hair_parting: str = "none"  # none, left, right, center
     has_hair_highlights: bool = False
     highlight_color: str = "blonde"  # color for highlights/streaks
@@ -552,11 +553,20 @@ class PortraitGenerator:
         return self
 
     def set_hair(self, style: HairStyle, color: str,
-                 length: float = 1.0) -> 'PortraitGenerator':
-        """Set hair style and color."""
+                 length: float = 1.0,
+                 volume: float = 1.0) -> 'PortraitGenerator':
+        """Set hair style, color, length, and volume.
+
+        Args:
+            style: Hair style
+            color: Hair color
+            length: Length multiplier (0.5-1.5, default 1.0)
+            volume: Volume/fullness multiplier (0.7-1.5, default 1.0)
+        """
         self.config.hair_style = style
         self.config.hair_color = color
         self.config.hair_length = length
+        self.config.hair_volume = max(0.7, min(1.5, volume))
         return self
 
     def set_hair_parting(self, side: str = "center") -> 'PortraitGenerator':
@@ -2800,8 +2810,9 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         # Hair parameters
+        volume_mult = getattr(self.config, 'hair_volume', 1.0)
         hair_top = cy - fh // 2 - fh // 4
-        hair_width = int(fw * 0.85)
+        hair_width = int(fw * 0.85 * volume_mult)  # Apply volume to width
         hair_length = int(fh * 0.85 * self.config.hair_length)
 
         # Map HairStyle enum to parts module enum
@@ -2815,8 +2826,8 @@ class PortraitGenerator:
         }
         hair_style = style_map.get(self.config.hair_style, HairStyleParts.WAVY)
 
-        # Increased cluster count for fuller hair
-        cluster_count = max(15, self.config.width // 4)
+        # Increased cluster count for fuller hair (scaled by volume)
+        cluster_count = max(15, int(self.config.width // 4 * volume_mult))
 
         # Determine highlight parameters
         highlight_ramp = None
