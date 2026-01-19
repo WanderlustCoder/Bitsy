@@ -400,6 +400,16 @@ class PortraitGenerator:
         self.config.skin_tone = tone
         return self
 
+    def set_face_shape(self, shape: str = "oval") -> 'PortraitGenerator':
+        """
+        Set face shape.
+
+        Args:
+            shape: One of 'oval', 'round', 'heart', 'square'
+        """
+        self.config.face_shape = shape
+        return self
+
     def set_hair(self, style: HairStyle, color: str,
                  length: float = 1.0) -> 'PortraitGenerator':
         """Set hair style and color."""
@@ -721,12 +731,48 @@ class PortraitGenerator:
         ramp_len = len(self._skin_ramp)
         mid_idx = ramp_len // 2
 
+        # Face shape parameters
+        face_shape = self.config.face_shape.lower()
+
         # Per-pixel gradient shading
         for y in range(cy - ry - 1, cy + ry + 2):
             for x in range(cx - rx - 1, cx + rx + 2):
-                # Check if inside ellipse
+                # Calculate base normalized coordinates
                 dx = (x - cx) / rx if rx > 0 else 0
                 dy = (y - cy) / ry if ry > 0 else 0
+
+                # Apply face shape transformation
+                if face_shape == "round":
+                    # Round face: more circular proportions
+                    # Reduce the y-elongation effect
+                    adj_rx = rx * 0.95
+                    adj_ry = ry * 0.85
+                    dx = (x - cx) / adj_rx if adj_rx > 0 else 0
+                    dy = (y - cy) / adj_ry if adj_ry > 0 else 0
+
+                elif face_shape == "heart":
+                    # Heart face: wider forehead, narrower chin
+                    # Apply progressive narrowing toward bottom
+                    if dy > 0:  # Below center
+                        chin_narrow = 1.0 + dy * 0.25  # Narrow chin by up to 25%
+                        dx = dx * chin_narrow
+                    else:  # Above center (forehead)
+                        forehead_wide = 1.0 + dy * 0.08  # Slightly wider forehead
+                        dx = dx * forehead_wide
+
+                elif face_shape == "square":
+                    # Square face: defined jawline, straighter edges
+                    # Blend between ellipse and rectangle
+                    abs_dx = abs(dx)
+                    abs_dy = abs(dy)
+                    # Use superellipse approximation (squircle effect)
+                    # Higher power = more rectangular
+                    power = 2.8
+                    dx = dx * (1.0 - 0.15 * (1.0 - abs_dx ** power))
+                    dy = dy * (1.0 - 0.1 * (1.0 - abs_dy ** power))
+
+                # else: oval (default) - no transformation needed
+
                 dist_sq = dx * dx + dy * dy
 
                 if dist_sq > 1.0:
@@ -961,13 +1007,11 @@ class PortraitGenerator:
                     canvas.set_pixel(px, py, eyelid_shadow)
 
     def _render_nose(self, canvas: Canvas) -> None:
-        """Render nose with subtle shading."""
+        """Render nose with subtle shading based on nose type."""
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
         nose_y = cy + fh // 10
-        nose_width = fw // 12
-        nose_height = fh // 8
 
         # Nose shadow on one side (based on lighting)
         lx, _ = self.config.light_direction
@@ -976,16 +1020,88 @@ class PortraitGenerator:
         mid_idx = len(self._skin_ramp) // 2
         shadow_color = (*self._skin_ramp[mid_idx - 1][:3], 60)
         highlight_color = (*self._skin_ramp[mid_idx + 1][:3], 50)
+        dark_shadow = (*self._skin_ramp[mid_idx - 2][:3], 45)
 
-        # Subtle shadow line on one side
-        for dy in range(nose_height):
-            py = nose_y + dy
-            px = cx + shadow_side * 2
-            canvas.set_pixel(px, py, shadow_color)
+        nose_type = self.config.nose_type
 
-        # Nose tip highlight
-        canvas.set_pixel(cx, nose_y + nose_height - 2, highlight_color)
-        canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
+        if nose_type == NoseType.SMALL:
+            # Small nose: minimal shadow, small highlight
+            nose_height = fh // 10
+            # Very subtle shadow line
+            for dy in range(nose_height):
+                py = nose_y + dy
+                px = cx + shadow_side * 1
+                canvas.set_pixel(px, py, (*shadow_color[:3], 40))
+            # Small tip highlight
+            canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
+
+        elif nose_type == NoseType.BUTTON:
+            # Button nose: round, prominent tip
+            nose_height = fh // 9
+            nose_width = fw // 14
+            # Rounded shadow
+            for dy in range(nose_height):
+                t = dy / nose_height
+                shadow_width = int(1 + t * 1.5)  # Widens toward tip
+                py = nose_y + dy
+                for sw in range(shadow_width):
+                    canvas.set_pixel(cx + shadow_side * (1 + sw), py, shadow_color)
+            # Round tip highlight (larger)
+            tip_y = nose_y + nose_height - 1
+            canvas.set_pixel(cx - 1, tip_y, highlight_color)
+            canvas.set_pixel(cx, tip_y, highlight_color)
+            canvas.set_pixel(cx + 1, tip_y, highlight_color)
+            canvas.set_pixel(cx, tip_y - 1, highlight_color)
+
+        elif nose_type == NoseType.POINTED:
+            # Pointed nose: sharper, narrower shadow
+            nose_height = fh // 7
+            # Sharp, narrow shadow line
+            for dy in range(nose_height):
+                py = nose_y + dy
+                px = cx + shadow_side * 2
+                # Sharper contrast
+                canvas.set_pixel(px, py, (*shadow_color[:3], 70))
+            # Sharper bridge shadow
+            for dy in range(nose_height // 2):
+                canvas.set_pixel(cx + shadow_side, nose_y + dy, (*shadow_color[:3], 35))
+            # Pointed tip highlight
+            tip_y = nose_y + nose_height - 1
+            canvas.set_pixel(cx, tip_y, highlight_color)
+            canvas.set_pixel(cx, tip_y - 1, (*highlight_color[:3], 70))
+
+        elif nose_type == NoseType.WIDE:
+            # Wide nose: broader shadow area, larger nostrils hint
+            nose_height = fh // 8
+            nose_width = fw // 10
+            # Wider shadow area
+            for dy in range(nose_height):
+                t = dy / nose_height
+                shadow_width = int(1 + t * 2)  # Wider at bottom
+                py = nose_y + dy
+                for sw in range(shadow_width):
+                    alpha = 60 - sw * 15
+                    if alpha > 0:
+                        canvas.set_pixel(cx + shadow_side * (2 + sw), py, (*shadow_color[:3], alpha))
+            # Nostril hints
+            nostril_y = nose_y + nose_height
+            nostril_offset = nose_width // 2 + 1
+            canvas.set_pixel(cx - nostril_offset, nostril_y, dark_shadow)
+            canvas.set_pixel(cx + nostril_offset, nostril_y, dark_shadow)
+            # Tip highlight
+            canvas.set_pixel(cx - 1, nose_y + nose_height - 1, highlight_color)
+            canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
+            canvas.set_pixel(cx + 1, nose_y + nose_height - 1, highlight_color)
+
+        else:
+            # Default: basic small nose rendering
+            nose_height = fh // 8
+            for dy in range(nose_height):
+                py = nose_y + dy
+                px = cx + shadow_side * 2
+                canvas.set_pixel(px, py, shadow_color)
+            canvas.set_pixel(cx, nose_y + nose_height - 2, highlight_color)
+            canvas.set_pixel(cx, nose_y + nose_height - 1, highlight_color)
 
     def _render_lips(self, canvas: Canvas) -> None:
         """Render lips with gradient and highlight."""
@@ -995,28 +1111,83 @@ class PortraitGenerator:
         lip_y = cy + fh // 4
         lip_width = fw // 5
         lip_height = fh // 20
+        shape = self.config.lip_shape
 
-        # Upper lip (slightly darker)
+        if shape == LipShape.NEUTRAL:
+            # Keep the default rendering for neutral lips.
+            upper_lip_color = self._lip_ramp[1]
+            for dx in range(-lip_width, lip_width + 1):
+                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
+                for dy in range(curve):
+                    canvas.set_pixel(cx + dx, lip_y - dy, upper_lip_color)
+
+            lip_line_color = self._lip_ramp[0]
+            for dx in range(-lip_width + 2, lip_width - 1):
+                canvas.set_pixel(cx + dx, lip_y, lip_line_color)
+
+            lower_lip_color = self._lip_ramp[2]
+            highlight_color = self._lip_ramp[3]
+            for dx in range(-lip_width + 1, lip_width):
+                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
+                for dy in range(1, curve + 1):
+                    color = highlight_color if dy == 1 else lower_lip_color
+                    canvas.set_pixel(cx + dx, lip_y + dy, color)
+            return
+
+        upper_scale = 0.5
+        lower_scale = 0.8
+        highlight_rows = 1
+        highlight_span = lip_width - 1
+        line_inset = 2
+        cupid_width = 0
+        cupid_depth = 0
+
+        if shape == LipShape.THIN:
+            lip_height = max(1, int(lip_height * 0.6))
+            upper_scale = 0.35
+            lower_scale = 0.5
+            highlight_rows = 1
+            highlight_span = max(1, lip_width // 2)
+            line_inset = 3
+        elif shape == LipShape.FULL:
+            lip_height = max(2, int(lip_height * 1.4))
+            upper_scale = 0.7
+            lower_scale = 1.05
+            highlight_rows = 2
+            highlight_span = lip_width
+            line_inset = 1
+        elif shape == LipShape.HEART:
+            lip_height = max(2, int(lip_height * 1.1))
+            upper_scale = 0.6
+            lower_scale = 0.85
+            highlight_rows = 1
+            highlight_span = max(1, lip_width - 2)
+            line_inset = 2
+            cupid_width = max(1, lip_width // 4)
+            cupid_depth = max(1, int(lip_height * 0.35))
+
         upper_lip_color = self._lip_ramp[1]
         for dx in range(-lip_width, lip_width + 1):
-            # Curved shape
-            curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
+            curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale)
+            if shape == LipShape.HEART and abs(dx) <= cupid_width:
+                dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
+                curve = max(0, curve - dip)
             for dy in range(curve):
                 canvas.set_pixel(cx + dx, lip_y - dy, upper_lip_color)
 
-        # Lip line (darker)
         lip_line_color = self._lip_ramp[0]
-        for dx in range(-lip_width + 2, lip_width - 1):
+        for dx in range(-lip_width + line_inset, lip_width - line_inset + 1):
             canvas.set_pixel(cx + dx, lip_y, lip_line_color)
 
-        # Lower lip (lighter with highlight)
         lower_lip_color = self._lip_ramp[2]
         highlight_color = self._lip_ramp[3]
-
         for dx in range(-lip_width + 1, lip_width):
-            curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
+            curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale)
             for dy in range(1, curve + 1):
-                color = highlight_color if dy == 1 else lower_lip_color
+                if dy <= highlight_rows and abs(dx) <= highlight_span:
+                    color = highlight_color
+                else:
+                    color = lower_lip_color
                 canvas.set_pixel(cx + dx, lip_y + dy, color)
 
     def _render_facial_hair(self, canvas: Canvas) -> None:
