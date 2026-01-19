@@ -171,6 +171,7 @@ class PortraitConfig:
     lipstick_intensity: float = 0.7  # 0.0 to 1.0
     lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
     lip_parting: float = 0.0  # 0.0 = closed, 0.3 = slightly parted, 1.0 = open/showing teeth
+    upper_lip_fullness: float = 0.5  # 0.0 = thin upper lip, 0.5 = balanced, 1.0 = full upper lip (pout)
     lip_fullness_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable asymmetry
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
@@ -1507,6 +1508,19 @@ class PortraitGenerator:
             amount: Parting amount (0.0 = closed, 0.3 = slightly parted, 1.0 = open)
         """
         self.config.lip_parting = max(0.0, min(1.0, amount))
+        return self
+
+    def set_upper_lip_fullness(self, fullness: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set upper lip fullness relative to lower lip.
+
+        Controls the ratio of upper to lower lip thickness.
+        Higher values create a poutier upper lip.
+
+        Args:
+            fullness: Upper lip fullness (0.0 = thin, 0.5 = balanced, 1.0 = full/pouty)
+        """
+        self.config.upper_lip_fullness = max(0.0, min(1.0, fullness))
         return self
 
     def set_lip_fullness_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
@@ -6832,6 +6846,11 @@ class PortraitGenerator:
                 lip_ramp = blended
 
         if shape == LipShape.NEUTRAL:
+
+            # Upper/lower lip fullness ratio
+            upper_fullness = getattr(self.config, 'upper_lip_fullness', 0.5)
+            upper_ratio = 0.3 + upper_fullness * 0.4  # 0.3 to 0.7
+            lower_ratio = 1.0 - upper_fullness * 0.4  # 1.0 to 0.6
             # Keep the default rendering for neutral lips.
             upper_lip_color = lip_ramp[1]
 
@@ -6844,7 +6863,7 @@ class PortraitGenerator:
                 # Corner offset: positive corner_val lifts corners up (negative y)
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                 corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5 * asym_scale(dx))
+                curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_ratio * asym_scale(dx))
 
                 # Apply cupid's bow dip in center of upper lip
                 if abs(dx) <= cupid_bow_width and cupid_bow_val > 0:
@@ -6880,7 +6899,7 @@ class PortraitGenerator:
             for dx in range(-lip_width + 1, lip_width):
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                 corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8 * asym_scale(dx))
+                curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_ratio * asym_scale(dx))
                 for dy in range(1, curve + 1):
                     color = highlight_color if dy == 1 else lower_lip_color
                     canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
