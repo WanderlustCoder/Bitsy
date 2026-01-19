@@ -98,6 +98,8 @@ class PortraitConfig:
     face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
     head_tilt: float = 0.0  # -0.3 = tilted right, 0.0 = straight, 0.3 = tilted left
     jaw_width: float = 1.0  # 0.8 = narrow/V-shaped, 1.0 = normal, 1.2 = wide/square jaw
+    temple_width: float = 1.0  # 0.8 = narrow temples, 1.0 = normal, 1.2 = wide/broad temples
+    jaw_angle: float = 0.0  # 0.0 = soft/rounded, 0.5 = defined, 1.0 = sharp/angular jawline
     face_taper: float = 0.0  # -0.5 = U-shaped/broad lower face, 0.0 = normal, 0.5 = V-shaped/narrow chin
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
@@ -160,6 +162,7 @@ class PortraitConfig:
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
     lip_gloss_position: float = 0.5  # 0.0 = upper lip, 0.5 = center, 1.0 = lower lip
     lip_corner_shadow: float = 0.3  # 0.0 = none, 0.5 = normal, 1.0 = deep (shadow at lip corners)
+    cupids_bow: float = 0.5  # 0.0 = flat/subtle, 0.5 = normal, 1.0 = pronounced M-shape
     cupid_bow: float = 0.5  # 0.0 = flat, 0.5 = normal, 1.0 = pronounced
     philtrum_depth: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = defined groove
     philtrum_width: float = 1.0  # 0.7 = narrow, 1.0 = normal, 1.3 = wide philtrum
@@ -714,6 +717,30 @@ class PortraitGenerator:
             width: Jaw width multiplier (0.8 = narrow, 1.0 = normal, 1.2 = wide)
         """
         self.config.jaw_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_jaw_angle(self, definition: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set jaw angle/jawline definition.
+
+        Controls how sharp and defined the jawline appears.
+
+        Args:
+            definition: Definition level (0.0 = soft/rounded, 0.5 = defined, 1.0 = sharp)
+        """
+        self.config.jaw_angle = max(0.0, min(1.0, definition))
+        return self
+
+    def set_temple_width(self, width: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set temple width (sides of forehead).
+
+        Controls the width of the temple area for different face shapes.
+
+        Args:
+            width: Width multiplier (0.8 = narrow, 1.0 = normal, 1.2 = wide)
+        """
+        self.config.temple_width = max(0.8, min(1.2, width))
         return self
 
     def set_face_taper(self, taper: float = 0.0) -> 'PortraitGenerator':
@@ -1339,6 +1366,16 @@ class PortraitGenerator:
             definition: How pronounced the cupid's bow is (0.0 = flat, 0.5 = normal, 1.0 = pronounced)
         """
         self.config.cupid_bow = max(0.0, min(1.0, definition))
+        return self
+
+    def set_cupids_bow(self, definition: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set cupid's bow definition (the M-shape of upper lip).
+
+        Args:
+            definition: Definition level (0.0 = flat, 0.5 = normal, 1.0 = pronounced)
+        """
+        self.config.cupids_bow = max(0.0, min(1.0, definition))
         return self
 
     def set_philtrum(self, depth: float = 0.5) -> 'PortraitGenerator':
@@ -2800,6 +2837,52 @@ class PortraitGenerator:
                         canvas.set_pixel(nose_cx, py, (*contour_color, alpha))
                         canvas.set_pixel(nose_cx + side, py, (*contour_color, alpha // 2))
 
+    def _render_temple_shading(self, canvas: Canvas) -> None:
+        """Render temple width effect with shading."""
+        width = getattr(self.config, 'temple_width', 1.0)
+        if abs(width - 1.0) < 0.05:
+            return
+
+        effect = min(1.0, abs(width - 1.0) / 0.2)
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+
+        # Temple area is above and outside the eyes
+        temple_y = eye_y - fh // 6
+        temple_offset = fw // 3
+        temple_rx = max(3, fw // 9)
+        temple_ry = max(4, fh // 8)
+
+        mid_idx = len(self._skin_ramp) // 2
+        if width > 1.0:
+            shade_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 1)]
+            max_alpha = int(18 + 30 * effect)
+        else:
+            shade_color = self._skin_ramp[max(0, mid_idx - 2)]
+            max_alpha = int(20 + 35 * effect)
+
+        for side in (-1, 1):
+            temple_cx = cx + side * temple_offset
+
+            for dy in range(-temple_ry, temple_ry + 1):
+                for dx in range(-temple_rx, temple_rx + 1):
+                    if side * dx < 0:
+                        continue
+
+                    nx = dx / temple_rx if temple_rx > 0 else 0
+                    ny = dy / temple_ry if temple_ry > 0 else 0
+                    dist = nx * nx + ny * ny
+
+                    if dist <= 1.0:
+                        edge_factor = abs(nx)
+                        falloff = (1.0 - dist) ** 1.2
+                        alpha = int(max_alpha * falloff * edge_factor)
+                        if alpha > 0:
+                            px = temple_cx + dx
+                            py = temple_y + dy
+                            canvas.set_pixel(px, py, (*shade_color[:3], alpha))
+
     def _render_temple_shadow(self, canvas: Canvas) -> None:
         """Render temple shadow for facial depth and structure."""
         intensity = getattr(self.config, 'temple_shadow', 0.0)
@@ -2871,19 +2954,50 @@ class PortraitGenerator:
                 # Curve from chin outward and upward
                 progress = t / jaw_width if jaw_width > 0 else 0
                 px = cx + side * t
-                # Jawline curves upward as it goes outward
-                py = chin_y - int(progress * progress * fh // 6)
 
-                # Shadow intensity fades toward outer edge
-                fade = 1.0 - progress * 0.5
-                alpha = int(max_alpha * fade)
+    def _render_jawline(self, canvas: Canvas) -> None:
+        """Render jawline definition with highlight and shadow."""
+        definition = getattr(self.config, 'jaw_angle', 0.0)
+        if definition <= 0.05:
+            return
 
-                if alpha > 5:
-                    # Draw small shadow area (2-3 pixels down from jawline)
-                    for dy in range(1, 4):
-                        pixel_alpha = int(alpha * (1.0 - dy / 4))
-                        if pixel_alpha > 0:
-                            canvas.set_pixel(px, py + dy, (*shadow_color[:3], pixel_alpha))
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+
+        # Jawline runs from chin corners to below ears
+        chin_y = cy + fh // 3
+        jaw_corner_x = fw // 3
+        ear_x = fw // 2 - 2
+        ear_y = cy
+
+        mid_idx = len(self._skin_ramp) // 2
+        highlight_color = self._skin_ramp[min(len(self._skin_ramp) - 1, mid_idx + 2)]
+        shadow_color = self._skin_ramp[max(0, mid_idx - 2)]
+
+        max_highlight = int(20 + 40 * definition)
+        max_shadow = int(15 + 35 * definition)
+
+        for side in (-1, 1):
+            # Draw highlight along top of jawline
+            start_x = cx + side * (fw // 6)
+            end_x = cx + side * ear_x
+            start_y = chin_y
+            end_y = ear_y + fh // 10
+
+            steps = abs(end_x - start_x)
+            for i in range(steps):
+                t = i / max(1, steps - 1)
+                px = int(start_x + t * (end_x - start_x))
+                py = int(start_y + t * (end_y - start_y))
+                edge_fade = 1.0 - abs(t - 0.5) * 1.5
+                edge_fade = max(0.0, min(1.0, edge_fade))
+                alpha = int(max_highlight * edge_fade)
+                if alpha > 3:
+                    canvas.set_pixel(px, py - 1, (*highlight_color[:3], alpha))
+                    # Shadow below jawline
+                    shadow_alpha = int(max_shadow * edge_fade * 0.8)
+                    if shadow_alpha > 3:
+                        canvas.set_pixel(px, py + 1, (*shadow_color[:3], shadow_alpha))
 
     def _render_jowls(self, canvas: Canvas) -> None:
         """Render jowls (sagging skin at jaw corners)."""
@@ -6196,6 +6310,47 @@ class PortraitGenerator:
         # Render lip liner if enabled
         self._render_lip_liner(canvas, cx, lip_y, lip_width, lip_height)
 
+    def _render_cupids_bow(self, canvas: Canvas) -> None:
+        """Render cupid's bow definition on upper lip."""
+        definition = getattr(self.config, 'cupids_bow', 0.5)
+        if definition <= 0.1:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        lip_y = cy + fh // 4
+        width_mult = getattr(self.config, 'lip_width', 1.0)
+        lip_width = int(fw // 5 * width_mult)
+        if lip_width <= 0:
+            return
+
+        base_lip_height = fh // 20
+        thickness = getattr(self.config, 'lip_thickness', 1.0)
+        lip_height = max(1, int(base_lip_height * thickness))
+
+        bow_span = max(2, lip_width // 4)
+        peak_offset = max(1, bow_span // 2)
+        peak_height = max(1, int(lip_height * 0.4 * definition))
+        base_y = lip_y - max(1, lip_height // 2)
+
+        highlight_color = self._lip_ramp[3] if self._lip_ramp else (255, 230, 225, 255)
+        base_alpha = int(30 + 60 * definition)
+
+        for dx in range(-bow_span, bow_span + 1):
+            dist_to_peak = min(abs(dx - peak_offset), abs(dx + peak_offset))
+            peak_factor = max(0.0, 1.0 - (dist_to_peak / (peak_offset + 1)))
+            if peak_factor <= 0.05:
+                continue
+            y_offset = int(round(peak_height * peak_factor))
+            py = base_y - y_offset
+            alpha = int(base_alpha * (0.6 + 0.4 * peak_factor))
+            if alpha <= 2:
+                continue
+            canvas.set_pixel(cx + dx, py, (*highlight_color[:3], alpha))
+            if alpha > 15:
+                soft_alpha = int(alpha * 0.5)
+                canvas.set_pixel(cx + dx, py + 1, (*highlight_color[:3], soft_alpha))
+
     def _render_lower_lip_protrusion(self, canvas: Canvas) -> None:
         """Render lower lip protrusion highlight for pouty appearance."""
         protrusion = getattr(self.config, 'lower_lip_protrusion', 0.0)
@@ -7187,6 +7342,7 @@ class PortraitGenerator:
         self._render_face_base(canvas)
         self._render_smile_lines(canvas)  # Smile lines after base face rendering
         self._render_hairline(canvas)  # Hairline shape adjustments
+        self._render_temple_shading(canvas)  # Temple width shading
         self._render_neck_shadow(canvas)  # Shadow under chin
         self._render_double_chin(canvas)  # Double chin fold
         self._render_neck_crease(canvas)  # Neck fold lines
@@ -7204,6 +7360,7 @@ class PortraitGenerator:
         self._render_temple_shadow(canvas)  # Temple shadow for depth
         self._render_jawline_shadow(canvas)  # Jawline contouring
         self._render_jowls(canvas)  # Jaw corner sagging
+        self._render_jawline(canvas)  # Sharp jawline definition
         self._render_highlight(canvas)  # Highlight on high points
         self._render_dimples(canvas)
         self._render_chin_dimple(canvas)  # Chin dimple/cleft
@@ -7225,6 +7382,7 @@ class PortraitGenerator:
         self._render_under_nose_shadow(canvas)
         self._render_teeth(canvas)  # Teeth behind lips (visible when smiling)
         self._render_lips(canvas)
+        self._render_cupids_bow(canvas)
         self._render_lower_lip_protrusion(canvas)
         self._render_facial_hair(canvas)  # Facial hair below face
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
