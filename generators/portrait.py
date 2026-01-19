@@ -167,6 +167,7 @@ class PortraitConfig:
     lipstick_color: str = "red"  # red, pink, nude, berry, coral, plum
     lipstick_intensity: float = 0.7  # 0.0 to 1.0
     lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
+    lip_parting: float = 0.0  # 0.0 = closed, 0.3 = slightly parted, 1.0 = open/showing teeth
     lip_fullness_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable asymmetry
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
@@ -1444,6 +1445,19 @@ class PortraitGenerator:
         """
         self.config.lip_thickness = max(0.5, min(1.5, thickness))
         self.config.lip_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_lip_parting(self, amount: float = 0.3) -> 'PortraitGenerator':
+        """
+        Set lip parting (how much the lips are open).
+
+        Creates a gap between upper and lower lip, optionally
+        showing teeth darkness behind.
+
+        Args:
+            amount: Parting amount (0.0 = closed, 0.3 = slightly parted, 1.0 = open)
+        """
+        self.config.lip_parting = max(0.0, min(1.0, amount))
         return self
 
     def set_lip_fullness_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
@@ -6637,6 +6651,9 @@ class PortraitGenerator:
         shape = self.config.lip_shape
         lip_ramp = self._lip_ramp
 
+        # Lip parting (gap between lips)
+        lip_parting = getattr(self.config, 'lip_parting', 0.0)
+
         # Mouth corner adjustment
         corner_val = getattr(self.config, 'mouth_corners', 0.0)
         max_corner_shift = max(1, lip_height // 2)  # Max pixel shift at corners
@@ -6733,6 +6750,21 @@ class PortraitGenerator:
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                 corner_offset = int(-corner_val * max_corner_shift * edge_factor)
                 canvas.set_pixel(cx + dx, lip_y + corner_offset, lip_line_color)
+
+            # Lip parting gap (mouth interior showing)
+            if lip_parting > 0.0:
+                parting_height = max(1, int(lip_height * 0.5 * lip_parting))
+                mouth_color = (40, 30, 35)  # Dark mouth interior
+                parting_width = int(lip_width * 0.7)  # Gap doesnt extend to corners
+                for dx in range(-parting_width, parting_width + 1):
+                    edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
+                    corner_offset = int(-corner_val * max_corner_shift * edge_factor)
+                    center_fade = 1.0 - (abs(dx) / parting_width) ** 2 if parting_width > 0 else 1.0
+                    gap_height = max(1, int(parting_height * center_fade))
+                    for dy in range(1, gap_height + 1):
+                        alpha = int(200 * center_fade * (1 - dy / (gap_height + 1)))
+                        if alpha > 20:
+                            canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, (*mouth_color, alpha))
 
             lower_lip_color = lip_ramp[2]
             highlight_color = lip_ramp[3]
