@@ -111,6 +111,7 @@ class PortraitConfig:
     eye_shape: EyeShape = EyeShape.ROUND
     eye_color: str = "brown"
     eye_size: float = 1.0  # 0.7-1.3, multiplier for eye size
+    eye_spacing: float = 1.0  # 0.8 = close-set, 1.0 = normal, 1.2 = wide-set eyes
     pupil_size: float = 1.0  # 0.7-1.5, multiplier for pupil size
     iris_size: float = 1.0  # 0.7-1.3, multiplier for iris size
     catchlight_style: str = "double"  # none, single, double, sparkle
@@ -195,6 +196,7 @@ class PortraitConfig:
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
     eyebrow_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle height diff, 0.6 = noticeable
     brow_bone: float = 0.0  # 0.0 = flat, 0.5 = subtle, 1.0 = prominent brow ridge
+    under_brow_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = deep shadow under brow ridge
     glabella_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle depth, 1.0 = defined shadow between brows
 
     # Eyebags
@@ -909,6 +911,11 @@ class PortraitGenerator:
         self.config.iris_pattern = iris_pattern
         return self
 
+    def set_eye_spacing(self, spacing: float = 1.0) -> 'PortraitGenerator':
+        """Set eye spacing multiplier (0.8-1.2, default 1.0)."""
+        self.config.eye_spacing = max(0.8, min(1.2, spacing))
+        return self
+
     def set_eyelashes(self, length: float = 0.5,
                       curl: float = 0.5,
                       lower: float = 0.0) -> 'PortraitGenerator':
@@ -1441,6 +1448,19 @@ class PortraitGenerator:
             prominence: Ridge prominence (0.0 = flat, 0.5 = subtle, 1.0 = prominent)
         """
         self.config.brow_bone = max(0.0, min(1.0, prominence))
+        return self
+
+    def set_under_brow_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set shadow depth under the brow ridge.
+
+        Creates a shadow beneath the eyebrow area for deeper-set
+        eyes or more prominent brow ridges.
+
+        Args:
+            intensity: Shadow depth (0.0 = none, 0.5 = subtle, 1.0 = deep)
+        """
+        self.config.under_brow_shadow = max(0.0, min(1.0, intensity))
         return self
 
     def set_glabella_shadow(self, intensity: float = 0.5) -> 'PortraitGenerator':
@@ -2132,6 +2152,11 @@ class PortraitGenerator:
         _, eye_shift, _ = self._get_forehead_tuning(fh)
         return cy - fh // 8 + eye_shift
 
+    def _get_eye_spacing(self, fw: int) -> int:
+        """Calculate eye spacing with configurable multiplier."""
+        spacing_mult = getattr(self.config, 'eye_spacing', 1.0)
+        return int(fw // 4 * spacing_mult)
+
     def _render_face_base(self, canvas: Canvas) -> None:
         """Render the base face shape with gradient shading."""
         cx, cy = self._get_face_center()
@@ -2536,7 +2561,7 @@ class PortraitGenerator:
 
         # Eye positioning (matching _render_eyes)
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
@@ -2613,7 +2638,7 @@ class PortraitGenerator:
         max_alpha = int(60 * intensity)
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         # Cheekbone contour (hollow of cheek)
         if areas in ("all", "cheeks"):
@@ -3158,7 +3183,7 @@ class PortraitGenerator:
         max_alpha = int(50 * intensity)
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         # Cheekbone highlights (top of cheekbones)
         if areas in ("all", "cheekbones"):
@@ -3290,7 +3315,7 @@ class PortraitGenerator:
         rng = random.Random(seed + 2400) if seed is not None else random.Random()
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = max(1, fw // 6)
         eye_height = max(1, int(eye_width * 0.6 * max(0.3, self.config.eye_openness)))
 
@@ -3468,7 +3493,7 @@ class PortraitGenerator:
         ink_color = (*base_color, 220)
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         if position == "forehead":
             anchor_x = cx
@@ -3519,7 +3544,7 @@ class PortraitGenerator:
 
         # Eye positioning reference
         eye_y = cy - fh // 8
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         # Cheekbone position: below outer eye area
         cheek_y = eye_y + fh // 6
@@ -3593,7 +3618,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         cheek_y = eye_y + fh // 6
         cheek_offset = eye_spacing + fw // 12
@@ -3655,7 +3680,7 @@ class PortraitGenerator:
 
         # Eye positioning for reference
         eye_y = cy - fh // 8
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         # Hollow position: below cheekbone, angled toward jaw
         hollow_y = eye_y + fh // 4
@@ -4035,7 +4060,7 @@ class PortraitGenerator:
 
         if scar_type == "eyebrow":
             brow_y = cy - fh // 5
-            eye_spacing = fw // 4
+            eye_spacing = self._get_eye_spacing(fw)
             brow_x = cx + side * eye_spacing
             start = (brow_x - side * 2, brow_y - 2)
             end = (brow_x + side * 3, brow_y + 6)
@@ -4074,7 +4099,7 @@ class PortraitGenerator:
 
         # Eye positioning (matching _render_eyes)
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
@@ -4141,7 +4166,7 @@ class PortraitGenerator:
 
         # Eye positioning
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
@@ -4191,7 +4216,7 @@ class PortraitGenerator:
 
         # Eye positioning
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = fw // 6
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
 
@@ -4278,7 +4303,7 @@ class PortraitGenerator:
         # Crow's feet (lines at outer corners of eyes)
         if areas in ("all", "eyes"):
             eye_y = self._get_eye_y(cy, fh)
-            eye_spacing = fw // 4
+            eye_spacing = self._get_eye_spacing(fw)
             eye_width = fw // 6
 
             for side in [-1, 1]:
@@ -4376,7 +4401,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
@@ -4566,7 +4591,7 @@ class PortraitGenerator:
 
         # Eye positioning
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = int(fw // 6 * size_mult)
         eye_height = int(eye_width * 0.6 * self.config.eye_openness)
@@ -4859,7 +4884,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
@@ -4951,7 +4976,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = max(1, fw // 6)
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
 
@@ -5027,7 +5052,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
@@ -5077,7 +5102,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
@@ -5125,7 +5150,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
@@ -5173,6 +5198,49 @@ class PortraitGenerator:
                         if alpha > 0:
                             canvas.set_pixel(brow_cx + dx, shadow_y + dy, (*shadow_color[:3], alpha))
 
+
+    def _render_under_brow_shadow(self, canvas: Canvas) -> None:
+        """Render deep shadow under the brow ridge for intense/dramatic look."""
+        intensity = getattr(self.config, 'under_brow_shadow', 0.0)
+        if intensity <= 0.0:
+            return
+
+        cx, cy = self._get_face_center()
+        fw, fh = self._get_face_dimensions()
+        eye_y = self._get_eye_y(cy, fh)
+        eye_spacing = self._get_eye_spacing(fw)
+
+        size_mult = getattr(self.config, 'eye_size', 1.0)
+        eye_width = max(1, int(fw // 6 * size_mult))
+        eye_height = max(1, int(eye_width * 0.6))
+
+        # Shadow sits between brow ridge and top of eye
+        shadow_y = eye_y - eye_height // 2 - 1
+        shadow_height = max(2, int(3 + 2 * intensity))
+        shadow_width = eye_width + int(4 * intensity)
+
+        mid_idx = len(self._skin_ramp) // 2
+        shadow_idx = max(0, mid_idx - 3)
+        shadow_color = self._skin_ramp[shadow_idx]
+
+        max_alpha = int(30 + 50 * intensity)
+
+        for side in (-1, 1):
+            brow_cx = cx + side * eye_spacing
+
+            # Apply eye tilt
+            tilt = getattr(self.config, 'eye_tilt', 0.0)
+            tilt_offset = int(tilt * eye_width * 0.5)
+            base_y = shadow_y - side * tilt_offset
+
+            for dx in range(-shadow_width, shadow_width + 1):
+                x_fade = 1.0 - (abs(dx) / shadow_width) ** 1.5
+                for dy in range(shadow_height):
+                    # Stronger shadow closer to brow
+                    y_fade = 1.0 - (dy / shadow_height) ** 0.8
+                    alpha = int(max_alpha * x_fade * y_fade)
+                    if alpha > 0:
+                        canvas.set_pixel(brow_cx + dx, base_y + dy, (*shadow_color[:3], alpha))
     def _render_glabella_shadow(self, canvas: Canvas) -> None:
         """Render shadow in the glabella area (between eyebrows, above nose bridge)."""
         shadow_depth = getattr(self.config, 'glabella_shadow', 0.0)
@@ -5182,7 +5250,7 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
 
         # Glabella is in the center, above the nose bridge, between eyebrows
         glabella_y = eye_y - 2
@@ -5219,7 +5287,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
@@ -5283,7 +5351,7 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         size_mult = getattr(self.config, 'eye_size', 1.0)
         eye_width = max(1, int(fw // 6 * size_mult))
         eye_height = max(1, int(eye_width * 0.6 * self.config.eye_openness))
@@ -6159,7 +6227,7 @@ class PortraitGenerator:
 
         brow_y = cy - fh // 5
         gap_mult = getattr(self.config, 'eyebrow_gap', 1.0)
-        eye_spacing = int(fw // 4 * gap_mult)  # Apply gap multiplier
+        eye_spacing = int(self._get_eye_spacing(fw) * gap_mult)  # Apply gap multiplier
         brow_width = fw // 6
         half_width = brow_width // 2
 
@@ -6312,7 +6380,7 @@ class PortraitGenerator:
 
         if self.config.has_eyebrow_piercing:
             brow_y = cy - fh // 5
-            eye_spacing = fw // 4
+            eye_spacing = self._get_eye_spacing(fw)
             brow_width = fw // 6
             half_width = brow_width // 2
             side = 1
@@ -6567,7 +6635,7 @@ class PortraitGenerator:
 
         # Eye positions (matching _render_eyes)
         eye_y = self._get_eye_y(cy, fh)
-        eye_spacing = fw // 4
+        eye_spacing = self._get_eye_spacing(fw)
         eye_width = fw // 6
 
         # Map style string to enum
@@ -6947,6 +7015,7 @@ class PortraitGenerator:
         self._render_eye_socket_shadow(canvas)  # Depth around eye area
         self._render_orbital_rim_light(canvas)  # Subtle rim light around eye socket
         self._render_brow_bone(canvas)  # Brow ridge prominence
+        self._render_under_brow_shadow(canvas)  # Deep shadow under brow ridge
         self._render_glabella_shadow(canvas)  # Shadow between eyebrows
         self._render_eyeshadow(canvas)  # Eye shadow on eyelid before eye
         self._render_eyes(canvas)
