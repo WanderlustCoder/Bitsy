@@ -239,6 +239,7 @@ class PortraitConfig:
 
     # Cheekbone prominence
     cheekbone_prominence: str = "normal"  # low, normal, high, sculpted
+    cheekbone_highlight: float = 0.5  # 0.0 = no highlight, 0.5 = normal, 1.0 = intense
 
     # Clothing
     clothing_style: str = "casual"
@@ -1200,6 +1201,16 @@ class PortraitGenerator:
             prominence: One of 'low', 'normal', 'high', 'sculpted'
         """
         self.config.cheekbone_prominence = prominence
+        return self
+
+    def set_cheekbone_highlight(self, intensity: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set cheekbone highlight intensity.
+
+        Args:
+            intensity: Highlight intensity (0.0 = none, 0.5 = normal, 1.0 = intense)
+        """
+        self.config.cheekbone_highlight = max(0.0, min(1.0, intensity))
         return self
 
     def set_clothing(self, style: str, color: str) -> 'PortraitGenerator':
@@ -2439,21 +2450,27 @@ class PortraitGenerator:
         light_skin = self._skin_ramp[-1]
         dark_skin = self._skin_ramp[1]
 
+        # Highlight intensity multiplier from config
+        highlight_mult = getattr(self.config, 'cheekbone_highlight', 0.5) * 2.0  # 0.0-2.0 range
+
         # Prominence settings
         if prominence == "low":
-            highlight_alpha = 15
+            base_highlight = 15
             shadow_alpha = 10
             rx, ry = max(2, fw // 10), max(1, fh // 20)
         elif prominence == "high":
-            highlight_alpha = 40
+            base_highlight = 40
             shadow_alpha = 30
             rx, ry = max(4, fw // 7), max(2, fh // 14)
         elif prominence == "sculpted":
-            highlight_alpha = 55
+            base_highlight = 55
             shadow_alpha = 45
             rx, ry = max(5, fw // 6), max(3, fh // 12)
         else:
             return
+
+        # Apply highlight intensity multiplier
+        highlight_alpha = int(base_highlight * highlight_mult)
 
         for side in (-1, 1):
             bone_cx = cx + side * cheek_offset
