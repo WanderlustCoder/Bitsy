@@ -1398,6 +1398,16 @@ class PortraitGenerator:
         self.config.nostril_definition = max(0.0, min(1.0, nostril_definition))
         return self
 
+    def set_nose_length(self, length: float = 1.0) -> 'PortraitGenerator':
+        """
+        Set nose length (vertical extent from bridge to tip).
+
+        Args:
+            length: Length multiplier (0.8 = short, 1.0 = normal, 1.2 = long)
+        """
+        self.config.nose_length = max(0.8, min(1.2, length))
+        return self
+
     def set_nose_bridge_width(self, width: float = 1.0) -> 'PortraitGenerator':
         """
         Set nose bridge width multiplier.
@@ -6591,8 +6601,9 @@ class PortraitGenerator:
         cx, cy = self._get_face_center()
         fw, fh = self._get_face_dimensions()
 
-        # Apply nose size multiplier
+        # Apply nose size and length multipliers
         nose_size_mult = getattr(self.config, 'nose_size', 1.0)
+        nose_length_mult = getattr(self.config, 'nose_length', 1.0)
         bridge_width_mult = max(0.7, min(1.3, getattr(self.config, 'nose_bridge_width', 1.0)))
         nose_y = cy + fh // 10
         cx = self._apply_head_tilt(cx, cy, nose_y)
@@ -6621,7 +6632,7 @@ class PortraitGenerator:
 
         if nose_type == NoseType.SMALL:
             # Small nose: minimal shadow, small highlight
-            nose_height = int(fh // 10 * nose_size_mult)
+            nose_height = int(fh // 10 * nose_size_mult * nose_length_mult)
             # Very subtle shadow line
             for dy in range(nose_height):
                 py = nose_y + dy
@@ -6632,7 +6643,7 @@ class PortraitGenerator:
 
         elif nose_type == NoseType.BUTTON:
             # Button nose: round, prominent tip
-            nose_height = int(fh // 9 * nose_size_mult)
+            nose_height = int(fh // 9 * nose_size_mult * nose_length_mult)
             nose_width = fw // 14
             # Rounded shadow
             for dy in range(nose_height):
@@ -6651,7 +6662,7 @@ class PortraitGenerator:
 
         elif nose_type == NoseType.POINTED:
             # Pointed nose: sharper, narrower shadow
-            nose_height = int(fh // 7 * nose_size_mult)
+            nose_height = int(fh // 7 * nose_size_mult * nose_length_mult)
             # Sharp, narrow shadow line
             for dy in range(nose_height):
                 py = nose_y + dy
