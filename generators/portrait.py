@@ -95,6 +95,7 @@ class PortraitConfig:
     # Face
     face_shape: str = "oval"  # oval, round, square, heart, oblong, diamond
     face_width: float = 1.0  # 0.8-1.2, multiplier for face width
+    face_asymmetry: float = 0.0  # 0.0 = perfectly symmetric, 0.3 = subtle, 0.6 = noticeable
     chin_type: str = "normal"  # normal, pointed, square, round, cleft
     chin_dimple: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = pronounced
     chin_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined horizontal chin fold
@@ -145,6 +146,7 @@ class PortraitConfig:
     lipstick_color: str = "red"  # red, pink, nude, berry, coral, plum
     lipstick_intensity: float = 0.7  # 0.0 to 1.0
     lip_thickness: float = 1.0  # 0.5-1.5, multiplier for lip height
+    lip_fullness_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable asymmetry
     lip_width: float = 1.0  # 0.8-1.2, multiplier for lip width
     mouth_corners: float = 0.0  # -1.0 = frown, 0.0 = neutral, 1.0 = smile
     lip_gloss: float = 0.0  # 0.0 = matte, 0.5 = subtle, 1.0 = glossy
@@ -236,6 +238,7 @@ class PortraitConfig:
     jowls: float = 0.0  # 0.0 = none, 0.5 = subtle sagging, 1.0 = visible jowls at jaw corners
 
     # Neck shadow (chin to neck transition)
+    neck_length: float = 1.0  # 0.7 = short, 1.0 = normal, 1.3 = long/elegant neck
     neck_shadow: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
     double_chin: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = visible
     neck_crease: float = 0.0  # 0.0 = none, 0.5 = subtle, 1.0 = defined
@@ -660,6 +663,19 @@ class PortraitGenerator:
             width: Multiplier for face width (0.8-1.2, default 1.0)
         """
         self.config.face_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_face_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set face asymmetry for more natural appearance.
+
+        Introduces subtle variations between left and right sides
+        of the face for a more realistic, less computer-generated look.
+
+        Args:
+            amount: Asymmetry level (0.0 = perfect symmetry, 0.3 = subtle, 0.6 = noticeable)
+        """
+        self.config.face_asymmetry = max(0.0, min(1.0, amount))
         return self
 
     def set_chin(self, chin_type: str = "normal") -> 'PortraitGenerator':
@@ -1152,6 +1168,16 @@ class PortraitGenerator:
         """
         self.config.lip_thickness = max(0.5, min(1.5, thickness))
         self.config.lip_width = max(0.8, min(1.2, width))
+        return self
+
+    def set_lip_fullness_asymmetry(self, amount: float = 0.0) -> 'PortraitGenerator':
+        """
+        Set left/right lip fullness asymmetry.
+
+        Args:
+            amount: Asymmetry amount (0.0 = symmetric, 0.3 = subtle, 0.6 = noticeable)
+        """
+        self.config.lip_fullness_asymmetry = max(0.0, min(1.0, amount))
         return self
 
     def set_mouth_corners(self, corners: float = 0.0) -> 'PortraitGenerator':
@@ -4378,6 +4404,17 @@ class PortraitGenerator:
             tilt_offset = int(tilt * eye_width * 0.5)
             ey = eye_y - side * tilt_offset  # Adjusted eye Y for this eye
 
+            # Apply face asymmetry for more natural appearance
+            asymmetry = getattr(self.config, 'face_asymmetry', 0.0)
+            if asymmetry > 0 and side == 1:  # Only adjust right eye
+                # Slight y offset and size variation
+                ey += int(asymmetry * 2)  # Right eye slightly lower
+                eye_width_adj = int(eye_width * (1 - asymmetry * 0.08))  # Right eye slightly smaller
+                eye_height_adj = int(eye_height * (1 - asymmetry * 0.08))
+            else:
+                eye_width_adj = eye_width
+                eye_height_adj = eye_height
+
             # Select eye color ramp (heterochromia support)
             eye_ramp = self._right_eye_ramp if side == 1 else self._eye_ramp
 
@@ -4404,14 +4441,14 @@ class PortraitGenerator:
             else:
                 white_color = (*base_white, 255)
 
-            canvas.fill_ellipse_aa(ex, ey, eye_width, eye_height, white_color)
+            canvas.fill_ellipse_aa(ex, ey, eye_width_adj, eye_height_adj, white_color)
 
             # Layer 2: Iris
             iris_mult = getattr(self.config, 'iris_size', 1.0)
-            iris_radius = int(eye_width * 0.6 * iris_mult)
+            iris_radius = int(eye_width_adj * 0.6 * iris_mult)
             # Apply gaze offset
-            gaze_x = int(self.config.gaze_direction[0] * eye_width * 0.2)
-            gaze_y = int(self.config.gaze_direction[1] * eye_height * 0.2)
+            gaze_x = int(self.config.gaze_direction[0] * eye_width_adj * 0.2)
+            gaze_y = int(self.config.gaze_direction[1] * eye_height_adj * 0.2)
             iris_x = ex + gaze_x
             iris_y = ey + gaze_y
 
@@ -5449,12 +5486,19 @@ class PortraitGenerator:
         base_lip_height = fh // 20
         thickness = getattr(self.config, 'lip_thickness', 1.0)
         lip_height = int(base_lip_height * thickness)
+        lip_asymmetry = max(0.0, min(1.0, getattr(self.config, 'lip_fullness_asymmetry', 0.0)))
         shape = self.config.lip_shape
         lip_ramp = self._lip_ramp
 
         # Mouth corner adjustment
         corner_val = getattr(self.config, 'mouth_corners', 0.0)
         max_corner_shift = max(1, lip_height // 2)  # Max pixel shift at corners
+        asym_strength = 0.4 * lip_asymmetry
+
+        def asym_scale(dx: int) -> float:
+            if lip_width == 0 or asym_strength == 0.0:
+                return 1.0
+            return 1.0 + asym_strength * (dx / lip_width)
 
         vermillion_border = max(0.0, min(1.0, getattr(self.config, 'vermillion_border', 0.0)))
         if vermillion_border > 0.0:
@@ -5475,14 +5519,14 @@ class PortraitGenerator:
                 for dx in range(-lip_width, lip_width + 1):
                     edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                     corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-                    upper_curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale)
+                    upper_curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale * asym_scale(dx))
                     if cupid_width and abs(dx) <= cupid_width:
                         dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
                         upper_curve = max(0, upper_curve - dip)
                     if upper_curve > 0:
                         border_y = lip_y - max(upper_curve - 1, 0) + corner_offset
                         canvas.set_pixel(cx + dx, border_y, border_color)
-                    lower_curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale)
+                    lower_curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale * asym_scale(dx))
                     if lower_curve > 0:
                         border_y = lip_y + lower_curve + corner_offset
                         canvas.set_pixel(cx + dx, border_y, border_color)
@@ -5527,7 +5571,7 @@ class PortraitGenerator:
                 # Corner offset: positive corner_val lifts corners up (negative y)
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                 corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
+                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5 * asym_scale(dx))
 
                 # Apply cupid's bow dip in center of upper lip
                 if abs(dx) <= cupid_bow_width and cupid_bow_val > 0:
@@ -5548,7 +5592,7 @@ class PortraitGenerator:
             for dx in range(-lip_width + 1, lip_width):
                 edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
                 corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
+                curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8 * asym_scale(dx))
                 for dy in range(1, curve + 1):
                     color = highlight_color if dy == 1 else lower_lip_color
                     canvas.set_pixel(cx + dx, lip_y + dy + corner_offset, color)
@@ -5563,7 +5607,7 @@ class PortraitGenerator:
                 # Upper lip texture lines
                 for dy in range(1, lip_height // 2 + 1, 2):  # Every other pixel
                     for dx in range(-lip_width + 2, lip_width - 1):
-                        curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5)
+                        curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.5 * asym_scale(dx))
                         if dy < curve:
                             # Alternating dark/light for texture effect
                             if (dx + dy) % 3 == 0:
@@ -5572,7 +5616,7 @@ class PortraitGenerator:
                 # Lower lip texture lines
                 for dy in range(2, int(lip_height * 0.8), 2):  # Every other pixel
                     for dx in range(-lip_width + 2, lip_width - 1):
-                        curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8)
+                        curve = int((1 - (dx / lip_width) ** 2) * lip_height * 0.8 * asym_scale(dx))
                         if dy < curve:
                             if (dx + dy) % 3 == 0:
                                 canvas.set_pixel(cx + dx, lip_y + dy, (*texture_color_dark[:3], texture_alpha))
@@ -5636,7 +5680,7 @@ class PortraitGenerator:
         for dx in range(-lip_width, lip_width + 1):
             edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
             corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-            curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale)
+            curve = int((1 - (dx / lip_width) ** 2) * lip_height * upper_scale * asym_scale(dx))
             if shape == LipShape.HEART and abs(dx) <= cupid_width:
                 dip = int((1 - (abs(dx) / cupid_width)) * cupid_depth)
                 curve = max(0, curve - dip)
@@ -5654,7 +5698,7 @@ class PortraitGenerator:
         for dx in range(-lip_width + 1, lip_width):
             edge_factor = (abs(dx) / lip_width) ** 2 if lip_width > 0 else 0
             corner_offset = int(-corner_val * max_corner_shift * edge_factor)
-            curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale)
+            curve = int((1 - (dx / lip_width) ** 2) * lip_height * lower_scale * asym_scale(dx))
             for dy in range(1, curve + 1):
                 if dy <= highlight_rows and abs(dx) <= highlight_span:
                     color = highlight_color
