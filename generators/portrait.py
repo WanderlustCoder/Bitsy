@@ -225,6 +225,7 @@ class PortraitConfig:
     eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
     eyebrow_shape: str = "natural"  # natural, straight, arched, curved, angular, thick, thin, feathered
     eyebrow_hair_detail: float = 0.0  # 0.0 = solid, 0.5 = subtle strokes, 1.0 = individual hairs
+    eyebrow_taper: float = 0.5  # 0.0 = uniform width, 0.5 = natural taper, 1.0 = dramatic taper to point
     brow_thickness: float = 1.0  # 0.5 = thin/fine brows, 1.0 = normal, 1.5 = thick/bold brows
     eyebrow_asymmetry: float = 0.0  # 0.0 = symmetric, 0.3 = subtle height diff, 0.6 = noticeable
     eyebrow_height: float = 0.0  # -0.3 = low (close to eyes), 0.0 = normal, 0.3 = high (raised)
@@ -1817,6 +1818,18 @@ class PortraitGenerator:
             detail: Detail level (0.0 = solid, 0.5 = subtle, 1.0 = individual hairs)
         """
         self.config.eyebrow_hair_detail = max(0.0, min(1.0, detail))
+        return self
+
+    def set_eyebrow_taper(self, taper: float = 0.5) -> 'PortraitGenerator':
+        """
+        Set eyebrow taper from inner to outer edge.
+
+        Controls how much the eyebrow thins toward the outer end.
+
+        Args:
+            taper: Taper amount (0.0 = uniform width, 0.5 = natural, 1.0 = dramatic point)
+        """
+        self.config.eyebrow_taper = max(0.0, min(1.0, taper))
         return self
 
     def set_brow_thickness(self, thickness: float = 1.0) -> 'PortraitGenerator':
@@ -7573,6 +7586,9 @@ class PortraitGenerator:
             # Angle is mirrored for left/right eyebrows
             effective_angle = angle * side
 
+            # Get eyebrow taper for this brow
+            taper = getattr(self.config, 'eyebrow_taper', 0.5)
+
             for dx in range(-half_width, half_width + 1):
                 # Normalized position (-1 to 1)
                 t = dx / half_width if half_width > 0 else 0
@@ -7582,6 +7598,11 @@ class PortraitGenerator:
 
                 # Angle offset (tilts the eyebrow)
                 angle_offset = int(effective_angle * t * 4)
+
+                # Apply taper: outer edge (t*side > 0) gets thinner
+                outer_t = t * side  # Outer edge is at positive outer_t
+                taper_factor = 1.0 - taper * 0.7 * max(0, outer_t)  # Reduce at outer edge
+                current_thickness = max(1, int(thickness * taper_factor))
 
                 px = brow_x + dx
                 py = brow_y - arch + angle_offset + asymmetry_offset
@@ -7597,11 +7618,11 @@ class PortraitGenerator:
                     for ty in range(stroke_length):
                         canvas.set_pixel(px, py + ty + jitter, brow_color)
                 elif hair_detail > 0.0:
-                    # Hair detail mode - individual strokes
+                    # Hair detail mode - individual strokes with taper
                     if rng.random() < 0.1 * hair_detail:
                         continue
                     falloff = 1.0 - abs(t)
-                    stroke_length = max(1, thickness - 1)
+                    stroke_length = max(1, current_thickness - 1)
                     if hair_detail > 0.5 and rng.random() < (0.3 + 0.3 * falloff):
                         stroke_length += 1
                     jitter = 0
@@ -7611,8 +7632,8 @@ class PortraitGenerator:
                     for ty in range(stroke_length):
                         canvas.set_pixel(px, py + ty + jitter, (*brow_color[:3], alpha))
                 else:
-                    # Solid fill - original behavior
-                    for ty in range(thickness):
+                    # Solid fill - original behavior with taper
+                    for ty in range(current_thickness):
                         canvas.set_pixel(px, py + ty, brow_color)
 
     def _render_piercings(self, canvas: Canvas) -> None:
