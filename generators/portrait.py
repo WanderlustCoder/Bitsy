@@ -131,6 +131,7 @@ class PortraitConfig:
     eyebrow_angle: float = 0.0  # -0.5 to 0.5, negative=sad, positive=angry
     eyebrow_thickness: int = 2  # 1-4 pixels thick
     eyebrow_color: Optional[str] = None  # None = use hair color, or specify color
+    eyebrow_gap: float = 1.0  # 0.7-1.3, multiplier for gap between eyebrows
 
     # Eyebags
     has_eyebags: bool = False
@@ -760,19 +761,22 @@ class PortraitGenerator:
 
     def set_eyebrows(self, arch: float = 0.3, angle: float = 0.0,
                       thickness: int = 2,
-                      color: Optional[str] = None) -> 'PortraitGenerator':
-        """Set eyebrow shape and color.
+                      color: Optional[str] = None,
+                      gap: float = 1.0) -> 'PortraitGenerator':
+        """Set eyebrow shape, color, and gap.
 
         Args:
             arch: Arch height (0.0-1.0, default 0.3)
             angle: Angle tilt (-0.5 to 0.5, negative=sad, positive=angry)
             thickness: Thickness in pixels (1-4, default 2)
             color: Color name (None = use hair color)
+            gap: Gap between eyebrows (0.7-1.3, default 1.0)
         """
         self.config.eyebrow_arch = max(0.0, min(1.0, arch))
         self.config.eyebrow_angle = max(-0.5, min(0.5, angle))
         self.config.eyebrow_thickness = max(1, min(4, thickness))
         self.config.eyebrow_color = color
+        self.config.eyebrow_gap = max(0.7, min(1.3, gap))
         return self
 
     def set_glasses(self, style: str = "round") -> 'PortraitGenerator':
@@ -2617,7 +2621,8 @@ class PortraitGenerator:
         fw, fh = self._get_face_dimensions()
 
         brow_y = cy - fh // 5
-        eye_spacing = fw // 4
+        gap_mult = getattr(self.config, 'eyebrow_gap', 1.0)
+        eye_spacing = int(fw // 4 * gap_mult)  # Apply gap multiplier
         brow_width = fw // 6
         half_width = brow_width // 2
 
