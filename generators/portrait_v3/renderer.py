@@ -74,9 +74,9 @@ class ProceduralPortraitRenderer:
         self,
         width: int = 64,
         height: int = 96,
-        # Light settings
-        light_dir: Tuple[float, float, float] = (-0.5, -0.3, 0.8),
-        ambient: float = 0.3,
+        # Light settings - softer for cute aesthetic
+        light_dir: Tuple[float, float, float] = (-0.4, -0.2, 0.9),
+        ambient: float = 0.5,  # Higher ambient for softer shading
         # Face parameters
         face_y_offset: float = 0.0,  # -1 to 1, shift face up/down
     ):
@@ -94,13 +94,13 @@ class ProceduralPortraitRenderer:
         """Render a grayscale face with proper lighting."""
         canvas = Canvas(self.width, self.height)
 
-        # Face center (slightly above canvas center for portrait framing)
+        # Face center (positioned for portrait framing with forehead visible)
         face_cx = self.width / 2
-        face_cy = self.height * 0.38 + (self.face_y_offset * self.height * 0.1)
+        face_cy = self.height * 0.42 + (self.face_y_offset * self.height * 0.1)
 
-        # Face dimensions
-        face_rx = self.width * 0.38  # horizontal radius
-        face_ry = self.height * 0.28  # vertical radius
+        # Face dimensions - soft oval, slightly taller than wide
+        face_rx = self.width * 0.36  # horizontal radius
+        face_ry = self.height * 0.26  # vertical radius (taller than wide)
 
         # Render each pixel
         for y in range(self.height):
@@ -177,20 +177,31 @@ class ProceduralPortraitRenderer:
         cx: float, cy: float,
         rx: float, ry: float
     ) -> float:
-        """SDF for the face shape - oval with slight chin taper."""
-        # Base ellipse
-        base = SDF.ellipse(px, py, cx, cy, rx, ry)
+        """SDF for face shape - inverted egg with soft cheeks tapering to chin."""
+        # Calculate vertical position relative to face center
+        rel_y = (py - cy) / ry  # -1 at top, +1 at bottom
 
-        # Chin modification - make bottom slightly narrower
-        chin_y = cy + ry * 0.5
-        if py > chin_y:
-            # Taper the chin
-            taper = (py - chin_y) / (ry * 0.5)
-            taper = min(taper, 1.0)
-            local_rx = rx * (1.0 - taper * 0.15)  # Narrow by 15% at bottom
-            base = SDF.ellipse(px, py, cx, cy, local_rx, ry)
+        # Width varies by vertical position:
+        # - Full width at forehead/upper face
+        # - Slight cheek fullness in middle
+        # - Taper to smaller chin at bottom
 
-        return base
+        if rel_y < -0.3:
+            # Upper face / forehead area - full width
+            width_factor = 1.0
+        elif rel_y < 0.2:
+            # Cheek area - slight fullness
+            cheek_pos = (rel_y + 0.3) / 0.5  # 0 to 1 through cheek zone
+            width_factor = 1.0 + 0.05 * math.sin(cheek_pos * math.pi)  # Gentle bulge
+        else:
+            # Chin area - taper down
+            chin_pos = (rel_y - 0.2) / 0.8  # 0 to 1 toward chin
+            chin_pos = min(chin_pos, 1.0)
+            width_factor = 1.0 - chin_pos * 0.25  # Taper to 75% width at chin
+
+        local_rx = rx * width_factor
+
+        return SDF.ellipse(px, py, cx, cy, local_rx, ry)
 
     def _estimate_normal(
         self,
@@ -224,19 +235,21 @@ class ProceduralPortraitRenderer:
         cx: float, cy: float,
         rx: float, ry: float
     ) -> float:
-        """Calculate lighting value using Lambert + ambient."""
+        """Calculate soft lighting for cute aesthetic."""
         nx, ny, nz = normal
         lx, ly, lz = self.light.direction
 
-        # Lambert diffuse
+        # Soft Lambert diffuse
         diffuse = max(0, nx * lx + ny * ly + nz * lz)
+        # Soften the diffuse by raising to a power less than 1
+        diffuse = math.pow(diffuse, 0.7)
 
-        # Combine with ambient
-        light = self.ambient + (1.0 - self.ambient) * diffuse * self.light.intensity
+        # Combine with high ambient for soft look
+        light = self.ambient + (1.0 - self.ambient) * diffuse * self.light.intensity * 0.6
 
-        # Add subtle rim lighting on the opposite side
-        rim = max(0, -nx * lx * 0.5)  # Opposite to light
-        light += rim * 0.15
+        # Very subtle rim lighting
+        rim = max(0, -nx * lx * 0.3)
+        light += rim * 0.08
 
         return min(1.0, light)
 
@@ -247,24 +260,23 @@ class ProceduralPortraitRenderer:
         cx: float, cy: float,
         rx: float, ry: float
     ) -> float:
-        """Darken eye socket areas for depth."""
-        # Eye positions (relative to face center)
-        eye_y = cy - ry * 0.15
-        eye_spacing = rx * 0.35
+        """Subtle eye socket shading - very light for cute aesthetic."""
+        # Eye positions (match eye rendering)
+        eye_y = cy + ry * 0.05
+        eye_spacing = rx * 0.30
 
         left_eye_x = cx - eye_spacing
         right_eye_x = cx + eye_spacing
 
         # Socket radius
-        socket_rx = rx * 0.22
-        socket_ry = ry * 0.15
+        socket_rx = rx * 0.18
+        socket_ry = ry * 0.10
 
-        # Calculate darkening for each eye socket
+        # Very subtle darkening
         for ex in [left_eye_x, right_eye_x]:
             dist = SDF.ellipse(px, py, ex, eye_y, socket_rx, socket_ry)
             if dist < socket_rx:
-                # Inside or near socket - darken
-                factor = 1.0 - max(0, (socket_rx - dist) / socket_rx) * 0.2
+                factor = 1.0 - max(0, (socket_rx - dist) / socket_rx) * 0.03
                 light *= factor
 
         return light
@@ -276,24 +288,8 @@ class ProceduralPortraitRenderer:
         cx: float, cy: float,
         rx: float, ry: float
     ) -> float:
-        """Add subtle nose shadow."""
-        nose_x = cx
-        nose_y = cy + ry * 0.2
-
-        # Shadow on the right side of nose (light from left)
-        if self.light.direction[0] < 0:  # Light from left
-            shadow_x = nose_x + rx * 0.08
-        else:
-            shadow_x = nose_x - rx * 0.08
-
-        # Small shadow ellipse
-        shadow_dist = SDF.ellipse(px, py, shadow_x, nose_y, rx * 0.1, ry * 0.12)
-
-        if shadow_dist < 0:
-            # Inside shadow
-            factor = 1.0 - abs(shadow_dist) / (rx * 0.1) * 0.15
-            light *= max(0.7, factor)
-
+        """Nose shadow - removed for cute anime style."""
+        # No nose shadow for cleaner, cuter look
         return light
 
     def _get_eye_color(
@@ -303,13 +299,13 @@ class ProceduralPortraitRenderer:
         face_rx: float, face_ry: float
     ) -> Optional[Tuple[int, int, int, int]]:
         """Render eyes with iris, pupil, and catchlight."""
-        # Eye positions
-        eye_y = face_cy - face_ry * 0.12
-        eye_spacing = face_rx * 0.32
+        # Eye positions - in lower-middle of face, leaving forehead space
+        eye_y = face_cy + face_ry * 0.05  # Slightly below center
+        eye_spacing = face_rx * 0.30  # Comfortable spacing
 
-        # Eye dimensions
-        eye_rx = face_rx * 0.18
-        eye_ry = face_ry * 0.14
+        # Eye dimensions - almond shaped, proportional
+        eye_rx = face_rx * 0.17
+        eye_ry = face_ry * 0.13
 
         for eye_x in [face_cx - eye_spacing, face_cx + eye_spacing]:
             # Sclera (white of eye)
@@ -368,18 +364,18 @@ class ProceduralPortraitRenderer:
         face_cx: float, face_cy: float,
         face_rx: float, face_ry: float
     ) -> Optional[Tuple[int, int, int, int]]:
-        """Render a simple mouth."""
-        mouth_y = face_cy + face_ry * 0.45
-        mouth_rx = face_rx * 0.2
-        mouth_ry = face_ry * 0.04
+        """Render a simple, small mouth."""
+        mouth_y = face_cy + face_ry * 0.50  # In lower face area
+        mouth_rx = face_rx * 0.13
+        mouth_ry = face_ry * 0.03
 
-        # Mouth line (slightly curved, darker)
+        # Mouth line (small, subtle)
         mouth_dist = SDF.ellipse(px, py, face_cx, mouth_y, mouth_rx, mouth_ry)
 
-        if mouth_dist < 0.8:
-            alpha = 255 if mouth_dist < 0 else int(255 * (1.0 - mouth_dist / 0.8))
-            # Dark line for mouth
-            gray = 120
+        if mouth_dist < 0.6:
+            alpha = 255 if mouth_dist < 0 else int(255 * (1.0 - mouth_dist / 0.6))
+            # Softer mouth color
+            gray = 150
             return (gray, gray, gray, alpha)
 
         return None
@@ -390,19 +386,10 @@ class ProceduralPortraitRenderer:
         face_cx: float, face_cy: float,
         face_rx: float, face_ry: float
     ) -> Optional[Tuple[int, int, int, int]]:
-        """Render nose highlight/detail."""
-        nose_y = face_cy + face_ry * 0.18
-
-        # Small nose dot/highlight
-        nose_dist = SDF.circle(px, py, face_cx, nose_y, face_rx * 0.04)
-
-        if nose_dist < 0.5:
-            alpha = 255 if nose_dist < 0 else int(255 * (1.0 - nose_dist / 0.5))
-            # Slightly darker than skin for subtle nose
-            gray = 180
-            return (gray, gray, gray, alpha)
-
-        return None
+        """Render nose - virtually invisible, just a tiny hint."""
+        # Nose is almost invisible in anime style - just 1-2 pixels max
+        # Only render if we want a tiny shadow hint, otherwise return None
+        return None  # No visible nose for cute anime style
 
     def _get_eyebrow_color(
         self,
@@ -410,12 +397,12 @@ class ProceduralPortraitRenderer:
         face_cx: float, face_cy: float,
         face_rx: float, face_ry: float
     ) -> Optional[Tuple[int, int, int, int]]:
-        """Render eyebrows."""
-        brow_y = face_cy - face_ry * 0.35
-        eye_spacing = face_rx * 0.32
+        """Render eyebrows - positioned above eyes."""
+        brow_y = face_cy - face_ry * 0.15  # Above the eyes
+        eye_spacing = face_rx * 0.30  # Match eye spacing
 
-        brow_rx = face_rx * 0.18
-        brow_ry = face_ry * 0.04
+        brow_rx = face_rx * 0.15
+        brow_ry = face_ry * 0.035
 
         for brow_x in [face_cx - eye_spacing, face_cx + eye_spacing]:
             # Slight arch - raise outer edge
