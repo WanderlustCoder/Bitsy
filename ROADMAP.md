@@ -179,25 +179,31 @@ Nice-to-have features for completeness.
 
 ## Active Development: Portrait Generator v3
 
-**Status:** IN PROGRESS
+**Status:** IN PROGRESS - Face awaiting quality validation
 
 High-quality anime portrait generation using procedural rendering with SDFs and proper lighting.
+
+### Quality Gate
+
+**No new features will be added until the face meets quality standards.**
+
+The grayscale face must be validated against the reference image before proceeding. This prevents wasted effort on features built on a flawed foundation.
 
 ### Why v3?
 Previous approaches (template-based) could not achieve the desired "cute anime" quality. v3 uses:
 - Signed Distance Fields for smooth shapes
 - Proper 3D lighting model
-- Hue-shift color system
+- Hue-shift color system (planned)
 
 ### Phases
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1. Grayscale Face | ✓ COMPLETE | Face shape, lighting, eyes, nose, mouth |
-| 2. Hair System | NEXT | Procedural hair with flow and highlights |
-| 3. Color System | Planned | Hue-shift shading, palette generation |
-| 4. Body & Accessories | Planned | Neck, shoulders, clothing, glasses, props |
-| 5. Variation | Planned | Face shapes, expressions, styles |
+| 1. Grayscale Face | AWAITING VALIDATION | Face shape, lighting, eyes, nose, mouth |
+| 2. Hair System | BLOCKED | Procedural hair with flow and highlights |
+| 3. Color System | BLOCKED | Hue-shift shading, palette generation |
+| 4. Body & Accessories | BLOCKED | Neck, shoulders, clothing, glasses, props |
+| 5. Variation | BLOCKED | Face shapes, expressions, styles |
 
 ### Documentation
 - **Direction:** `generators/PORTRAIT.md`

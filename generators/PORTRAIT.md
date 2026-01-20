@@ -6,11 +6,22 @@
 
 ---
 
+## IMPORTANT: Quality Gate
+
+**No new features will be added until the face meets quality standards.**
+
+The grayscale face must be validated against the reference image before proceeding to hair, color, body, or any other features. This prevents wasted effort on features built on a flawed foundation.
+
+**Current focus:** Face only. Iterate until quality is proven.
+
+---
+
 ## Quick Links
 
 - **Detailed Design:** `portrait_v3/DESIGN.md`
 - **Source Code:** `portrait_v3/renderer.py`
 - **Reference Image:** `output/reference_downsampled.png`
+- **Current Output:** `output/portrait_v3_test.png`
 
 ---
 
@@ -33,7 +44,7 @@
 - Procedural rendering with SDFs
 - Proper lighting model (Lambert + ambient + rim)
 - Mathematical shape definitions
-- Hue-shift color system (planned)
+- Hue-shift color system (planned, blocked on quality gate)
 
 ---
 
@@ -43,23 +54,23 @@ The reference image quality requires:
 
 | Requirement | Template Approach | Procedural Approach |
 |-------------|-------------------|---------------------|
-| Soft gradients | ❌ Flat colors only | ✅ Calculated per-pixel |
-| Proper lighting | ❌ Baked in template | ✅ Dynamic light model |
-| Smooth edges | ❌ Pixelated edges | ✅ SDF anti-aliasing |
-| Hue-shifted shadows | ❌ Simple color swap | ✅ HSL manipulation |
-| Customizable | ❌ Need new templates | ✅ Change parameters |
+| Soft gradients | Flat colors only | Calculated per-pixel |
+| Proper lighting | Baked in template | Dynamic light model |
+| Smooth edges | Pixelated edges | SDF anti-aliasing |
+| Hue-shifted shadows | Simple color swap | HSL manipulation |
+| Customizable | Need new templates | Change parameters |
 
 **Conclusion:** Template-based approaches cannot produce the desired quality because they start from flat art and try to add depth through color swapping. Procedural rendering calculates each pixel mathematically, enabling true lighting, gradients, and anti-aliasing.
 
 ---
 
-## Development Phases
+## Current Phase: Grayscale Face
 
-### Phase 1: Grayscale Face ✅ COMPLETE
+**Status:** IN DEVELOPMENT - Quality validation required
 
-**Goal:** Establish the rendering foundation with proper 3D-like shading.
+**Goal:** Create a grayscale face that demonstrates professional-quality rendering.
 
-**Completed:**
+**Implemented:**
 - [x] SDF utilities (circle, ellipse, rounded rect, smooth union/subtract)
 - [x] Face shape (oval with chin taper)
 - [x] Lighting model (Lambert diffuse + ambient + rim)
@@ -69,82 +80,43 @@ The reference image quality requires:
 - [x] Nose (subtle detail + shadow)
 - [x] Mouth
 
+**Quality validation:**
+- [ ] Compare output to reference face (grayscale conversion)
+- [ ] Verify lighting creates convincing 3D depth
+- [ ] Verify edges are smooth and anti-aliased
+- [ ] Verify proportions look "cute" not "outlandish"
+- [ ] **User approval required before proceeding**
+
 **Output:** `output/portrait_v3_test.png`
 
 ---
 
-### Phase 2: Hair System 🔜 NEXT
+## Future Phases (BLOCKED)
 
-**Goal:** Add procedural hair with proper flow, highlights, and rim lighting.
+The following phases are blocked until the face quality is validated:
 
-**Planned:**
-- [ ] Hair silhouette shapes (define multiple styles)
-- [ ] Hair strand flow lines (using curves/noise)
-- [ ] Highlight bands (anime-style)
-- [ ] Rim lighting on hair edges
-- [ ] Back hair layer (behind face)
-- [ ] Front hair layer (bangs over face)
+### Phase 2: Hair System (BLOCKED)
+- Hair silhouette shapes
+- Hair strand flow lines
+- Highlight bands
+- Rim lighting
 
-**Styles to implement:**
-- Wavy, Straight, Short, Ponytail, Bun, Braided
+### Phase 3: Color System (BLOCKED)
+- Hue-shift shading
+- Palette generation
+- Skin subsurface scattering
 
-**Technical approach:**
-```
-1. Define hair silhouette with SDFs
-2. Generate flow field for strand direction
-3. Render highlight bands following flow
-4. Apply rim light on silhouette edges
-5. Layer: back hair → face → front hair
-```
+### Phase 4: Body & Accessories (BLOCKED)
+- Neck and shoulders
+- Clothing
+- Glasses, earrings, props
 
----
+### Phase 5: Variation & Expression (BLOCKED)
+- Face shape variants
+- Eye/mouth expressions
+- Head angles
 
-### Phase 3: Color System
-
-**Goal:** Add hue-shift based coloring for natural-looking shading.
-
-**Planned:**
-- [ ] Base color input (skin, hair, eyes, clothing)
-- [ ] Hue-shift shading:
-  - Shadows → shift toward cooler hues
-  - Highlights → shift toward warmer hues
-- [ ] Automatic palette generation from base colors
-- [ ] Color blending and smooth gradients
-- [ ] Subsurface scattering for skin (warm shadows)
-
-**Color theory:**
-```
-Base skin: (253, 181, 115)
-Shadow:    hue - 10°, saturation + 5%, lightness - 15%
-Highlight: hue + 5°, saturation - 5%, lightness + 10%
-```
-
----
-
-### Phase 4: Body & Accessories
-
-**Goal:** Complete the portrait with body and customization options.
-
-**Planned:**
-- [ ] Neck and shoulders
-- [ ] Basic clothing shapes
-- [ ] Clothing folds and shading
-- [ ] Glasses (multiple styles)
-- [ ] Earrings
-- [ ] Props (books, cups, flowers)
-
----
-
-### Phase 5: Variation & Expression
-
-**Goal:** Support different face shapes, expressions, and styles.
-
-**Planned:**
-- [ ] Face shape variants: round, oval, square, heart, diamond
-- [ ] Eye expressions: normal, happy, sad, surprised, angry, wink
-- [ ] Mouth expressions: neutral, smile, open, frown, pout
-- [ ] Eyebrow expressions: normal, raised, furrowed, worried
-- [ ] Head angle/tilt variations
+**These phases will remain blocked until the grayscale face is approved.**
 
 ---
 
@@ -153,7 +125,7 @@ Highlight: hue + 5°, saturation - 5%, lightness + 10%
 ```python
 from generators.portrait_v3 import ProceduralPortraitRenderer
 
-# Phase 1: Grayscale rendering
+# Grayscale face only
 renderer = ProceduralPortraitRenderer(
     width=64,
     height=96,
@@ -162,31 +134,6 @@ renderer = ProceduralPortraitRenderer(
 )
 canvas = renderer.render()
 canvas.save('portrait.png')
-```
-
-## API (Planned - Future Phases)
-
-```python
-renderer = ProceduralPortraitRenderer(
-    width=64,
-    height=96,
-    # Colors
-    skin_color=(253, 181, 115),
-    hair_color=(123, 84, 155),
-    eye_color=(100, 80, 60),
-    clothing_color=(80, 60, 120),
-    # Style
-    hair_style="wavy",
-    face_shape="oval",
-    # Expression
-    eye_expression="happy",
-    mouth_expression="smile",
-    # Accessories
-    has_glasses=True,
-    glasses_style="round",
-    has_earrings=True,
-)
-canvas = renderer.render()
 ```
 
 ---
@@ -205,18 +152,7 @@ generators/
 └── portrait_v3/                 # CURRENT - procedural
     ├── __init__.py              # Public API
     ├── DESIGN.md                # Technical design document
-    ├── renderer.py              # Main renderer (current: grayscale face)
-    │
-    └── (planned structure)
-        ├── sdf.py               # SDF utilities (extract from renderer)
-        ├── lighting.py          # Lighting calculations
-        ├── color.py             # Hue-shift color system
-        └── features/
-            ├── face.py
-            ├── eyes.py
-            ├── hair.py
-            ├── mouth.py
-            └── body.py
+    └── renderer.py              # Main renderer (grayscale face)
 ```
 
 ---
@@ -225,27 +161,27 @@ generators/
 
 To match the reference (`output/reference_downsampled.png`):
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| Canvas size | 64x96 | ✅ 64x96 |
-| Smooth gradients | No banding | ✅ Achieved |
-| Anti-aliased edges | 1-2px smooth | ✅ Achieved |
-| 3D depth | Visible lighting | ✅ Achieved |
-| Cute aesthetic | Anime style | 🔜 Needs hair/color |
+| Metric | Target | Current | Validated |
+|--------|--------|---------|-----------|
+| Canvas size | 64x96 | 64x96 | Pending |
+| Smooth gradients | No banding | Implemented | Pending |
+| Anti-aliased edges | 1-2px smooth | Implemented | Pending |
+| 3D depth | Visible lighting | Implemented | Pending |
+| Cute aesthetic | Anime style | Implemented | **Pending user approval** |
 
 ---
 
-## Success Criteria
+## Success Criteria (Face Only)
 
-The portrait generator will be considered complete when:
+The grayscale face will be considered ready when:
 
-1. ✅ Grayscale face has proper 3D depth and lighting
-2. ✅ Silhouette edges are smooth (anti-aliased)
-3. ✅ Eyes have catchlights and expression
-4. ⬜ Hair has flow, highlights, and rim lighting
-5. ⬜ Colors use hue-shift shading (not flat)
-6. ⬜ Multiple face shapes and expressions work
-7. ⬜ Output visually comparable to reference image
+1. [ ] Face has proper 3D depth and lighting
+2. [ ] Silhouette edges are smooth (anti-aliased)
+3. [ ] Eyes have catchlights and expression
+4. [ ] Proportions look natural and appealing
+5. [ ] **User confirms quality meets expectations**
+
+Only after these criteria are met will development proceed to Phase 2.
 
 ---
 
@@ -253,12 +189,11 @@ The portrait generator will be considered complete when:
 
 **Target quality:** `output/reference_downsampled.png`
 
-This 64x96 anime pixel art portrait demonstrates:
-- Soft, cute aesthetic
-- Rich shading with smooth gradients
-- Detailed hair with highlights and rim lighting
-- Expressive eyes with catchlights
-- Cohesive, limited color palette
+For face validation, compare the grayscale face structure to the reference:
+- Face shape and proportions
+- Eye placement and detail
+- Lighting direction and depth
+- Edge smoothness
 
 ---
 

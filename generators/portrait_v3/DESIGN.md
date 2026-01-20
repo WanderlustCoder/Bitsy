@@ -50,9 +50,17 @@ Use Signed Distance Fields (SDFs) to define shapes mathematically:
 3. Output final pixel color
 ```
 
+## Quality Gate
+
+**IMPORTANT:** No features beyond the face will be implemented until the face quality is validated by the user. This prevents building on a flawed foundation.
+
+Current status: **Face implemented, awaiting quality validation.**
+
+---
+
 ## Implementation Phases
 
-### Phase 1: Grayscale Face ✓ COMPLETE
+### Phase 1: Grayscale Face (IN PROGRESS - Awaiting Validation)
 - [x] SDF utilities (circle, ellipse, rounded rect, smooth operations)
 - [x] Basic face shape (oval with chin taper)
 - [x] Lighting model (Lambert diffuse + ambient + rim)
@@ -62,27 +70,27 @@ Use Signed Distance Fields (SDFs) to define shapes mathematically:
 - [x] Eyebrow shapes (arched)
 - [x] Mouth rendering
 - [x] Nose detail
-- [ ] Ear hints (side profile shadows) - OPTIONAL
+- [ ] **Quality validation by user**
 
-### Phase 2: Hair System
+### Phase 2: Hair System (BLOCKED - Requires Phase 1 Validation)
 - [ ] Hair silhouette shapes (various styles)
 - [ ] Hair strand flow lines
 - [ ] Highlight bands
 - [ ] Rim lighting on hair edges
 
-### Phase 3: Color System
+### Phase 3: Color System (BLOCKED)
 - [ ] Base color input (skin, hair, eyes)
 - [ ] Hue-shift shading (shadows cooler, highlights warmer)
 - [ ] Automatic palette generation
 - [ ] Color blending and gradients
 
-### Phase 4: Body & Accessories
+### Phase 4: Body & Accessories (BLOCKED)
 - [ ] Neck and shoulders
 - [ ] Clothing with folds
 - [ ] Glasses, earrings, etc.
 - [ ] Props (books, cups, etc.)
 
-### Phase 5: Variation & Expression
+### Phase 5: Variation & Expression (BLOCKED)
 - [ ] Face shape variants (round, oval, square, heart)
 - [ ] Eye expressions (normal, happy, sad, angry)
 - [ ] Mouth expressions
