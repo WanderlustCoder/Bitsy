@@ -287,11 +287,14 @@ def render_body_base(
                 canvas.set_pixel(x, y, color)
 
     # Add clothing details based on style
-    if config.clothing_style == ClothingStyle.COLLAR:
-        _draw_collar(buffer, neck_base, shoulder_width, clothing_ramp)
+    if config.clothing_style == ClothingStyle.SIMPLE:
+        # Simple V-neck collar
+        _draw_collar(canvas, neck_base, shoulder_width, clothing_ramp)
+    elif config.clothing_style == ClothingStyle.COLLAR:
+        _draw_collar(canvas, neck_base, shoulder_width, clothing_ramp)
     elif config.clothing_style == ClothingStyle.UNIFORM:
-        _draw_collar(buffer, neck_base, shoulder_width, clothing_ramp)
-        _draw_uniform_details(buffer, neck_base, shoulder_width, clothing_ramp)
+        _draw_collar(canvas, neck_base, shoulder_width, clothing_ramp)
+        _draw_uniform_details(canvas, neck_base, shoulder_width, clothing_ramp)
 
     # Create skeleton and apply pose
     skeleton = Skeleton()
