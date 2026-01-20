@@ -49,12 +49,14 @@ from generators.portrait_parts.post_processing import (
     apply_outline, apply_selective_aa, enforce_palette, quantize_colors,
     apply_silhouette_rim_light
 )
+from generators.portrait_v2 import TemplatePortraitGenerator
 
 
 class RenderMode(Enum):
     """Rendering style mode."""
     REALISTIC = "realistic"  # Current photorealistic gradients
     ANIME = "anime"          # Stylized anime with color blocking
+    TEMPLATE = "template"    # Template-based compositing system
 
 
 class HairStyle(Enum):
@@ -131,6 +133,9 @@ class PortraitConfig:
     anime_eye_scale: float = 2.5  # Eyes are 2-3x larger in anime style
     anime_palette_size: int = 6   # Colors per element in limited palette
     use_hue_shifting: bool = True  # Use hue-shifted shadows vs luminance-only
+
+    # Template mode settings (only used when render_mode == TEMPLATE)
+    template_style: str = "anime_standard"  # Template style directory name
 
     # Rim lighting (used for both modes, more prominent in anime)
     rim_light_enabled: bool = False
@@ -9605,6 +9610,37 @@ def generate_portrait(config: Optional[PortraitConfig] = None,
         for key, value in kwargs.items():
             if hasattr(config, key):
                 setattr(config, key, value)
+
+    # Use template-based rendering if specified
+    if config.render_mode == RenderMode.TEMPLATE:
+        style_path = f"templates/{config.template_style}"
+        # Convert color strings to RGB tuples
+        skin_rgb = SKIN_TONES.get(config.skin_tone, SKIN_TONES["light"])
+        hair_rgb = HAIR_COLORS.get(config.hair_color, HAIR_COLORS["brown"])
+        eye_rgb = EYE_COLORS.get(config.eye_color, EYE_COLORS["brown"])
+        clothing_colors = {
+            "blue": (70, 90, 140),
+            "red": (140, 60, 60),
+            "green": (60, 120, 80),
+            "white": (230, 230, 235),
+            "black": (35, 35, 40),
+            "gray": (120, 120, 125),
+            "purple": (100, 70, 130),
+            "brown": (100, 75, 55),
+        }
+        clothing_rgb = clothing_colors.get(
+            config.clothing_color.lower() if isinstance(config.clothing_color, str) else "blue",
+            (70, 90, 140)
+        )
+        gen = TemplatePortraitGenerator(
+            style_path=style_path,
+            skin_color=skin_rgb,
+            eye_color=eye_rgb,
+            hair_color=hair_rgb,
+            clothing_color=clothing_rgb,
+            seed=config.seed,
+        )
+        return gen.render()
 
     gen = PortraitGenerator(
         width=config.width,

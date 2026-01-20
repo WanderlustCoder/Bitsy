@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from core.canvas import Canvas
 from generators.portrait_v2.loader import TemplateLoader, Template
 from generators.portrait_v2.recolor import recolor_template, create_skin_palette
-from generators.portrait_parts.post_processing import apply_silhouette_rim_light
+from generators.portrait_parts.post_processing import apply_silhouette_rim_light, apply_outline
 
 
 @dataclass
@@ -120,6 +120,9 @@ class TemplatePortraitGenerator:
         # 8. Post-processing: rim lighting
         self._apply_rim_lighting(canvas)
 
+        # 9. Post-processing: outline
+        self._apply_outline(canvas)
+
         return canvas
 
     def _apply_rim_lighting(self, canvas: Canvas) -> None:
@@ -135,6 +138,19 @@ class TemplatePortraitGenerator:
             thickness=2,
             direction="right"  # Light from right side
         )
+
+    def _apply_outline(self, canvas: Canvas) -> None:
+        """Apply outline around the portrait silhouette."""
+        post = self.profile.post_processing
+        outline_mode = post.get("outline", "none")
+
+        if outline_mode == "none":
+            return
+
+        outline_color = tuple(post.get("outline_color", [40, 30, 50])) + (255,)
+        thickness = 1 if outline_mode == "thin" else 2
+
+        apply_outline(canvas, outline_color=outline_color, thickness=thickness)
 
     def _render_face(self, canvas: Canvas, cx: int, cy: int) -> None:
         face_templates = self.profile.templates.get("faces", ["oval"])
