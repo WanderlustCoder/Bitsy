@@ -36,6 +36,9 @@ from generators.portrait_parts.face import (
 from generators.portrait_parts.hair import (
     render_anime_hair
 )
+from generators.portrait_parts.body import (
+    BodyConfig, BodyPose, ClothingStyle, render_body_base, render_neck, render_arms
+)
 from generators.color_utils import (
     get_anime_hair_ramp, get_anime_eye_ramp, ANIME_SKIN_RAMP,
     create_hue_shifted_ramp
@@ -8995,6 +8998,53 @@ class PortraitGenerator:
             foreground_only=False
         )
 
+        # --- Layer 1.5: Body/Clothing ---
+        # Calculate neck position (at bottom of face/chin area)
+        neck_top_y = face_bottom + 2
+        neck_base_y = neck_top_y + 8
+        neck_base = (center_x, neck_base_y)
+        neck_top = (center_x, neck_top_y)
+
+        # Get clothing color - convert string to RGB
+        clothing_colors = {
+            "blue": (70, 90, 140),
+            "red": (140, 60, 60),
+            "green": (60, 120, 80),
+            "white": (230, 230, 235),
+            "black": (35, 35, 40),
+            "gray": (120, 120, 125),
+            "purple": (100, 70, 130),
+            "brown": (100, 75, 55),
+        }
+        clothing_base = clothing_colors.get(
+            self.config.clothing_color.lower() if hasattr(self.config, 'clothing_color') else "blue",
+            (70, 90, 140)  # Default blue
+        )
+        clothing_ramp = create_hue_shifted_ramp(clothing_base, 6)
+
+        # Render body
+        body_config = BodyConfig(
+            pose=BodyPose.NEUTRAL,
+            shoulder_width=1.0,
+            clothing_style=ClothingStyle.SIMPLE,
+            clothing_color=clothing_base,
+            skin_color=skin_color,
+            arm_visible=True,
+            use_rim_light=self.config.rim_light_enabled,
+            rim_light_color=self.config.rim_light_color if self.config.rim_light_enabled else (180, 200, 255),
+            rim_light_intensity=self.config.rim_light_intensity
+        )
+
+        # Render body below face
+        body_info = render_body_base(canvas, neck_base, body_config, canvas.height)
+
+        # Render neck
+        render_neck(
+            canvas, neck_base, neck_top, skin_color,
+            use_rim_light=self.config.rim_light_enabled,
+            rim_light_color=self.config.rim_light_color if self.config.rim_light_enabled else (180, 200, 255)
+        )
+
         # --- Layer 2: Face base (simple oval) ---
         for y in range(face_top, face_bottom + 5):
             # Oval shape with pointed chin
@@ -9098,31 +9148,66 @@ class PortraitGenerator:
             foreground_only=True
         )
 
+        # --- Layer 9: Silhouette rim lighting ---
+        if self.config.rim_light_enabled:
+            self._apply_anime_silhouette_rim(
+                canvas, bg_color,
+                self.config.rim_light_color,
+                self.config.rim_light_intensity
+            )
+
         # --- Post-processing ---
 
         # Build limited palette from all ramps used
         anime_palette = []
         anime_palette.append(bg_color)  # Background
+
+        # Add base ramps
         anime_palette.extend(skin_ramp)  # Skin colors
         anime_palette.extend(hair_ramp)  # Hair colors
         anime_palette.extend(eye_ramp)   # Eye colors
-        # Add some standard colors
+        anime_palette.extend(clothing_ramp)  # Clothing colors
+
+        # Add standard colors
         anime_palette.append((250, 245, 240, 255))  # Sclera white
         anime_palette.append((20, 15, 25, 255))     # Eyelash black
         anime_palette.append((255, 255, 255, 255))  # Catchlight white
+
+        # Add rim light variations if enabled
         if self.config.rim_light_enabled and self.config.rim_light_color:
-            anime_palette.append((*self.config.rim_light_color, 255))
+            rim = self.config.rim_light_color
+            anime_palette.append((*rim, 255))
 
-        # Enforce palette to limit colors
-        enforce_palette(canvas, anime_palette)
+            # Add single rim-blended variation per key element (40% blend)
+            intensity = 0.4
+            # Rim-blended skin highlight
+            blended = self._blend_rim(skin_ramp[4], rim, intensity)
+            anime_palette.append(blended)
 
+            # Rim-blended hair highlight
+            blended = self._blend_rim(hair_ramp[5], rim, intensity)
+            anime_palette.append(blended)
+
+            # Rim-blended clothing highlight
+            blended = self._blend_rim(clothing_ramp[4], rim, intensity)
+            anime_palette.append(blended)
+
+        # Apply outline before palette enforcement
         if self.config.outline_mode == "thin":
-            apply_outline(canvas, (*self.config.outline_color, 255), 1)
+            outline_c = (*self.config.outline_color, 255)
+            apply_outline(canvas, outline_c, 1)
+            anime_palette.append(outline_c)
         elif self.config.outline_mode == "thick":
-            apply_outline(canvas, (*self.config.outline_color, 255), 2)
+            outline_c = (*self.config.outline_color, 255)
+            apply_outline(canvas, outline_c, 2)
+            anime_palette.append(outline_c)
 
+        # Apply selective AA before palette enforcement (creates intermediate colors)
         if self.config.selective_aa:
             apply_selective_aa(canvas, bg_color)
+
+        # Enforce palette to limit colors - AFTER all processing
+        enforce_palette(canvas, anime_palette)
 
         return canvas
 
@@ -9134,6 +9219,107 @@ class PortraitGenerator:
             int(base_color[2] * (1 - intensity) + rim_color[2] * intensity),
             base_color[3] if len(base_color) > 3 else 255
         )
+
+    def _apply_anime_silhouette_rim(
+        self, canvas: Canvas, bg_color: Tuple[int, int, int, int],
+        rim_color: Tuple[int, int, int], intensity: float
+    ) -> None:
+        """
+        Apply visible rim lighting along the entire portrait silhouette.
+
+        Creates the characteristic anime backlight glow effect by finding
+        silhouette edges and adding rim light on the back-facing edges.
+
+        Args:
+            canvas: Canvas to modify
+            bg_color: Background color for silhouette detection
+            rim_color: RGB color for rim light
+            intensity: Rim light intensity (0.0 to 1.0)
+        """
+        if intensity <= 0:
+            return
+
+        # Light comes from front-left, rim appears on back-right
+        rim_direction = (0.7, 0.3)  # Right side + slight downward
+
+        # Find silhouette edges (opaque pixels adjacent to background)
+        silhouette_edges = []
+
+        def is_bg(pixel):
+            """Check if pixel is background."""
+            if pixel is None:
+                return True
+            if pixel[3] < 64:
+                return True
+            # Check if close to bg_color
+            return (
+                abs(pixel[0] - bg_color[0]) < 15 and
+                abs(pixel[1] - bg_color[1]) < 15 and
+                abs(pixel[2] - bg_color[2]) < 15
+            )
+
+        # Pass 1: Find all silhouette edge pixels
+        for y in range(canvas.height):
+            for x in range(canvas.width):
+                pixel = canvas.get_pixel(x, y)
+                if pixel and pixel[3] >= 64 and not is_bg(pixel):
+                    # Check if on silhouette edge
+                    for dy in [-1, 0, 1]:
+                        for dx in [-1, 0, 1]:
+                            if dx == 0 and dy == 0:
+                                continue
+                            nx, ny = x + dx, y + dy
+                            if nx < 0 or nx >= canvas.width or ny < 0 or ny >= canvas.height:
+                                # Edge of canvas = silhouette edge
+                                silhouette_edges.append((x, y, pixel, dx, dy))
+                                break
+                            neighbor = canvas.get_pixel(nx, ny)
+                            if is_bg(neighbor):
+                                silhouette_edges.append((x, y, pixel, dx, dy))
+                                break
+                        else:
+                            continue
+                        break
+
+        # Pass 2: Apply rim light to back-facing edges
+        for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
+            # Calculate normal direction (pointing outward from edge)
+            # This indicates which direction the edge faces
+            norm_x, norm_y = edge_dx, edge_dy
+            if norm_x == 0 and norm_y == 0:
+                continue
+
+            # Dot product with rim direction to determine if facing rim light
+            dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
+
+            if dot > 0:  # Edge faces toward rim light source
+                # Strength based on how directly it faces the rim
+                strength = min(1.0, dot * 2.0) * intensity
+
+                # Blend rim light into edge pixel
+                if strength > 0.1:
+                    new_r = int(pixel[0] * (1 - strength * 0.6) + rim_color[0] * strength * 0.6)
+                    new_g = int(pixel[1] * (1 - strength * 0.6) + rim_color[1] * strength * 0.6)
+                    new_b = int(pixel[2] * (1 - strength * 0.6) + rim_color[2] * strength * 0.6)
+                    canvas.set_pixel_solid(x, y, (new_r, new_g, new_b, pixel[3]))
+
+        # Pass 3: Add a glow layer just outside the silhouette
+        glow_intensity = intensity * 0.4
+        if glow_intensity > 0.05:
+            for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
+                norm_x, norm_y = edge_dx, edge_dy
+                dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
+
+                if dot > 0.2:
+                    # Add glow pixel in the background just outside edge
+                    glow_x = x + edge_dx
+                    glow_y = y + edge_dy
+                    if 0 <= glow_x < canvas.width and 0 <= glow_y < canvas.height:
+                        glow_pixel = canvas.get_pixel(glow_x, glow_y)
+                        if glow_pixel and is_bg(glow_pixel):
+                            alpha = int(150 * dot * glow_intensity)
+                            if alpha > 10:
+                                canvas.set_pixel(glow_x, glow_y, (*rim_color, alpha))
 
     def render(self) -> Canvas:
         """

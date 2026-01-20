@@ -74,14 +74,14 @@ def generate_cleric_portrait(seed: int = 42) -> Canvas:
 
         # Anime mode
         render_mode=RenderMode.ANIME,
-        anime_eye_scale=3.0,  # Large anime eyes
+        anime_eye_scale=3.5,  # Very large anime eyes
         anime_palette_size=6,
         use_hue_shifting=True,
 
-        # Rim lighting
+        # Rim lighting - strong like reference
         rim_light_enabled=True,
-        rim_light_color=(200, 210, 255),  # Slightly warmer rim for cleric
-        rim_light_intensity=0.6,  # Stronger rim lighting
+        rim_light_color=(180, 200, 255),  # Cool blue rim
+        rim_light_intensity=0.8,  # Strong rim lighting
 
         # Composition
         composition_mode="upper_body",
@@ -90,10 +90,10 @@ def generate_cleric_portrait(seed: int = 42) -> Canvas:
         skin_tone="medium",
         skin_undertone="warm",
 
-        # Hair - gray/white, short style
-        hair_style=HairStyle.SHORT,
+        # Hair - gray/white, wavy for more volume
+        hair_style=HairStyle.WAVY,
         hair_color="gray",
-        hair_volume=1.2,  # Good volume for visibility
+        hair_volume=2.0,  # Large volume like reference
 
         # Eyes - amber/brown, wise look
         eye_shape=EyeShape.DROOPY,  # Slight droop for age
@@ -126,8 +126,8 @@ def main():
 
     # Generate cleric portrait
     print("Generating: Male older cleric character...")
-    print("  - Hair: Gray, short style")
-    print("  - Eyes: Amber, droopy shape")
+    print("  - Hair: Gray, wavy style, large volume")
+    print("  - Eyes: Amber, droopy shape, 3.5x anime scale")
     print("  - Skin: Medium tone, warm undertone")
     print("  - Style: Anime with rim lighting")
     print()
