@@ -1,0 +1,34 @@
+{
+  "name": "anime_standard",
+  "description": "Standard anime style portrait",
+  "canvas_size": [80, 128],
+  "proportions": {
+    "head_y": 0.08,
+    "head_height_ratio": 0.38,
+    "face_width_ratio": 0.35,
+    "eye_y": 0.42,
+    "nose_y": 0.58,
+    "mouth_y": 0.68,
+    "eye_spacing": 0.24
+  },
+  "templates": {
+    "faces": ["oval"],
+    "eyes": ["large"],
+    "noses": ["dot"],
+    "mouths": ["neutral"],
+    "hair_back": ["wavy_back"],
+    "hair_front": ["wavy_front"],
+    "bodies": ["neutral", "holding"]
+  },
+  "coloring": {
+    "use_hue_shift": true,
+    "shadow_hue_shift": -15,
+    "rim_light_color": [180, 210, 255],
+    "rim_light_intensity": 0.7
+  },
+  "post_processing": {
+    "outline": "thin",
+    "outline_color": [40, 30, 50],
+    "selective_aa": true
+  }
+}
