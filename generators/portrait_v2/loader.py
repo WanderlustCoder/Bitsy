@@ -29,7 +29,8 @@ class TemplateLoader:
     """Loads and manages portrait templates."""
 
     # Original canvas size templates were designed for
-    ORIGINAL_CANVAS_SIZE = (80, 128)
+    # Templates have already been resized for 64x96 canvas
+    ORIGINAL_CANVAS_SIZE = (64, 96)
 
     def __init__(self, base_path: str, target_canvas_size: Tuple[int, int] = None):
         self.base_path = base_path
