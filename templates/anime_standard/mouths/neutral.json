@@ -1,1 +1,7 @@
-{"name": "neutral", "anchor": [4, 1]}
+{
+  "anchor": [
+    6,
+    3
+  ],
+  "symmetric": true
+}

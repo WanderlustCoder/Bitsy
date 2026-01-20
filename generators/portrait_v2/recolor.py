@@ -95,30 +95,32 @@ def create_skin_palette(
     r, g, b = base_color
 
     if use_hue_shift:
-        # Shadows: shift toward cooler (more red/purple, less green)
+        # Based on reference pixel analysis: extremely uniform skin
+        # Reference shows almost no visible shading at 64x96 scale
+        # All skin pixels cluster around (253,181,115) ± 2
         shadow1 = (
-            int(r * 0.85),           # Keep red
-            int(g * 0.72),           # Reduce green more
-            int(b * 0.80),           # Keep some blue
+            int(r * 0.96),           # Very subtle
+            int(g * 0.94),           # Minimal variation
+            int(b * 0.95),           # Keep uniformity
             255
         )
         shadow2 = (
-            int(r * 0.70),           # Darker red
-            int(g * 0.52),           # Much less green = more purple
-            int(b * 0.65),           # Some blue
+            int(r * 0.90),           # Still subtle
+            int(g * 0.85),           # Slightly more contrast
+            int(b * 0.88),           # Warm
             255
         )
-        # Highlights: shift toward warmer (more yellow/orange)
+        # Highlights: minimal, almost same as base
         highlight1 = (
-            min(255, int(r * 1.06)),
-            min(255, int(g * 1.08)),  # Boost green for warmth
-            min(255, int(b * 0.92)),  # Reduce blue
+            min(255, int(r * 1.01)),
+            min(255, int(g * 1.02)),
+            min(255, int(b * 0.99)),
             255,
         )
         highlight2 = (
-            min(255, int(r * 1.10)),
-            min(255, int(g * 1.15)),  # More green = warmer
-            min(255, int(b * 0.85)),  # Less blue
+            min(255, int(r * 1.02)),
+            min(255, int(g * 1.03)),
+            min(255, int(b * 0.98)),
             255,
         )
     else:

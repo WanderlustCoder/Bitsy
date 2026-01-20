@@ -3,13 +3,14 @@
   "description": "Standard anime style portrait",
   "canvas_size": [80, 128],
   "proportions": {
-    "head_y": 0.08,
-    "head_height_ratio": 0.38,
-    "face_width_ratio": 0.35,
-    "eye_y": 0.42,
-    "nose_y": 0.58,
-    "mouth_y": 0.68,
-    "eye_spacing": 0.24
+    "head_y": 0.06,
+    "head_height_ratio": 0.42,
+    "face_width_ratio": 0.45,
+    "eye_y": 0.48,
+    "eyebrow_y": 0.40,
+    "nose_y": 0.62,
+    "mouth_y": 0.72,
+    "eye_spacing": 0.32
   },
   "templates": {
     "faces": ["oval"],

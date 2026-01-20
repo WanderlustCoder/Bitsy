@@ -1,1 +1,7 @@
-{"name": "bun_back", "anchor": [25, 12], "layer": "back", "symmetric": true}
+{
+  "anchor": [
+    35,
+    18
+  ],
+  "symmetric": false
+}
