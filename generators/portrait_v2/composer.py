@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from core.canvas import Canvas
 from generators.portrait_v2.loader import TemplateLoader, Template
 from generators.portrait_v2.recolor import recolor_template, create_skin_palette, create_hair_palette
-from generators.portrait_parts.post_processing import apply_silhouette_rim_light, apply_outline
+from generators.portrait_parts.post_processing import apply_silhouette_rim_light, apply_outline, apply_selective_aa
 
 
 @dataclass
@@ -83,7 +83,7 @@ class TemplatePortraitGenerator:
         self.earring_style = earring_style
 
         self.profile = self._load_profile()
-        self.loader = TemplateLoader(style_path)
+        self.loader = TemplateLoader(style_path, target_canvas_size=self.profile.canvas_size)
 
         self.skin_palette = create_skin_palette(skin_color,
             use_hue_shift=self.profile.coloring.get("use_hue_shift", True))
@@ -135,7 +135,8 @@ class TemplatePortraitGenerator:
         self._render_hair_back(canvas, face_cx, head_y)
 
         # 2. Body (shoulders, torso)
-        body_y = head_y + head_height - 8  # Overlap slightly with head
+        body_overlap = int(height * 0.0625)  # Proportional overlap (6px at 96)
+        body_y = head_y + head_height - body_overlap
         self._render_body(canvas, face_cx, body_y)
 
         # 3. Face base
@@ -181,6 +182,10 @@ class TemplatePortraitGenerator:
 
         # 15. Post-processing: outline
         self._apply_outline(canvas)
+
+        # 16. Post-processing: selective AA (silhouette only)
+        if self.profile.post_processing.get("selective_aa", False):
+            apply_selective_aa(canvas)
 
         return canvas
 
@@ -237,6 +242,10 @@ class TemplatePortraitGenerator:
             template = self.loader.load(template_name, "eyes")
         except FileNotFoundError:
             template = self.loader.load("large", "eyes")  # Fallback
+
+        # Prevent overlap: minimum gap of 2px between eyes
+        min_spacing = template.width // 2 + 2
+        spacing = max(spacing, min_spacing)
 
         recolored = recolor_template(template.pixels, self.eye_palette,
                                      secondary_palette=self.sclera_palette)
@@ -306,6 +315,8 @@ class TemplatePortraitGenerator:
 
     def _render_hair_back(self, canvas: Canvas, cx: int, head_y: int) -> None:
         """Render back hair layer (behind face)."""
+        height = self.profile.canvas_size[1]
+        hair_offset = int(height * 0.052)  # Proportional offset (5px at 96)
         # Use hair_style to select template
         template_name = f"{self.hair_style}_back"
         try:
@@ -313,7 +324,7 @@ class TemplatePortraitGenerator:
             recolored = recolor_template(template.pixels, self.hair_palette)
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
-                           head_y - template.anchor[1] + 5)
+                           head_y - template.anchor[1] + hair_offset)
         except FileNotFoundError:
             # Fallback to wavy
             try:
@@ -321,12 +332,14 @@ class TemplatePortraitGenerator:
                 recolored = recolor_template(template.pixels, self.hair_palette)
                 self._composite(canvas, recolored,
                                cx - template.anchor[0],
-                               head_y - template.anchor[1] + 5)
+                               head_y - template.anchor[1] + hair_offset)
             except FileNotFoundError:
                 pass
 
     def _render_hair_front(self, canvas: Canvas, cx: int, head_y: int) -> None:
         """Render front hair layer (bangs, on top of face)."""
+        height = self.profile.canvas_size[1]
+        hair_offset = int(height * 0.052)  # Proportional offset (5px at 96)
         # Use hair_style to select template
         template_name = f"{self.hair_style}_front"
         try:
@@ -334,7 +347,7 @@ class TemplatePortraitGenerator:
             recolored = recolor_template(template.pixels, self.hair_palette)
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
-                           head_y + 5)
+                           head_y + hair_offset)
         except FileNotFoundError:
             # Fallback to wavy
             try:
@@ -342,7 +355,7 @@ class TemplatePortraitGenerator:
                 recolored = recolor_template(template.pixels, self.hair_palette)
                 self._composite(canvas, recolored,
                                cx - template.anchor[0],
-                               head_y + 5)
+                               head_y + hair_offset)
             except FileNotFoundError:
                 pass
 
@@ -385,6 +398,8 @@ class TemplatePortraitGenerator:
 
     def _render_prop(self, canvas: Canvas, cx: int, body_y: int) -> None:
         """Render held prop like book, cup, or flower."""
+        height = self.profile.canvas_size[1]
+        prop_offset = int(height * 0.22)  # Proportional offset (21px at 96)
         prop_map = {
             "book": "book",
             "cup": "cup",
@@ -398,12 +413,14 @@ class TemplatePortraitGenerator:
             # Position prop at chest level (hands holding position)
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
-                           body_y + 28)
+                           body_y + prop_offset)
         except FileNotFoundError:
             pass  # Template not yet created
 
     def _render_hair_accessory(self, canvas: Canvas, cx: int, head_y: int) -> None:
         """Render hair accessory like headband, bow, or clip."""
+        height = self.profile.canvas_size[1]
+        accessory_offset = int(height * 0.052)  # Proportional offset (5px at 96)
         accessory_map = {
             "headband": "headband",
             "bow": "bow",
@@ -418,12 +435,16 @@ class TemplatePortraitGenerator:
             # Position at top of head
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
-                           head_y - 5)
+                           head_y - accessory_offset)
         except FileNotFoundError:
             pass  # Template not yet created
 
     def _render_earrings(self, canvas: Canvas, cx: int, face_cy: int) -> None:
         """Render earrings on sides of face."""
+        width = self.profile.canvas_size[0]
+        height = self.profile.canvas_size[1]
+        earring_offset_x = int(width * 0.28)  # Proportional horizontal offset (18px at 64)
+        earring_offset_y = int(height * 0.052)  # Proportional vertical offset (5px at 96)
         earring_map = {
             "stud": "stud",
             "hoop": "hoop",
@@ -437,13 +458,13 @@ class TemplatePortraitGenerator:
             # Position at ear level (sides of face)
             # Left earring
             self._composite(canvas, recolored,
-                           cx - 18 - template.anchor[0],
-                           face_cy + 5)
+                           cx - earring_offset_x - template.anchor[0],
+                           face_cy + earring_offset_y)
             # Right earring (flipped)
             flipped = self._flip_horizontal(recolored)
             self._composite(canvas, flipped,
-                           cx + 18 - (template.width - template.anchor[0]),
-                           face_cy + 5)
+                           cx + earring_offset_x - (template.width - template.anchor[0]),
+                           face_cy + earring_offset_y)
         except FileNotFoundError:
             pass  # Template not yet created
 
