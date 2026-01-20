@@ -9647,6 +9647,9 @@ def generate_portrait(config: Optional[PortraitConfig] = None,
             config.glasses_frame_color.lower() if hasattr(config, 'glasses_frame_color') else "brown",
             (80, 55, 40)
         )
+        # Map hair style enum to string
+        hair_style_str = config.hair_style.value if hasattr(config.hair_style, 'value') else str(config.hair_style)
+
         gen = TemplatePortraitGenerator(
             style_path=style_path,
             skin_color=skin_rgb,
@@ -9654,8 +9657,27 @@ def generate_portrait(config: Optional[PortraitConfig] = None,
             hair_color=hair_rgb,
             clothing_color=clothing_rgb,
             accessory_color=accessory_rgb,
+            prop_color=(139, 90, 43),  # Default brown for props
+            # Glasses
             has_glasses=config.has_glasses,
             glasses_style=config.glasses_style,
+            # Hair and face
+            hair_style=hair_style_str,
+            face_shape=config.face_shape,
+            # Expressions
+            mouth_expression="neutral",  # Could map from config if available
+            eye_expression="normal",
+            # Eyebrows
+            eyebrow_style="normal",
+            # Hair accessories
+            has_hair_accessory=config.has_hair_accessory,
+            hair_accessory_style=config.hair_accessory_style,
+            # Earrings
+            has_earrings=config.has_earrings,
+            earring_style=config.earring_style,
+            # Props (not in current config, default off)
+            has_prop=False,
+            prop_type="book",
             seed=config.seed,
         )
         return gen.render()

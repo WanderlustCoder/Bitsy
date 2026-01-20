@@ -37,8 +37,28 @@ class TemplatePortraitGenerator:
         hair_color: Tuple[int, int, int] = (60, 40, 30),
         clothing_color: Tuple[int, int, int] = (80, 60, 120),
         accessory_color: Tuple[int, int, int] = (60, 50, 40),
+        prop_color: Tuple[int, int, int] = (139, 90, 43),
+        # Glasses
         has_glasses: bool = False,
         glasses_style: str = "round",
+        # Props
+        has_prop: bool = False,
+        prop_type: str = "book",
+        # Hair style
+        hair_style: str = "wavy",
+        # Face shape
+        face_shape: str = "oval",
+        # Expressions
+        mouth_expression: str = "neutral",
+        eye_expression: str = "normal",
+        # Eyebrows
+        eyebrow_style: str = "normal",
+        # Hair accessories
+        has_hair_accessory: bool = False,
+        hair_accessory_style: str = "none",
+        # Earrings
+        has_earrings: bool = False,
+        earring_style: str = "stud",
         seed: Optional[int] = None,
     ):
         self.style_path = style_path
@@ -47,8 +67,20 @@ class TemplatePortraitGenerator:
         self.hair_color = hair_color
         self.clothing_color = clothing_color
         self.accessory_color = accessory_color
+        self.prop_color = prop_color
         self.has_glasses = has_glasses
         self.glasses_style = glasses_style
+        self.has_prop = has_prop
+        self.prop_type = prop_type
+        self.hair_style = hair_style
+        self.face_shape = face_shape
+        self.mouth_expression = mouth_expression
+        self.eye_expression = eye_expression
+        self.eyebrow_style = eyebrow_style
+        self.has_hair_accessory = has_hair_accessory
+        self.hair_accessory_style = hair_accessory_style
+        self.has_earrings = has_earrings
+        self.earring_style = earring_style
 
         self.profile = self._load_profile()
         self.loader = TemplateLoader(style_path)
@@ -59,6 +91,7 @@ class TemplatePortraitGenerator:
         self.hair_palette = create_skin_palette(hair_color, use_hue_shift=True)
         self.clothing_palette = create_skin_palette(clothing_color, use_hue_shift=True)
         self.accessory_palette = create_skin_palette(accessory_color, use_hue_shift=True)
+        self.prop_palette = create_skin_palette(prop_color, use_hue_shift=True)
 
         self.sclera_palette = [
             (250, 248, 245, 255),
@@ -105,32 +138,48 @@ class TemplatePortraitGenerator:
         body_y = head_y + head_height - 8  # Overlap slightly with head
         self._render_body(canvas, face_cx, body_y)
 
-        # 3. Face base
+        # 3. Props behind body (like book being held)
+        if self.has_prop:
+            self._render_prop(canvas, face_cx, body_y)
+
+        # 4. Face base
         self._render_face(canvas, face_cx, face_cy)
 
-        # 4. Eyes
+        # 5. Earrings (behind face features)
+        if self.has_earrings:
+            self._render_earrings(canvas, face_cx, face_cy)
+
+        # 6. Eyebrows
+        eyebrow_y = head_y + int(head_height * props.get("eyebrow_y", 0.35))
+        self._render_eyebrows(canvas, face_cx, eyebrow_y)
+
+        # 7. Eyes
         eye_y = head_y + int(head_height * props.get("eye_y", 0.42))
         eye_spacing = int(face_width * props.get("eye_spacing", 0.24))
         self._render_eyes(canvas, face_cx, eye_y, eye_spacing)
 
-        # 5. Accessories (glasses, etc.) - rendered on top of eyes
+        # 8. Accessories (glasses, etc.) - rendered on top of eyes
         self._render_accessories(canvas, face_cx, eye_y, eye_spacing)
 
-        # 6. Nose
+        # 9. Nose
         nose_y = head_y + int(head_height * props.get("nose_y", 0.58))
         self._render_nose(canvas, face_cx, nose_y)
 
-        # 7. Mouth
+        # 10. Mouth
         mouth_y = head_y + int(head_height * props.get("mouth_y", 0.68))
         self._render_mouth(canvas, face_cx, mouth_y)
 
-        # 8. Front hair (bangs, on top of face)
+        # 11. Front hair (bangs, on top of face)
         self._render_hair_front(canvas, face_cx, head_y)
 
-        # 9. Post-processing: rim lighting
+        # 12. Hair accessories (on top of hair)
+        if self.has_hair_accessory:
+            self._render_hair_accessory(canvas, face_cx, head_y)
+
+        # 13. Post-processing: rim lighting
         self._apply_rim_lighting(canvas)
 
-        # 10. Post-processing: outline
+        # 14. Post-processing: outline
         self._apply_outline(canvas)
 
         return canvas
@@ -163,16 +212,32 @@ class TemplatePortraitGenerator:
         apply_outline(canvas, outline_color=outline_color, thickness=thickness)
 
     def _render_face(self, canvas: Canvas, cx: int, cy: int) -> None:
-        face_templates = self.profile.templates.get("faces", ["oval"])
-        template = self.loader.load(face_templates[0], "faces")
+        # Use face_shape parameter to select template
+        template_name = self.face_shape if self.face_shape else "oval"
+        try:
+            template = self.loader.load(template_name, "faces")
+        except FileNotFoundError:
+            template = self.loader.load("oval", "faces")  # Fallback
         recolored = recolor_template(template.pixels, self.skin_palette)
         self._composite(canvas, recolored,
                        cx - template.anchor[0],
                        cy - template.anchor[1])
 
     def _render_eyes(self, canvas: Canvas, cx: int, y: int, spacing: int) -> None:
-        eye_templates = self.profile.templates.get("eyes", ["large"])
-        template = self.loader.load(eye_templates[0], "eyes")
+        # Map expression to template name
+        eye_template_map = {
+            "normal": "large",
+            "closed": "closed",
+            "happy": "happy",
+            "wink": "wink",
+            "surprised": "surprised",
+        }
+        template_name = eye_template_map.get(self.eye_expression, "large")
+        try:
+            template = self.loader.load(template_name, "eyes")
+        except FileNotFoundError:
+            template = self.loader.load("large", "eyes")  # Fallback
+
         recolored = recolor_template(template.pixels, self.eye_palette,
                                      secondary_palette=self.sclera_palette)
 
@@ -220,8 +285,20 @@ class TemplatePortraitGenerator:
                        y - template.anchor[1])
 
     def _render_mouth(self, canvas: Canvas, cx: int, y: int) -> None:
-        mouth_templates = self.profile.templates.get("mouths", ["neutral"])
-        template = self.loader.load(mouth_templates[0], "mouths")
+        # Map expression to template name
+        mouth_template_map = {
+            "neutral": "neutral",
+            "smile": "smile",
+            "open": "open",
+            "frown": "frown",
+            "pout": "pout",
+        }
+        template_name = mouth_template_map.get(self.mouth_expression, "neutral")
+        try:
+            template = self.loader.load(template_name, "mouths")
+        except FileNotFoundError:
+            template = self.loader.load("neutral", "mouths")  # Fallback
+
         recolored = recolor_template(template.pixels, self.skin_palette)
         self._composite(canvas, recolored,
                        cx - template.anchor[0],
@@ -229,33 +306,45 @@ class TemplatePortraitGenerator:
 
     def _render_hair_back(self, canvas: Canvas, cx: int, head_y: int) -> None:
         """Render back hair layer (behind face)."""
-        hair_templates = self.profile.templates.get("hair_back", [])
-        if not hair_templates:
-            return
+        # Use hair_style to select template
+        template_name = f"{self.hair_style}_back"
         try:
-            template = self.loader.load(hair_templates[0], "hair")
+            template = self.loader.load(template_name, "hair")
             recolored = recolor_template(template.pixels, self.hair_palette)
-            # Position hair centered on head
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
                            head_y - template.anchor[1] + 5)
         except FileNotFoundError:
-            pass  # Template not yet created
+            # Fallback to wavy
+            try:
+                template = self.loader.load("wavy_back", "hair")
+                recolored = recolor_template(template.pixels, self.hair_palette)
+                self._composite(canvas, recolored,
+                               cx - template.anchor[0],
+                               head_y - template.anchor[1] + 5)
+            except FileNotFoundError:
+                pass
 
     def _render_hair_front(self, canvas: Canvas, cx: int, head_y: int) -> None:
         """Render front hair layer (bangs, on top of face)."""
-        hair_templates = self.profile.templates.get("hair_front", [])
-        if not hair_templates:
-            return
+        # Use hair_style to select template
+        template_name = f"{self.hair_style}_front"
         try:
-            template = self.loader.load(hair_templates[0], "hair")
+            template = self.loader.load(template_name, "hair")
             recolored = recolor_template(template.pixels, self.hair_palette)
-            # Position bangs at forehead
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
                            head_y + 5)
         except FileNotFoundError:
-            pass  # Template not yet created
+            # Fallback to wavy
+            try:
+                template = self.loader.load("wavy_front", "hair")
+                recolored = recolor_template(template.pixels, self.hair_palette)
+                self._composite(canvas, recolored,
+                               cx - template.anchor[0],
+                               head_y + 5)
+            except FileNotFoundError:
+                pass
 
     def _render_body(self, canvas: Canvas, cx: int, y: int) -> None:
         """Render body (shoulders and torso)."""
@@ -270,6 +359,91 @@ class TemplatePortraitGenerator:
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
                            y - template.anchor[1])
+        except FileNotFoundError:
+            pass  # Template not yet created
+
+    def _render_eyebrows(self, canvas: Canvas, cx: int, y: int) -> None:
+        """Render eyebrows above eyes."""
+        eyebrow_map = {
+            "normal": "normal",
+            "thick": "thick",
+            "thin": "thin",
+            "arched": "arched",
+            "angry": "angry",
+            "worried": "worried",
+        }
+        template_name = eyebrow_map.get(self.eyebrow_style, "normal")
+        try:
+            template = self.loader.load(template_name, "eyebrows")
+            # Eyebrows use hair color
+            recolored = recolor_template(template.pixels, self.hair_palette)
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           y - template.anchor[1])
+        except FileNotFoundError:
+            pass  # Template not yet created
+
+    def _render_prop(self, canvas: Canvas, cx: int, body_y: int) -> None:
+        """Render held prop like book, cup, or flower."""
+        prop_map = {
+            "book": "book",
+            "cup": "cup",
+            "flower": "flower",
+            "phone": "phone",
+        }
+        template_name = prop_map.get(self.prop_type, "book")
+        try:
+            template = self.loader.load(template_name, "props")
+            recolored = recolor_template(template.pixels, self.prop_palette)
+            # Position prop at lower body area (hands position)
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           body_y + 20)
+        except FileNotFoundError:
+            pass  # Template not yet created
+
+    def _render_hair_accessory(self, canvas: Canvas, cx: int, head_y: int) -> None:
+        """Render hair accessory like headband, bow, or clip."""
+        accessory_map = {
+            "headband": "headband",
+            "bow": "bow",
+            "clip": "clip",
+            "ribbon": "ribbon",
+            "flower": "hair_flower",
+        }
+        template_name = accessory_map.get(self.hair_accessory_style, "headband")
+        try:
+            template = self.loader.load(template_name, "hair_accessories")
+            recolored = recolor_template(template.pixels, self.accessory_palette)
+            # Position at top of head
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           head_y - 5)
+        except FileNotFoundError:
+            pass  # Template not yet created
+
+    def _render_earrings(self, canvas: Canvas, cx: int, face_cy: int) -> None:
+        """Render earrings on sides of face."""
+        earring_map = {
+            "stud": "stud",
+            "hoop": "hoop",
+            "drop": "drop",
+            "dangle": "dangle",
+        }
+        template_name = earring_map.get(self.earring_style, "stud")
+        try:
+            template = self.loader.load(template_name, "earrings")
+            recolored = recolor_template(template.pixels, self.accessory_palette)
+            # Position at ear level (sides of face)
+            # Left earring
+            self._composite(canvas, recolored,
+                           cx - 18 - template.anchor[0],
+                           face_cy + 5)
+            # Right earring (flipped)
+            flipped = self._flip_horizontal(recolored)
+            self._composite(canvas, flipped,
+                           cx + 18 - (template.width - template.anchor[0]),
+                           face_cy + 5)
         except FileNotFoundError:
             pass  # Template not yet created
 
