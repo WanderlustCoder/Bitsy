@@ -394,15 +394,15 @@ def render_arms(
     for side, skin, clothing in arms_to_draw:
         # Upper arm (clothing)
         upper_start, upper_end = skeleton_positions[f"upper_arm_{side}"]
-        _draw_limb_segment(buffer, upper_start, upper_end, 5, 4, clothing, config)
+        _draw_limb_segment(canvas, upper_start, upper_end, 5, 4, clothing, config)
 
         # Lower arm (skin)
         lower_start, lower_end = skeleton_positions[f"lower_arm_{side}"]
-        _draw_limb_segment(buffer, lower_start, lower_end, 4, 3, skin, config)
+        _draw_limb_segment(canvas, lower_start, lower_end, 4, 3, skin, config)
 
         # Hand
         hand_start, hand_end = skeleton_positions[f"hand_{side}"]
-        _draw_hand(buffer, hand_start, hand_end, skin, config)
+        _draw_hand(canvas, hand_start, hand_end, skin, config)
 
 
 def _draw_limb_segment(

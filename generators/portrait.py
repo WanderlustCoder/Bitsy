@@ -9039,6 +9039,10 @@ class PortraitGenerator:
         # Render body below face
         body_info = render_body_base(canvas, neck_base, body_config, canvas.height)
 
+        # Render background arms (behind body)
+        if body_info.get("skeleton_positions"):
+            render_arms(canvas, body_info["skeleton_positions"], body_config, foreground_only=False)
+
         # Render neck
         render_neck(
             canvas, neck_base, neck_top, skin_color,
