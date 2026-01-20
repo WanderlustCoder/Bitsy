@@ -1,0 +1,9 @@
+{
+  "name": "oval",
+  "anchor": [16, 20],
+  "bounds": {
+    "eye_region_y": 14,
+    "nose_region_y": 22,
+    "mouth_region_y": 28
+  }
+}
