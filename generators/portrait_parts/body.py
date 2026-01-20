@@ -584,24 +584,31 @@ def render_book_prop(
     config: BodyConfig
 ) -> None:
     """
-    Render a simple book prop at hand level.
+    Render a detailed book prop at hand level.
 
     Args:
         canvas: Target canvas
         hand_position: Center position for the book
         config: Body configuration (for rim lighting)
     """
-    width = 15
-    height = 10
+    # Larger book size for more visual presence
+    width = 22
+    height = 14
     x0 = hand_position[0] - width // 2
-    y0 = hand_position[1] - height // 2
+    y0 = hand_position[1] - height // 2 - 2  # Move up slightly
 
-    cover_base = (150, 110, 70)
+    # Book cover colors
+    cover_base = (120, 80, 50)  # Darker, richer brown
     cover_ramp = create_hue_shifted_ramp(cover_base, 6)
-    page_color = (245, 235, 210, 255)
-    page_shadow = (232, 220, 198, 255)
 
-    page_edge_start = width - 2
+    # Page colors with more detail
+    page_light = (252, 248, 235, 255)
+    page_base = (245, 238, 220, 255)
+    page_shadow = (225, 215, 195, 255)
+    page_edge = (210, 200, 180, 255)
+
+    # Define page section (visible pages on the right)
+    page_start = width - 6  # Wider page section
 
     for y in range(height):
         for x in range(width):
@@ -610,18 +617,40 @@ def render_book_prop(
             if not (0 <= px < canvas.width and 0 <= py < canvas.height):
                 continue
 
-            if x >= page_edge_start:
-                color = page_shadow if x == width - 1 else page_color
+            # Pages section (right side, open book effect)
+            if x >= page_start:
+                page_x = x - page_start
+                # Add subtle page lines for detail
                 if y == 0 or y == height - 1:
-                    color = page_shadow
-            else:
-                if x == 0 or y == 0 or y == height - 1:
-                    color = cover_ramp[2]
-                elif x == page_edge_start - 1:
-                    color = cover_ramp[2]
-                elif config.use_rim_light and (x == 1 or y == 1):
-                    color = _blend_rim_light(cover_ramp[4], config.rim_light_color, config.rim_light_intensity)
+                    color = page_edge  # Top/bottom edge
+                elif x == width - 1:
+                    color = page_shadow  # Right edge
+                elif page_x % 2 == 0 and 2 < y < height - 2:
+                    color = page_shadow  # Page line detail
+                elif y < 3:
+                    color = page_light  # Top pages catch light
                 else:
-                    color = cover_ramp[3]
+                    color = page_base
+
+            # Cover section (left/main part)
+            else:
+                # Border/edge
+                if x == 0 or y == 0 or y == height - 1:
+                    color = cover_ramp[1]  # Dark edge
+                # Inner border
+                elif x == 1 or y == 1 or y == height - 2:
+                    if config.use_rim_light and (x == 1 or y == 1):
+                        # Rim light on top-left of cover
+                        color = _blend_rim_light(cover_ramp[5], config.rim_light_color, config.rim_light_intensity * 0.8)
+                    else:
+                        color = cover_ramp[2]
+                # Spine edge (where pages meet cover)
+                elif x == page_start - 1:
+                    color = cover_ramp[1]  # Dark spine line
+                # Center highlight
+                elif x < page_start // 2 and y < height // 2:
+                    color = cover_ramp[4]  # Lighter top-left
+                else:
+                    color = cover_ramp[3]  # Base cover color
 
             canvas.set_pixel(px, py, color)

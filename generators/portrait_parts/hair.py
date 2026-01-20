@@ -2389,29 +2389,35 @@ def render_hair_mass(canvas: Canvas, mass: HairMass,
 
             color = color_ramp[used_idx]
 
-            # Apply rim lighting at edges - enhanced for dramatic effect
-            if mass.has_rim_light and edge_dist > 0.6:
+            # Apply rim lighting at edges - very dramatic for anime style
+            if mass.has_rim_light and edge_dist > 0.5:
                 # Check if this edge faces away from light (rim light condition)
-                edge_side = 1 if lt > 0.5 else -1
-                rim_facing = edge_side * mass.side
+                # light_direction is typically (1, -1), so rim appears on right side
+                edge_side = 1 if lt > 0.5 else -1  # which side of mass we're on
 
-                if rim_facing < 0:  # Edge faces away from primary light
-                    # Calculate base rim blend
-                    rim_blend = (edge_dist - 0.6) / 0.4 * rim_intensity
-                    rim_blend = min(1.0, rim_blend * 1.5)  # Stronger blend
+                # Apply rim to right side of masses (back-lit effect)
+                # mass.side indicates which side of the head the mass is on
+                is_rim_side = (edge_side > 0) or (mass.side > 0.3)  # Right side of mass or right-side masses
 
-                    # At very edge, add bright highlight
-                    if edge_dist > 0.85:
-                        highlight_factor = (edge_dist - 0.85) / 0.15
-                        # Brighten rim color toward white at edge
+                if is_rim_side:
+                    # Calculate base rim blend - very strong
+                    rim_blend = (edge_dist - 0.5) / 0.5 * rim_intensity
+                    rim_blend = min(1.0, rim_blend * 2.0)  # Double strength
+
+                    # At very edge, create near-white highlights
+                    if edge_dist > 0.75:
+                        highlight_factor = (edge_dist - 0.75) / 0.25
+                        # Brighten rim color significantly toward white at edge
                         bright_rim = (
-                            min(255, rim_color[0] + int(60 * highlight_factor)),
-                            min(255, rim_color[1] + int(50 * highlight_factor)),
-                            min(255, rim_color[2] + int(40 * highlight_factor))
+                            min(255, rim_color[0] + int(80 * highlight_factor)),
+                            min(255, rim_color[1] + int(70 * highlight_factor)),
+                            min(255, rim_color[2] + int(60 * highlight_factor))
                         )
-                        r = int(color[0] * (1 - rim_blend) + bright_rim[0] * rim_blend)
-                        g = int(color[1] * (1 - rim_blend) + bright_rim[1] * rim_blend)
-                        b = int(color[2] * (1 - rim_blend) + bright_rim[2] * rim_blend)
+                        # Very strong blend at edge - nearly pure rim color
+                        edge_blend = min(1.0, rim_blend * 1.3)
+                        r = int(color[0] * (1 - edge_blend) + bright_rim[0] * edge_blend)
+                        g = int(color[1] * (1 - edge_blend) + bright_rim[1] * edge_blend)
+                        b = int(color[2] * (1 - edge_blend) + bright_rim[2] * edge_blend)
                     else:
                         r = int(color[0] * (1 - rim_blend) + rim_color[0] * rim_blend)
                         g = int(color[1] * (1 - rim_blend) + rim_color[1] * rim_blend)
