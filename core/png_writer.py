@@ -91,6 +91,111 @@ def blend_colors(base: Color, overlay: Color) -> Color:
     return (nr, ng, nb, na)
 
 
+def load_png(filepath: str) -> List[List[Color]]:
+    """
+    Load a PNG file and return pixel data.
+
+    Args:
+        filepath: Path to PNG file
+
+    Returns:
+        2D list of RGBA tuples [y][x]
+    """
+    def unfilter_scanline(filter_type: int, scanline: bytes, prev: bytes, bpp: int) -> bytes:
+        """Apply PNG unfiltering to a scanline."""
+        result = bytearray(len(scanline))
+        if filter_type == 0:
+            return scanline
+        if filter_type == 1:
+            for i, value in enumerate(scanline):
+                left = result[i - bpp] if i >= bpp else 0
+                result[i] = (value + left) & 0xff
+            return bytes(result)
+        if filter_type == 2:
+            for i, value in enumerate(scanline):
+                up = prev[i] if prev else 0
+                result[i] = (value + up) & 0xff
+            return bytes(result)
+        if filter_type == 3:
+            for i, value in enumerate(scanline):
+                left = result[i - bpp] if i >= bpp else 0
+                up = prev[i] if prev else 0
+                result[i] = (value + ((left + up) // 2)) & 0xff
+            return bytes(result)
+        if filter_type == 4:
+            for i, value in enumerate(scanline):
+                left = result[i - bpp] if i >= bpp else 0
+                up = prev[i] if prev else 0
+                up_left = prev[i - bpp] if (prev and i >= bpp) else 0
+                p = left + up - up_left
+                pa = abs(p - left)
+                pb = abs(p - up)
+                pc = abs(p - up_left)
+                if pa <= pb and pa <= pc:
+                    predictor = left
+                elif pb <= pc:
+                    predictor = up
+                else:
+                    predictor = up_left
+                result[i] = (value + predictor) & 0xff
+            return bytes(result)
+        raise ValueError(f"Unsupported PNG filter type: {filter_type}")
+
+    with open(filepath, 'rb') as f:
+        signature = f.read(8)
+        if signature != b'\x89PNG\r\n\x1a\n':
+            raise ValueError("Not a valid PNG file")
+
+        width = height = 0
+        bit_depth = color_type = 0
+        compressed_data = b''
+
+        while True:
+            length_data = f.read(4)
+            if len(length_data) != 4:
+                raise ValueError("Unexpected end of PNG file")
+            chunk_len = struct.unpack('>I', length_data)[0]
+            chunk_type = f.read(4)
+            chunk_data = f.read(chunk_len)
+            f.read(4)  # CRC
+
+            if chunk_type == b'IHDR':
+                width, height, bit_depth, color_type = struct.unpack('>IIBB', chunk_data[:10])
+            elif chunk_type == b'IDAT':
+                compressed_data += chunk_data
+            elif chunk_type == b'IEND':
+                break
+
+        if bit_depth != 8 or color_type not in (2, 6):
+            raise ValueError("Only 8-bit RGB/RGBA PNGs are supported")
+
+        raw_data = zlib.decompress(compressed_data)
+        bytes_per_pixel = 4 if color_type == 6 else 3
+        row_bytes = width * bytes_per_pixel
+
+        pixels: List[List[Color]] = []
+        offset = 0
+        prev_row = b''
+        for _y in range(height):
+            filter_type = raw_data[offset]
+            offset += 1
+            scanline = raw_data[offset:offset + row_bytes]
+            offset += row_bytes
+            recon = unfilter_scanline(filter_type, scanline, prev_row, bytes_per_pixel)
+            row: List[Color] = []
+            for x in range(width):
+                idx = x * bytes_per_pixel
+                r = recon[idx]
+                g = recon[idx + 1]
+                b = recon[idx + 2]
+                a = recon[idx + 3] if bytes_per_pixel == 4 else 255
+                row.append((r, g, b, a))
+            pixels.append(row)
+            prev_row = recon
+
+        return pixels
+
+
 if __name__ == "__main__":
     # Test: create a simple gradient
     from .canvas import Canvas
