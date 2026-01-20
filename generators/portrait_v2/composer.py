@@ -34,12 +34,14 @@ class TemplatePortraitGenerator:
         skin_color: Tuple[int, int, int] = (232, 190, 160),
         eye_color: Tuple[int, int, int] = (100, 80, 60),
         hair_color: Tuple[int, int, int] = (60, 40, 30),
+        clothing_color: Tuple[int, int, int] = (80, 60, 120),
         seed: Optional[int] = None,
     ):
         self.style_path = style_path
         self.skin_color = skin_color
         self.eye_color = eye_color
         self.hair_color = hair_color
+        self.clothing_color = clothing_color
 
         self.profile = self._load_profile()
         self.loader = TemplateLoader(style_path)
@@ -48,6 +50,7 @@ class TemplatePortraitGenerator:
             use_hue_shift=self.profile.coloring.get("use_hue_shift", True))
         self.eye_palette = create_skin_palette(eye_color, use_hue_shift=True)
         self.hair_palette = create_skin_palette(hair_color, use_hue_shift=True)
+        self.clothing_palette = create_skin_palette(clothing_color, use_hue_shift=True)
 
         self.sclera_palette = [
             (250, 248, 245, 255),
@@ -86,21 +89,32 @@ class TemplatePortraitGenerator:
         face_cx = width // 2
         face_cy = head_y + head_height // 2
 
-        # 1. Face base
+        # Render layers back to front:
+        # 1. Back hair (behind everything)
+        self._render_hair_back(canvas, face_cx, head_y)
+
+        # 2. Body (shoulders, torso)
+        body_y = head_y + head_height - 8  # Overlap slightly with head
+        self._render_body(canvas, face_cx, body_y)
+
+        # 3. Face base
         self._render_face(canvas, face_cx, face_cy)
 
-        # 2. Eyes
+        # 4. Eyes
         eye_y = head_y + int(head_height * props.get("eye_y", 0.42))
         eye_spacing = int(face_width * props.get("eye_spacing", 0.24))
         self._render_eyes(canvas, face_cx, eye_y, eye_spacing)
 
-        # 3. Nose
+        # 5. Nose
         nose_y = head_y + int(head_height * props.get("nose_y", 0.58))
         self._render_nose(canvas, face_cx, nose_y)
 
-        # 4. Mouth
+        # 6. Mouth
         mouth_y = head_y + int(head_height * props.get("mouth_y", 0.68))
         self._render_mouth(canvas, face_cx, mouth_y)
+
+        # 7. Front hair (bangs, on top of face)
+        self._render_hair_front(canvas, face_cx, head_y)
 
         return canvas
 
@@ -143,6 +157,52 @@ class TemplatePortraitGenerator:
         self._composite(canvas, recolored,
                        cx - template.anchor[0],
                        y - template.anchor[1])
+
+    def _render_hair_back(self, canvas: Canvas, cx: int, head_y: int) -> None:
+        """Render back hair layer (behind face)."""
+        hair_templates = self.profile.templates.get("hair_back", [])
+        if not hair_templates:
+            return
+        try:
+            template = self.loader.load(hair_templates[0], "hair")
+            recolored = recolor_template(template.pixels, self.hair_palette)
+            # Position hair centered on head
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           head_y - template.anchor[1] + 5)
+        except FileNotFoundError:
+            pass  # Template not yet created
+
+    def _render_hair_front(self, canvas: Canvas, cx: int, head_y: int) -> None:
+        """Render front hair layer (bangs, on top of face)."""
+        hair_templates = self.profile.templates.get("hair_front", [])
+        if not hair_templates:
+            return
+        try:
+            template = self.loader.load(hair_templates[0], "hair")
+            recolored = recolor_template(template.pixels, self.hair_palette)
+            # Position bangs at forehead
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           head_y + 5)
+        except FileNotFoundError:
+            pass  # Template not yet created
+
+    def _render_body(self, canvas: Canvas, cx: int, y: int) -> None:
+        """Render body (shoulders and torso)."""
+        body_templates = self.profile.templates.get("bodies", [])
+        if not body_templates:
+            return
+        try:
+            template = self.loader.load(body_templates[0], "bodies")
+            # Body uses clothing color, with skin for neck (secondary)
+            recolored = recolor_template(template.pixels, self.clothing_palette,
+                                        secondary_palette=self.skin_palette)
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           y - template.anchor[1])
+        except FileNotFoundError:
+            pass  # Template not yet created
 
     def _composite(self, canvas: Canvas,
                    pixels: List[List[Tuple[int, int, int, int]]],

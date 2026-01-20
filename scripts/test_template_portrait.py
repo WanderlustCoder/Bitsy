@@ -18,6 +18,7 @@ def main():
         skin_color=(232, 190, 160),  # Light skin
         eye_color=(80, 60, 180),     # Purple eyes
         hair_color=(140, 100, 180),  # Purple hair
+        clothing_color=(80, 70, 130),  # Purple/blue clothing
     )
 
     canvas = generator.render()
