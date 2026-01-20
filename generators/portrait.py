@@ -31,7 +31,8 @@ from generators.portrait_parts.anime_eyes import (
 )
 from generators.portrait_parts.face import (
     AnimeNoseStyle, AnimeMouthStyle, render_anime_nose, render_anime_mouth,
-    render_anime_eyebrows, render_anime_blush, get_anime_face_proportions
+    render_anime_eyebrows, render_anime_blush, get_anime_face_proportions,
+    render_anime_wrinkles
 )
 from generators.portrait_parts.hair import (
     render_anime_hair
@@ -9118,6 +9119,20 @@ class PortraitGenerator:
             width=8,
             lip_color=lip_color,
             skin_ramp=skin_ramp
+        )
+
+        # --- Layer 5.5: Subtle age lines ---
+        render_anime_wrinkles(
+            canvas,
+            center_x=center_x,
+            face_top=face_top,
+            face_width=face_width,
+            face_height=face_height,
+            proportions=proportions,
+            skin_ramp=skin_ramp,
+            crows_feet=self.config.crows_feet,
+            forehead_lines=self.config.forehead_lines,
+            smile_lines=self.config.smile_lines
         )
 
         # --- Layer 6: Anime eyebrows ---

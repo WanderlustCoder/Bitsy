@@ -638,6 +638,111 @@ def render_anime_mouth(canvas: Canvas, center_x: int, center_y: int,
             canvas.set_pixel(center_x + dx, center_y + curve, line_color)
 
 
+def _get_wrinkle_color(skin_ramp: List[Color], intensity: float) -> Optional[Color]:
+    """Get a subtle wrinkle color slightly darker than skin."""
+    if not skin_ramp or intensity <= 0.0:
+        return None
+
+    mid_idx = len(skin_ramp) // 2
+    shade_idx = max(0, mid_idx - 1)
+    base_color = skin_ramp[shade_idx]
+    alpha = int(30 + 70 * intensity)
+    return (*base_color[:3], min(255, alpha))
+
+
+def _draw_short_line(canvas: Canvas, start_x: int, start_y: int,
+                     dx: int, dy: int, length: int, color: Color) -> None:
+    """Draw a short 1-2 pixel line in a direction."""
+    for step in range(length):
+        canvas.set_pixel(start_x + dx * step, start_y + dy * step, color)
+
+
+def render_anime_wrinkles(canvas: Canvas,
+                          center_x: int,
+                          face_top: int,
+                          face_width: int,
+                          face_height: int,
+                          proportions: dict,
+                          skin_ramp: List[Color],
+                          crows_feet: float = 0.0,
+                          forehead_lines: float = 0.0,
+                          smile_lines: float = 0.0) -> None:
+    """
+    Render subtle wrinkle lines for older anime characters.
+
+    Wrinkles are 1-2 pixel lines using a darker skin tone.
+    """
+    crows_feet = max(0.0, min(1.0, crows_feet))
+    forehead_lines = max(0.0, min(1.0, forehead_lines))
+    smile_lines = max(0.0, min(1.0, smile_lines))
+
+    if crows_feet <= 0.0 and forehead_lines <= 0.0 and smile_lines <= 0.0:
+        return
+
+    # Forehead lines - short horizontal segments
+    if forehead_lines > 0.0:
+        line_color = _get_wrinkle_color(skin_ramp, forehead_lines)
+        if line_color:
+            base_y = face_top + proportions.get("brow_y", int(face_height * 0.3))
+            base_y -= max(2, face_height // 10)
+            base_y = max(face_top + 2, base_y)
+            line_length = 1 if forehead_lines < 0.6 else 2
+            num_lines = 1 if forehead_lines < 0.7 else 2
+
+            for i in range(num_lines):
+                y = base_y + i * 2
+                start_x = center_x - line_length // 2
+                for dx in range(line_length):
+                    canvas.set_pixel(start_x + dx, y, line_color)
+
+    # Crow's feet - tiny radiating lines at outer eye corners
+    if crows_feet > 0.0:
+        line_color = _get_wrinkle_color(skin_ramp, crows_feet)
+        if line_color:
+            eye_y = face_top + proportions.get("eye_y", int(face_height * 0.45))
+            eye_spacing = proportions.get("eye_spacing", int(face_width * 0.22))
+            eye_width = proportions.get("eye_width", max(4, face_width // 6))
+            line_length = 1 if crows_feet < 0.6 else 2
+            num_lines = 1 if crows_feet < 0.7 else 2
+
+            for side in (-1, 1):
+                corner_x = center_x + side * (eye_spacing + eye_width // 2)
+                corner_y = eye_y
+                directions = [(-1, -1), (-1, 1)] if side < 0 else [(1, -1), (1, 1)]
+                for i in range(num_lines):
+                    dx, dy = directions[i]
+                    _draw_short_line(
+                        canvas,
+                        corner_x + dx,
+                        corner_y + dy,
+                        dx,
+                        dy,
+                        line_length,
+                        line_color
+                    )
+
+    # Smile lines - short strokes from nose toward mouth corners
+    if smile_lines > 0.0:
+        line_color = _get_wrinkle_color(skin_ramp, smile_lines)
+        if line_color:
+            nose_y = face_top + proportions.get("nose_y", int(face_height * 0.55))
+            mouth_y = face_top + proportions.get("mouth_y", int(face_height * 0.7))
+            mid_y = nose_y + (mouth_y - nose_y) // 2
+            line_length = 1 if smile_lines < 0.6 else 2
+
+            for side in (-1, 1):
+                start_x = center_x + side * max(2, face_width // 10)
+                _draw_short_line(
+                    canvas,
+                    start_x,
+                    mid_y,
+                    side,
+                    1,
+                    line_length,
+                    line_color
+                )
+
+
 def render_anime_eyebrows(canvas: Canvas, left_x: int, right_x: int, y: int,
                           width: int, color: Color,
                           expression: str = "neutral",

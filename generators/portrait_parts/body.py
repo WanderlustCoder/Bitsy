@@ -663,15 +663,19 @@ def render_book_prop(
     # Book cover colors
     cover_base = (120, 80, 50)  # Darker, richer brown
     cover_ramp = create_hue_shifted_ramp(cover_base, 6)
+    spine_gold = (210, 180, 90, 255)
 
     # Page colors with more detail
     page_light = (252, 248, 235, 255)
     page_base = (245, 238, 220, 255)
     page_shadow = (225, 215, 195, 255)
     page_edge = (210, 200, 180, 255)
+    page_text = (228, 220, 200, 255)
 
     # Define page section (visible pages on the right)
     page_start = width - 6  # Wider page section
+
+    text_lines = [4, 6, 8]
 
     for y in range(height):
         for x in range(width):
@@ -688,6 +692,8 @@ def render_book_prop(
                     color = page_edge  # Top/bottom edge
                 elif x == width - 1:
                     color = page_shadow  # Right edge
+                elif y in text_lines and 2 < x < width - 2:
+                    color = page_text  # Text line detail
                 elif page_x % 2 == 0 and 2 < y < height - 2:
                     color = page_shadow  # Page line detail
                 elif y < 3:
@@ -709,11 +715,27 @@ def render_book_prop(
                         color = cover_ramp[2]
                 # Spine edge (where pages meet cover)
                 elif x == page_start - 1:
-                    color = cover_ramp[1]  # Dark spine line
-                # Center highlight
-                elif x < page_start // 2 and y < height // 2:
-                    color = cover_ramp[4]  # Lighter top-left
+                    color = spine_gold  # Metallic spine detail
                 else:
-                    color = cover_ramp[3]  # Base cover color
+                    # Lighting: lighter at top, darker at bottom
+                    if y < height // 3:
+                        color = cover_ramp[4]
+                    elif y > (height * 2) // 3:
+                        color = cover_ramp[2]
+                    else:
+                        color = cover_ramp[3]
 
             canvas.set_pixel(px, py, color)
+
+    # Bookmark ribbon
+    ribbon_color = (190, 50, 60, 255)
+    ribbon_width = 2
+    ribbon_length = 5
+    ribbon_x = x0 + page_start - 2
+    ribbon_y = y0 + height - 1
+    for rx in range(ribbon_width):
+        for ry in range(ribbon_length):
+            px = ribbon_x + rx
+            py = ribbon_y + ry
+            if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                canvas.set_pixel(px, py, ribbon_color)
