@@ -1,9 +1,7 @@
 {
-  "name": "closed",
   "anchor": [
-    6,
-    5
+    8,
+    4
   ],
-  "symmetric": true,
-  "flip_for_right": true
+  "symmetric": true
 }

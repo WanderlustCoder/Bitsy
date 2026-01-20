@@ -1,9 +1,7 @@
 {
-  "name": "almond",
   "anchor": [
-    7,
-    4
+    8,
+    6
   ],
-  "symmetric": true,
-  "flip_for_right": true
+  "symmetric": true
 }

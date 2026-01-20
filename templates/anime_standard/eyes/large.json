@@ -1,9 +1,7 @@
 {
-  "name": "large",
   "anchor": [
-    7,
-    6
+    9,
+    7
   ],
-  "symmetric": true,
-  "flip_for_right": true
+  "symmetric": true
 }

@@ -1,9 +1,7 @@
 {
-  "name": "surprised",
   "anchor": [
-    6,
-    5
+    9,
+    8
   ],
-  "symmetric": true,
-  "flip_for_right": true
+  "symmetric": true
 }
