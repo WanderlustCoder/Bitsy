@@ -46,7 +46,8 @@ from generators.color_utils import (
     create_hue_shifted_ramp
 )
 from generators.portrait_parts.post_processing import (
-    apply_outline, apply_selective_aa, enforce_palette, quantize_colors
+    apply_outline, apply_selective_aa, enforce_palette, quantize_colors,
+    apply_silhouette_rim_light
 )
 
 
@@ -9243,6 +9244,18 @@ class PortraitGenerator:
             apply_outline(canvas, outline_c, 2)
             anime_palette.append(outline_c)
 
+        # Apply strong silhouette rim lighting for dramatic anime effect
+        if self.config.render_mode == RenderMode.ANIME and self.config.rim_light_enabled:
+            # Use bright cyan-white for very visible rim lighting (like reference)
+            bright_rim = (180, 210, 255)  # Bright cool rim
+            apply_silhouette_rim_light(
+                canvas,
+                rim_color=bright_rim,
+                intensity=0.85,  # Very strong rim effect for dramatic look
+                thickness=2,
+                direction="both"  # Rim on both edges for full silhouette glow
+            )
+
         # Apply selective AA before palette enforcement (creates intermediate colors)
         if self.config.selective_aa:
             apply_selective_aa(canvas, bg_color)
@@ -9338,11 +9351,14 @@ class PortraitGenerator:
 
             if dot > 0:  # Edge faces toward rim light source
                 # Strength based on facing direction - very dramatic
-                strength = min(1.0, dot * 3.0) * intensity
+                # Boost rim on darker, upper pixels to emphasize hair edges.
+                luma = (pixel[0] * 0.2126 + pixel[1] * 0.7152 + pixel[2] * 0.0722)
+                hair_edge_boost = 1.35 if (luma < 120 and y < canvas.height * 0.7) else 1.0
+                strength = min(1.0, dot * 3.2) * intensity * 1.35 * hair_edge_boost
 
                 # Very strong blend for visible rim effect
                 if strength > 0.05:
-                    blend = strength * 0.95  # Near-full rim color on edges
+                    blend = min(1.0, strength * 1.05)  # Near-full rim color on edges
                     new_r = int(pixel[0] * (1 - blend) + rim_color[0] * blend)
                     new_g = int(pixel[1] * (1 - blend) + rim_color[1] * blend)
                     new_b = int(pixel[2] * (1 - blend) + rim_color[2] * blend)
@@ -9363,29 +9379,49 @@ class PortraitGenerator:
                 current = canvas.get_pixel(x, y)
                 if current:
                     # Brighten toward highlight - stronger effect
-                    bright_blend = (dot - 0.4) * intensity * 0.8
+                    bright_blend = (dot - 0.4) * intensity * 1.1
                     new_r = int(current[0] * (1 - bright_blend) + highlight_color[0] * bright_blend)
                     new_g = int(current[1] * (1 - bright_blend) + highlight_color[1] * bright_blend)
                     new_b = int(current[2] * (1 - bright_blend) + highlight_color[2] * bright_blend)
                     canvas.set_pixel_solid(x, y, (new_r, new_g, new_b, current[3]))
 
-        # Pass 4: Add glow layer outside silhouette (3 pixels deep)
-        glow_intensity = intensity * 0.8  # Strong glow
+        # Pass 3.5: Add a peak highlight on the strongest rim points
+        peak_color = (
+            min(255, rim_color[0] + 120),
+            min(255, rim_color[1] + 110),
+            min(255, rim_color[2] + 100)
+        )
+        for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
+            norm_x, norm_y = edge_dx, edge_dy
+            dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
+            if dot > 0.75 and intensity > 0.25:
+                current = canvas.get_pixel(x, y)
+                if current:
+                    peak_blend = min(0.9, (dot - 0.75) * intensity * 2.5)
+                    new_r = int(current[0] * (1 - peak_blend) + peak_color[0] * peak_blend)
+                    new_g = int(current[1] * (1 - peak_blend) + peak_color[1] * peak_blend)
+                    new_b = int(current[2] * (1 - peak_blend) + peak_color[2] * peak_blend)
+                    canvas.set_pixel_solid(x, y, (new_r, new_g, new_b, current[3]))
+
+        # Pass 4: Add glow layer outside silhouette (5 pixels deep)
+        glow_intensity = intensity * 1.1  # Strong glow
         if glow_intensity > 0.05:
             for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
                 norm_x, norm_y = edge_dx, edge_dy
                 dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
 
                 if dot > 0.1:
-                    # Three layers of glow for more visible effect
-                    for dist in [1, 2, 3]:
+                    # Five layers of glow for more visible effect
+                    luma = (pixel[0] * 0.2126 + pixel[1] * 0.7152 + pixel[2] * 0.0722)
+                    hair_edge_boost = 1.25 if (luma < 120 and y < canvas.height * 0.7) else 1.0
+                    for dist in [1, 2, 3, 4, 5]:
                         glow_x = x + edge_dx * dist
                         glow_y = y + edge_dy * dist
                         if 0 <= glow_x < canvas.width and 0 <= glow_y < canvas.height:
                             glow_pixel = canvas.get_pixel(glow_x, glow_y)
                             if glow_pixel and is_bg(glow_pixel):
-                                falloff = 1.0 / (dist * 0.8)  # Slower falloff
-                                alpha = int(220 * dot * glow_intensity * falloff)
+                                falloff = 1.0 / (dist * 0.75)  # Slower falloff
+                                alpha = int(300 * dot * glow_intensity * falloff * hair_edge_boost)
                                 if alpha > 5:
                                     canvas.set_pixel(glow_x, glow_y, (*rim_color, min(255, alpha)))
 

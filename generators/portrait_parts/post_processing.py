@@ -242,6 +242,139 @@ def get_color_histogram(
     return counter.most_common()
 
 
+def apply_silhouette_rim_light(
+    canvas: Canvas,
+    rim_color: Tuple[int, int, int] = (140, 170, 255),
+    intensity: float = 0.7,
+    thickness: int = 2,
+    direction: str = "right"
+) -> None:
+    """
+    Apply strong rim lighting to silhouette edges for dramatic anime effect.
+
+    This creates the characteristic bright edge glow visible in professional
+    anime pixel art, especially on hair and body outlines.
+
+    Args:
+        canvas: Canvas to modify in-place
+        rim_color: RGB color for rim light (default: cool blue)
+        intensity: Strength of rim effect (0.0-1.0, higher = brighter)
+        thickness: How many pixels deep the rim effect extends (1-3)
+        direction: Light direction - "right", "left", or "both"
+    """
+    original = [[canvas.get_pixel(x, y) for x in range(canvas.width)]
+                for y in range(canvas.height)]
+
+    def is_transparent(pixel):
+        """Check if pixel is transparent/background."""
+        return pixel is None or pixel[3] < 32
+
+    def get_edge_info(x: int, y: int) -> Tuple[bool, float]:
+        """
+        Check if pixel is on silhouette edge and get edge strength.
+        Returns (is_edge, edge_strength) where strength is based on
+        how many transparent neighbors exist.
+        """
+        pixel = original[y][x]
+        if is_transparent(pixel):
+            return False, 0.0
+
+        # Count transparent neighbors and their directions
+        transparent_count = 0
+        right_edge = False
+        left_edge = False
+
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < canvas.width and 0 <= ny < canvas.height:
+                    if is_transparent(original[ny][nx]):
+                        transparent_count += 1
+                        if dx > 0:
+                            right_edge = True
+                        elif dx < 0:
+                            left_edge = True
+                else:
+                    # Canvas edge
+                    transparent_count += 1
+                    if dx > 0:
+                        right_edge = True
+                    elif dx < 0:
+                        left_edge = True
+
+        if transparent_count == 0:
+            return False, 0.0
+
+        # Check direction preference
+        if direction == "right" and not right_edge:
+            return False, 0.0
+        elif direction == "left" and not left_edge:
+            return False, 0.0
+
+        # Edge strength based on exposure
+        edge_strength = min(1.0, transparent_count / 3.0)
+        return True, edge_strength
+
+    def blend_with_rim(pixel, rim_strength):
+        """Blend pixel color with rim light for dramatic anime glow."""
+        # More aggressive rim blend for visible effect
+        r = int(pixel[0] * (1 - rim_strength) + rim_color[0] * rim_strength)
+        g = int(pixel[1] * (1 - rim_strength) + rim_color[1] * rim_strength)
+        b = int(pixel[2] * (1 - rim_strength) + rim_color[2] * rim_strength)
+        # Strong brightness boost for that anime glow effect
+        brightness_boost = 1.0 + (rim_strength * 0.5)
+        r = min(255, int(r * brightness_boost))
+        g = min(255, int(g * brightness_boost))
+        b = min(255, int(b * brightness_boost))
+        return (r, g, b, pixel[3])
+
+    # Apply rim lighting to edge pixels
+    edge_pixels = []  # (x, y, strength)
+
+    for y in range(canvas.height):
+        for x in range(canvas.width):
+            is_edge, strength = get_edge_info(x, y)
+            if is_edge:
+                edge_pixels.append((x, y, strength))
+
+    # Apply to edge pixels
+    for x, y, strength in edge_pixels:
+        pixel = original[y][x]
+        rim_strength = strength * intensity
+        new_color = blend_with_rim(pixel, rim_strength)
+        canvas.set_pixel_solid(x, y, new_color)
+
+    # For thickness > 1, also affect adjacent pixels with reduced intensity
+    if thickness > 1:
+        # Second pass for pixels adjacent to edges
+        for pass_num in range(1, thickness):
+            falloff = 1.0 - (pass_num / thickness)  # Falloff from edge
+            affected_pixels = []
+
+            for x, y, _ in edge_pixels:
+                for dy in [-1, 0, 1]:
+                    for dx in [-1, 0, 1]:
+                        if dx == 0 and dy == 0:
+                            continue
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < canvas.width and 0 <= ny < canvas.height:
+                            neighbor = canvas.get_pixel(nx, ny)
+                            if neighbor and neighbor[3] >= 128:
+                                # Check if not already an edge pixel
+                                is_edge = any(ex == nx and ey == ny for ex, ey, _ in edge_pixels)
+                                if not is_edge:
+                                    affected_pixels.append((nx, ny, falloff * 0.4))
+
+            for x, y, strength in affected_pixels:
+                pixel = canvas.get_pixel(x, y)
+                if pixel:
+                    rim_strength = strength * intensity
+                    new_color = blend_with_rim(pixel, rim_strength)
+                    canvas.set_pixel_solid(x, y, new_color)
+
+
 def quantize_colors(
     canvas: Canvas,
     target_colors: int = 32,

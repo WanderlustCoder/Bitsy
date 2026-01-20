@@ -1714,19 +1714,19 @@ def generate_anime_hair_masses(style: HairStyle, center_x: float, top_y: float,
 
 def _generate_wavy_masses(cx: float, ty: float, w: float, l: float,
                           rng: random.Random) -> List[HairMass]:
-    """Generate wavy anime hair masses."""
+    """Generate wavy anime hair masses with dramatic volume."""
     masses = []
 
-    # Back mass (fills behind head)
+    # Back mass (fills behind head) - LARGER for more volume
     back_spine = [
-        (cx, ty + l * 0.1),
-        (cx, ty + l * 0.4),
-        (cx, ty + l * 0.7),
+        (cx, ty + l * 0.05),
+        (cx, ty + l * 0.35),
+        (cx, ty + l * 0.65),
         (cx, ty + l * 1.0),
     ]
     masses.append(HairMass(
         spine=back_spine,
-        widths=[w * 0.9, w * 1.0, w * 0.95, w * 0.8],
+        widths=[w * 1.1, w * 1.25, w * 1.2, w * 1.0],
         z_depth=-1.0,
         foreground=False,
         color_shift=-0.2,
@@ -1734,16 +1734,16 @@ def _generate_wavy_masses(cx: float, ty: float, w: float, l: float,
         side=0.0,
     ))
 
-    # Left side mass
+    # Left side mass - WIDER for more volume
     left_spine = [
-        (cx - w * 0.35, ty + l * 0.05),
-        (cx - w * 0.45, ty + l * 0.35),
-        (cx - w * 0.5, ty + l * 0.65),
-        (cx - w * 0.45, ty + l * 0.95),
+        (cx - w * 0.4, ty + l * 0.02),
+        (cx - w * 0.55, ty + l * 0.3),
+        (cx - w * 0.6, ty + l * 0.6),
+        (cx - w * 0.5, ty + l * 0.9),
     ]
     masses.append(HairMass(
         spine=left_spine,
-        widths=[w * 0.25, w * 0.3, w * 0.28, w * 0.2],
+        widths=[w * 0.35, w * 0.42, w * 0.4, w * 0.3],
         z_depth=-0.5,
         foreground=False,
         color_shift=-0.1,
@@ -1751,19 +1751,51 @@ def _generate_wavy_masses(cx: float, ty: float, w: float, l: float,
         side=-1.0,
     ))
 
-    # Right side mass
+    # Right side mass - WIDER for more volume
     right_spine = [
-        (cx + w * 0.35, ty + l * 0.05),
-        (cx + w * 0.45, ty + l * 0.35),
-        (cx + w * 0.5, ty + l * 0.65),
-        (cx + w * 0.45, ty + l * 0.95),
+        (cx + w * 0.4, ty + l * 0.02),
+        (cx + w * 0.55, ty + l * 0.3),
+        (cx + w * 0.6, ty + l * 0.6),
+        (cx + w * 0.5, ty + l * 0.9),
     ]
     masses.append(HairMass(
         spine=right_spine,
-        widths=[w * 0.25, w * 0.3, w * 0.28, w * 0.2],
+        widths=[w * 0.35, w * 0.42, w * 0.4, w * 0.3],
         z_depth=-0.5,
         foreground=False,
         color_shift=0.1,
+        has_rim_light=True,
+        side=1.0,
+    ))
+
+    # Additional outer left ribbon for more fullness
+    outer_left = [
+        (cx - w * 0.5, ty + l * 0.1),
+        (cx - w * 0.65, ty + l * 0.4),
+        (cx - w * 0.6, ty + l * 0.75),
+    ]
+    masses.append(HairMass(
+        spine=outer_left,
+        widths=[w * 0.2, w * 0.25, w * 0.18],
+        z_depth=-0.7,
+        foreground=False,
+        color_shift=-0.15,
+        has_rim_light=True,
+        side=-1.0,
+    ))
+
+    # Additional outer right ribbon for more fullness
+    outer_right = [
+        (cx + w * 0.5, ty + l * 0.1),
+        (cx + w * 0.65, ty + l * 0.4),
+        (cx + w * 0.6, ty + l * 0.75),
+    ]
+    masses.append(HairMass(
+        spine=outer_right,
+        widths=[w * 0.2, w * 0.25, w * 0.18],
+        z_depth=-0.7,
+        foreground=False,
+        color_shift=0.15,
         has_rim_light=True,
         side=1.0,
     ))

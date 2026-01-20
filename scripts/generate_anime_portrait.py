@@ -118,11 +118,65 @@ def generate_cleric_portrait(seed: int = 42) -> Canvas:
     return config, generate_portrait(config)
 
 
+def generate_purple_hair_portrait(seed: int = 123) -> Canvas:
+    """
+    Generate a portrait with purple hair like the reference image.
+    """
+    width, height = get_canvas_size(CompositionMode.UPPER_BODY)
+
+    config = PortraitConfig(
+        width=width,
+        height=height,
+        seed=seed,
+
+        # Anime mode
+        render_mode=RenderMode.ANIME,
+        anime_eye_scale=3.5,
+        anime_palette_size=6,
+        use_hue_shifting=True,
+
+        # Strong rim lighting
+        rim_light_enabled=True,
+        rim_light_color=(180, 200, 255),
+        rim_light_intensity=0.8,
+
+        # Composition
+        composition_mode="upper_body",
+        body_pose="holding",
+
+        # Light skin
+        skin_tone="light",
+        skin_undertone="warm",
+
+        # Purple hair like reference
+        hair_style=HairStyle.WAVY,
+        hair_color="purple",
+        hair_volume=2.0,
+
+        # Round blue eyes
+        eye_shape=EyeShape.ROUND,
+        eye_color="blue",
+
+        # Post-processing
+        outline_mode="thin",
+        selective_aa=True,
+    )
+
+    return config, generate_portrait(config)
+
+
 def main():
     """Generate test portraits and save them."""
     print("=" * 60)
     print("ANIME PORTRAIT GENERATION TEST")
     print("=" * 60)
+    print()
+
+    # Generate purple hair portrait (like reference)
+    print("Generating: Purple hair portrait (like reference)...")
+    config2, canvas2 = generate_purple_hair_portrait(seed=123)
+    canvas2.save("output/test_purple_hair.png")
+    print(f"Saved to: output/test_purple_hair.png")
     print()
 
     # Generate cleric portrait
