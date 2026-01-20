@@ -11,16 +11,20 @@ PLACEHOLDER_PALETTE = {
     "highlight2": (255, 180, 180, 255),
     "outline": (100, 0, 0, 255),
     "secondary": (0, 255, 0, 255),
+    "rim": (255, 150, 200, 255),  # Rim/edge light
+    "highlight_soft": (255, 50, 50, 255),  # Soft highlight
 }
 
 PLACEHOLDER_LIST = [
-    (255, 0, 0, 255),
-    (200, 0, 0, 255),
-    (150, 0, 0, 255),
-    (255, 100, 100, 255),
-    (255, 180, 180, 255),
-    (100, 0, 0, 255),
-    (0, 255, 0, 255),
+    (255, 0, 0, 255),        # 0: base
+    (200, 0, 0, 255),        # 1: shadow1 (mid)
+    (150, 0, 0, 255),        # 2: shadow2 (dark)
+    (255, 100, 100, 255),    # 3: highlight1 (bright)
+    (255, 180, 180, 255),    # 4: highlight2 (very bright)
+    (100, 0, 0, 255),        # 5: outline (darkest)
+    (0, 255, 0, 255),        # 6: secondary color
+    (255, 150, 200, 255),    # 7: rim light
+    (255, 50, 50, 255),      # 8: soft highlight
 ]
 
 
@@ -82,7 +86,7 @@ def create_skin_palette(
     base_color: Tuple[int, int, int],
     use_hue_shift: bool = True
 ) -> List[Tuple[int, int, int, int]]:
-    """Create a 6-color skin palette from a base color."""
+    """Create a 9-color skin palette from a base color."""
     r, g, b = base_color
 
     if use_hue_shift:
@@ -117,12 +121,109 @@ def create_skin_palette(
         )
 
     outline = (int(r * 0.4), int(g * 0.35), int(b * 0.4), 255)
+    # Rim light - cooler/bluer tint
+    rim = (
+        min(255, int(r * 0.7 + 60)),
+        min(255, int(g * 0.7 + 80)),
+        min(255, int(b * 0.8 + 100)),
+        255,
+    )
+    # Soft highlight
+    highlight_soft = (
+        min(255, int(r * 1.04)),
+        min(255, int(g * 1.02)),
+        min(255, int(b * 0.99)),
+        255,
+    )
 
     return [
-        (r, g, b, 255),
-        shadow1,
-        shadow2,
-        highlight1,
-        highlight2,
-        outline,
+        (r, g, b, 255),    # 0: base
+        shadow1,           # 1: shadow1
+        shadow2,           # 2: shadow2
+        highlight1,        # 3: highlight1
+        highlight2,        # 4: highlight2
+        outline,           # 5: outline
+        (r, g, b, 255),    # 6: secondary (placeholder)
+        rim,               # 7: rim light
+        highlight_soft,    # 8: soft highlight
+    ]
+
+
+def create_hair_palette(
+    base_color: Tuple[int, int, int],
+    rim_color: Optional[Tuple[int, int, int]] = None,
+    use_hue_shift: bool = True
+) -> List[Tuple[int, int, int, int]]:
+    """Create a 9-color hair palette with rim lighting support."""
+    r, g, b = base_color
+
+    if use_hue_shift:
+        # Shadows shift toward cooler/more saturated
+        shadow1 = (int(r * 0.75), int(g * 0.70), int(b * 0.80), 255)
+        shadow2 = (int(r * 0.55), int(g * 0.48), int(b * 0.60), 255)
+        outline = (int(r * 0.35), int(g * 0.28), int(b * 0.40), 255)
+        # Highlights shift warmer
+        highlight1 = (
+            min(255, int(r * 1.15)),
+            min(255, int(g * 1.10)),
+            min(255, int(b * 1.05)),
+            255,
+        )
+        highlight2 = (
+            min(255, int(r * 1.30)),
+            min(255, int(g * 1.25)),
+            min(255, int(b * 1.15)),
+            255,
+        )
+        highlight_soft = (
+            min(255, int(r * 1.08)),
+            min(255, int(g * 1.05)),
+            min(255, int(b * 1.02)),
+            255,
+        )
+    else:
+        shadow1 = (int(r * 0.75), int(g * 0.75), int(b * 0.75), 255)
+        shadow2 = (int(r * 0.55), int(g * 0.55), int(b * 0.55), 255)
+        outline = (int(r * 0.35), int(g * 0.35), int(b * 0.35), 255)
+        highlight1 = (
+            min(255, int(r * 1.15)),
+            min(255, int(g * 1.15)),
+            min(255, int(b * 1.15)),
+            255,
+        )
+        highlight2 = (
+            min(255, int(r * 1.30)),
+            min(255, int(g * 1.30)),
+            min(255, int(b * 1.30)),
+            255,
+        )
+        highlight_soft = (
+            min(255, int(r * 1.08)),
+            min(255, int(g * 1.08)),
+            min(255, int(b * 1.08)),
+            255,
+        )
+
+    # Rim light - cool blue/purple tint for anime style
+    if rim_color:
+        rim = (rim_color[0], rim_color[1], rim_color[2], 255)
+    else:
+        # Default: shift toward cool purple/blue
+        rim = (
+            min(255, int(r * 0.6 + 80)),
+            min(255, int(g * 0.5 + 90)),
+            min(255, int(b * 0.7 + 120)),
+            255,
+        )
+
+    return [
+        (r, g, b, 255),    # 0: base
+        shadow1,           # 1: shadow1 (mid)
+        shadow2,           # 2: shadow2 (dark)
+        highlight1,        # 3: highlight1 (bright)
+        highlight2,        # 4: highlight2 (very bright)
+        outline,           # 5: outline (darkest)
+        (r, g, b, 255),    # 6: secondary (placeholder)
+        rim,               # 7: rim light
+        highlight_soft,    # 8: soft highlight
     ]

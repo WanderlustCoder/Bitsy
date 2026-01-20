@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from core.canvas import Canvas
 from generators.portrait_v2.loader import TemplateLoader, Template
-from generators.portrait_v2.recolor import recolor_template, create_skin_palette
+from generators.portrait_v2.recolor import recolor_template, create_skin_palette, create_hair_palette
 from generators.portrait_parts.post_processing import apply_silhouette_rim_light, apply_outline
 
 
@@ -88,7 +88,7 @@ class TemplatePortraitGenerator:
         self.skin_palette = create_skin_palette(skin_color,
             use_hue_shift=self.profile.coloring.get("use_hue_shift", True))
         self.eye_palette = create_skin_palette(eye_color, use_hue_shift=True)
-        self.hair_palette = create_skin_palette(hair_color, use_hue_shift=True)
+        self.hair_palette = create_hair_palette(hair_color, use_hue_shift=True)
         self.clothing_palette = create_skin_palette(clothing_color, use_hue_shift=True)
         self.accessory_palette = create_skin_palette(accessory_color, use_hue_shift=True)
         self.prop_palette = create_skin_palette(prop_color, use_hue_shift=True)
