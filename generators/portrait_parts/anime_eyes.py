@@ -386,48 +386,66 @@ def _render_anime_eyelids(canvas: Canvas, cx: int, cy: int, w: int, h: int,
     Render anime-style eyelid lines and lashes.
 
     Features:
-    - Thick upper lid line
-    - Stylized lash clusters at corners
+    - Thick upper lid line with tapered center thickness
+    - Stylized lash clusters at outer corner
     - Optional thin lower lid line
     """
     half_w = w // 2
     half_h = h // 2
+    lash_alpha = lash_color[3] if len(lash_color) > 3 else 255
+    lash_color_dark = (
+        max(0, lash_color[0] - 18),
+        max(0, lash_color[1] - 18),
+        max(0, lash_color[2] - 14),
+        lash_alpha,
+    )
+    center_thickness = max(2, min(3, upper_thickness))
+    edge_thickness = 1
 
-    # Upper eyelid line (thick)
+    # Upper eyelid line (thick, tapered)
     for dx in range(-half_w, half_w + 1):
         norm_x = dx / half_w if half_w > 0 else 0
 
         # Upper lid follows ellipse
         lid_y = cy - int(half_h * math.sqrt(max(0, 1 - norm_x ** 2)))
 
-        # Draw thick line
-        for t in range(upper_thickness):
-            canvas.set_pixel(cx + dx, lid_y - t, lash_color)
+        taper = (1 - abs(norm_x)) ** 0.6
+        thickness = edge_thickness + int(round((center_thickness - edge_thickness) * taper))
+        for t in range(thickness):
+            canvas.set_pixel(cx + dx, lid_y - t, lash_color_dark)
 
     # Upper lash clusters at outer corner
     outer_x = cx + half_w if is_left_eye else cx - half_w
-    outer_y = cy - half_h // 2
 
-    # Draw 3-4 lash spikes at outer corner
+    # Draw 2-3 triangular lash clusters at outer corner
     lash_dir = 1 if is_left_eye else -1
-    for i in range(4):
-        lash_len = 3 + i
-        angle = math.pi * 0.3 + i * 0.15
-        for j in range(lash_len):
-            lx = outer_x + int(lash_dir * j * math.cos(angle))
-            ly = outer_y - int(j * math.sin(angle)) - i
-            canvas.set_pixel(lx, ly, lash_color)
+    cluster_count = 3 if w >= 18 else 2
+    cluster_spacing = 2
+    for i in range(cluster_count):
+        cluster_dx = max(1, half_w - 2 - i * cluster_spacing)
+        norm_x = cluster_dx / half_w if half_w > 0 else 0
+        lid_y = cy - int(half_h * math.sqrt(max(0, 1 - norm_x ** 2)))
+        base_x = cx + lash_dir * cluster_dx
+        base_y = lid_y - 1 - i
+        tri_height = 2 + (i % 2)
+        for ty in range(tri_height):
+            for tx in range(ty + 1):
+                lx = base_x + lash_dir * tx
+                ly = base_y - ty
+                canvas.set_pixel(lx, ly, lash_color_dark)
 
     # Inner corner lash cluster (smaller)
     inner_x = cx - half_w if is_left_eye else cx + half_w
-    inner_y = cy - half_h // 3
+    inner_norm_x = -1 if is_left_eye else 1
+    inner_lid_y = cy - int(half_h * math.sqrt(max(0, 1 - inner_norm_x ** 2)))
+    inner_y = inner_lid_y - 1
 
     for i in range(2):
         lash_len = 2
         for j in range(lash_len):
             lx = inner_x - int(lash_dir * j * 0.5)
             ly = inner_y - j - i
-            canvas.set_pixel(lx, ly, lash_color)
+            canvas.set_pixel(lx, ly, lash_color_dark)
 
     # Lower eyelid (thin line)
     if has_lower:

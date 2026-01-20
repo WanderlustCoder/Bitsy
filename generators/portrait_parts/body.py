@@ -463,41 +463,101 @@ def _draw_hand(
     skin_ramp: List[Tuple[int, int, int, int]],
     config: BodyConfig
 ):
-    """Draw a simplified anime hand."""
-    # Simple hand shape - palm and fingers suggestion
+    """Draw a simplified anime hand with visible fingers."""
     dx = fingertip[0] - wrist[0]
     dy = fingertip[1] - wrist[1]
     length = max(1, int(math.sqrt(dx*dx + dy*dy)))
 
-    # Palm
-    palm_center = (
-        wrist[0] + dx * 0.4,
-        wrist[1] + dy * 0.4
-    )
-    palm_radius = 4
+    # Normalize direction
+    norm = max(1, length)
+    ndx = dx / norm
+    ndy = dy / norm
 
-    for py in range(int(palm_center[1]) - palm_radius, int(palm_center[1]) + palm_radius + 1):
-        for px in range(int(palm_center[0]) - palm_radius, int(palm_center[0]) + palm_radius + 1):
+    # Perpendicular direction for finger spread
+    perp_x = -ndy
+    perp_y = ndx
+
+    # Palm center
+    palm_center = (
+        wrist[0] + dx * 0.35,
+        wrist[1] + dy * 0.35
+    )
+    palm_radius = 5
+
+    # Draw palm (slightly elongated toward fingers)
+    for py in range(int(palm_center[1]) - palm_radius - 2, int(palm_center[1]) + palm_radius + 3):
+        for px in range(int(palm_center[0]) - palm_radius - 1, int(palm_center[0]) + palm_radius + 2):
             if 0 <= px < canvas.width and 0 <= py < canvas.height:
-                dist = math.sqrt((px - palm_center[0])**2 + (py - palm_center[1])**2)
-                if dist <= palm_radius:
-                    rel_dist = dist / palm_radius
-                    if rel_dist > 0.7:
-                        color = skin_ramp[2]
-                    elif rel_dist < 0.3:
-                        color = skin_ramp[4]
+                # Elongate palm toward fingertip
+                rel_x = (px - palm_center[0]) / max(1, palm_radius)
+                rel_y = (py - palm_center[1]) / max(1, palm_radius)
+                # Stretch along finger direction
+                dot_dir = rel_x * ndx + rel_y * ndy
+                stretch_factor = 1.0 + 0.3 * max(0, dot_dir)
+                dist = math.sqrt(rel_x**2 + rel_y**2) / stretch_factor
+
+                if dist <= 1.0:
+                    # Shading based on position
+                    if dist > 0.7:
+                        color = skin_ramp[2]  # Edge shadow
+                    elif dist < 0.3:
+                        color = skin_ramp[4]  # Highlight
                     else:
-                        color = skin_ramp[3]
+                        color = skin_ramp[3]  # Base
                     canvas.set_pixel(px, py, color)
 
-    # Fingers (simplified as extension)
-    for i in range(length // 2):
-        t = 0.6 + (i / max(1, length // 2)) * 0.4
-        fx = int(wrist[0] + dx * t)
-        fy = int(wrist[1] + dy * t)
+    # Draw 4 fingers with proper spacing
+    finger_starts = [
+        (-1.5, 0.6),  # Index finger
+        (-0.5, 0.65),  # Middle finger
+        (0.5, 0.6),   # Ring finger
+        (1.5, 0.5),   # Pinky
+    ]
+    finger_lengths = [5, 6, 5, 4]  # Middle longest
 
-        if 0 <= fx < canvas.width and 0 <= fy < canvas.height:
-            canvas.set_pixel(fx, fy, skin_ramp[3])
+    for (spread, start_t), f_length in zip(finger_starts, finger_lengths):
+        # Calculate finger base position
+        base_x = palm_center[0] + dx * 0.6 + perp_x * spread * 2
+        base_y = palm_center[1] + dy * 0.6 + perp_y * spread * 2
+
+        # Draw finger as short line with thickness
+        for i in range(f_length):
+            t = i / max(1, f_length)
+            fx = base_x + ndx * (i + 1)
+            fy = base_y + ndy * (i + 1)
+
+            # Taper finger toward tip
+            width = 2 if i < f_length - 1 else 1
+
+            for w in range(-width // 2, width // 2 + 1):
+                px = int(fx + perp_x * w * 0.5)
+                py = int(fy + perp_y * w * 0.5)
+                if 0 <= px < canvas.width and 0 <= py < canvas.height:
+                    # Shading: edges darker
+                    if abs(w) > 0 or i >= f_length - 1:
+                        color = skin_ramp[3]
+                    else:
+                        color = skin_ramp[4]
+                    canvas.set_pixel(px, py, color)
+
+    # Thumb (offset to side)
+    thumb_base_x = palm_center[0] - perp_x * 4
+    thumb_base_y = palm_center[1] - perp_y * 4
+    thumb_dir_x = ndx * 0.5 - perp_x * 0.5
+    thumb_dir_y = ndy * 0.5 - perp_y * 0.5
+
+    for i in range(4):
+        tx = int(thumb_base_x + thumb_dir_x * (i + 1) * 1.5)
+        ty = int(thumb_base_y + thumb_dir_y * (i + 1) * 1.5)
+        if 0 <= tx < canvas.width and 0 <= ty < canvas.height:
+            color = skin_ramp[3] if i > 0 else skin_ramp[4]
+            canvas.set_pixel(tx, ty, color)
+            # Width for thumb
+            if i < 3:
+                wx = int(tx + perp_x * 0.5)
+                wy = int(ty + perp_y * 0.5)
+                if 0 <= wx < canvas.width and 0 <= wy < canvas.height:
+                    canvas.set_pixel(wx, wy, skin_ramp[3])
 
 
 def _draw_collar(

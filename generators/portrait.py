@@ -45,7 +45,7 @@ from generators.color_utils import (
     create_hue_shifted_ramp
 )
 from generators.portrait_parts.post_processing import (
-    apply_outline, apply_selective_aa, enforce_palette
+    apply_outline, apply_selective_aa, enforce_palette, quantize_colors
 )
 
 
@@ -9234,6 +9234,11 @@ class PortraitGenerator:
 
         # Enforce palette to limit colors - AFTER all processing
         enforce_palette(canvas, anime_palette)
+
+        # Final quantization pass to ensure we hit target color count (25-40)
+        # This merges any remaining similar colors from AA or other sources
+        target_colors = getattr(self.config, 'max_colors', 40)
+        quantize_colors(canvas, target_colors=target_colors)
 
         return canvas
 

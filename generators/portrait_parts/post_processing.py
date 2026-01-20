@@ -240,3 +240,112 @@ def get_color_histogram(
 
     counter = Counter(colors)
     return counter.most_common()
+
+
+def quantize_colors(
+    canvas: Canvas,
+    target_colors: int = 32,
+    min_alpha: int = 128
+) -> int:
+    """
+    Reduce canvas to target color count using median-cut quantization.
+
+    Preserves the most used colors and merges similar rare colors.
+    This maintains palette coherence while hitting color count targets.
+
+    Args:
+        canvas: Canvas to modify in-place
+        target_colors: Target number of unique colors (default 32)
+        min_alpha: Minimum alpha to consider for quantization
+
+    Returns:
+        Final color count after quantization
+    """
+    from collections import Counter
+
+    # Get histogram - colors sorted by frequency
+    histogram = get_color_histogram(canvas, min_alpha)
+    if len(histogram) <= target_colors:
+        return len(histogram)
+
+    # Separate most-used colors (preserve these) from rare colors (merge these)
+    # Keep top 60% of target as "protected" colors
+    protected_count = int(target_colors * 0.6)
+    protected_colors = set(color for color, count in histogram[:protected_count])
+
+    # Collect rare colors to be merged
+    rare_colors = [color for color, count in histogram[protected_count:]]
+    remaining_slots = target_colors - protected_count
+
+    # Use simple clustering: group rare colors by similarity
+    def color_distance(c1, c2):
+        return math.sqrt(
+            (c1[0] - c2[0]) ** 2 +
+            (c1[1] - c2[1]) ** 2 +
+            (c1[2] - c2[2]) ** 2
+        )
+
+    # Build clusters using greedy approach
+    clusters = []  # Each cluster: (centroid, [colors])
+
+    for color in rare_colors:
+        # Find nearest existing cluster
+        best_cluster_idx = -1
+        best_dist = float('inf')
+
+        for i, (centroid, members) in enumerate(clusters):
+            dist = color_distance(color, centroid)
+            if dist < best_dist:
+                best_dist = dist
+                best_cluster_idx = i
+
+        # Merge threshold - colors within this distance get merged
+        merge_threshold = 50  # ~20% of max RGB distance
+
+        if best_cluster_idx >= 0 and best_dist < merge_threshold:
+            # Add to existing cluster
+            _, members = clusters[best_cluster_idx]
+            members.append(color)
+            # Update centroid
+            avg_r = sum(c[0] for c in members) // len(members)
+            avg_g = sum(c[1] for c in members) // len(members)
+            avg_b = sum(c[2] for c in members) // len(members)
+            avg_a = sum(c[3] for c in members) // len(members)
+            clusters[best_cluster_idx] = ((avg_r, avg_g, avg_b, avg_a), members)
+        elif len(clusters) < remaining_slots:
+            # Create new cluster
+            clusters.append((color, [color]))
+        else:
+            # Force merge with nearest cluster
+            if best_cluster_idx >= 0:
+                _, members = clusters[best_cluster_idx]
+                members.append(color)
+                avg_r = sum(c[0] for c in members) // len(members)
+                avg_g = sum(c[1] for c in members) // len(members)
+                avg_b = sum(c[2] for c in members) // len(members)
+                avg_a = sum(c[3] for c in members) // len(members)
+                clusters[best_cluster_idx] = ((avg_r, avg_g, avg_b, avg_a), members)
+
+    # Build color mapping: original color -> quantized color
+    color_map = {}
+
+    # Protected colors map to themselves
+    for color in protected_colors:
+        color_map[color] = color
+
+    # Clustered colors map to their centroid
+    for centroid, members in clusters:
+        for color in members:
+            color_map[color] = centroid
+
+    # Apply quantization to canvas
+    for y in range(canvas.height):
+        for x in range(canvas.width):
+            pixel = canvas.get_pixel(x, y)
+            if pixel and pixel[3] >= min_alpha:
+                if pixel in color_map:
+                    new_color = color_map[pixel]
+                    # Preserve original alpha
+                    canvas.set_pixel_solid(x, y, (new_color[0], new_color[1], new_color[2], pixel[3]))
+
+    return count_colors(canvas, min_alpha)
