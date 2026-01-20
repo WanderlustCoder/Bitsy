@@ -245,6 +245,10 @@ def render_body_base(
     for y in range(body_top, body_bottom):
         # Progress from top to bottom
         t = (y - body_top) / max(1, body_height - 1)
+        vertical_shift = int(round(1 - 2 * t))  # Lighter at top, darker at bottom.
+
+        def ramp_with_shift(index: int) -> Tuple[int, int, int]:
+            return clothing_ramp[max(0, min(index + vertical_shift, len(clothing_ramp) - 1))]
 
         # Shoulder line at top, narrower at bottom
         if t < 0.15:
@@ -259,31 +263,30 @@ def render_body_base(
             taper_t = (t - 0.3) / 0.7
             half_width = int(shoulder_width // 2 - taper_t * 4)
 
-        # Determine shading level
-        shade_level = 3  # Base color
-
         # Side shading
         for x in range(neck_base[0] - half_width, neck_base[0] + half_width + 1):
             if 0 <= x < canvas.width and 0 <= y < canvas.height:
                 # Distance from center for side shading
                 dist_from_center = abs(x - neck_base[0]) / max(1, half_width)
 
-                if dist_from_center > 0.85:
-                    # Edge - rim light or shadow
-                    if config.use_rim_light and dist_from_center > 0.92:
+                if dist_from_center >= 0.88:
+                    # Edge - consistent rim light or deep shadow
+                    if config.use_rim_light:
                         color = _blend_rim_light(
-                            clothing_ramp[4],
+                            ramp_with_shift(4),
                             config.rim_light_color,
                             config.rim_light_intensity
                         )
                     else:
-                        color = clothing_ramp[2]  # Shadow
-                elif dist_from_center > 0.6:
-                    color = clothing_ramp[2]  # Shadow
+                        color = ramp_with_shift(1)  # Deep shadow
+                elif dist_from_center >= 0.75:
+                    color = ramp_with_shift(1)  # Deep shadow
+                elif dist_from_center >= 0.6:
+                    color = ramp_with_shift(2)  # Shadow
                 elif dist_from_center < 0.3 and t < 0.5:
-                    color = clothing_ramp[4]  # Highlight
+                    color = ramp_with_shift(4)  # Highlight
                 else:
-                    color = clothing_ramp[3]  # Base
+                    color = ramp_with_shift(3)  # Base
 
                 canvas.set_pixel(x, y, color)
 

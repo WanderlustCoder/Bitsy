@@ -318,19 +318,19 @@ def _render_catchlights(canvas: Canvas, ix: int, iy: int, iris_r: int,
     - sparkle: Multiple small sparkles (for sparkle expression)
     """
     white = (255, 255, 255, 255)
-    soft_white = (255, 255, 255, 200)
+    soft_white = (255, 255, 255, 235)
 
     # Primary catchlight (upper-left quadrant)
     primary_x = ix - int(iris_r * 0.35)
     primary_y = iy - int(iris_r * 0.35)
-    primary_size = max(2, iris_r // 3)
+    primary_size = max(2, int(round((iris_r / 3) * 1.2)))
 
     # Draw primary catchlight
     for dy in range(-primary_size, primary_size + 1):
         for dx in range(-primary_size, primary_size + 1):
             dist = math.sqrt(dx * dx + dy * dy)
             if dist <= primary_size:
-                alpha = 255 if dist < primary_size * 0.6 else 200
+                alpha = 255 if dist < primary_size * 0.6 else 235
                 canvas.set_pixel(primary_x + dx, primary_y + dy, (255, 255, 255, alpha))
 
     if style in ("double", "sparkle") or expression == AnimeEyeExpression.SPARKLE:
@@ -344,6 +344,17 @@ def _render_catchlights(canvas: Canvas, ix: int, iy: int, iris_r: int,
                 dist = math.sqrt(dx * dx + dy * dy)
                 if dist <= secondary_size:
                     canvas.set_pixel(secondary_x + dx, secondary_y + dy, soft_white)
+
+    if style == "sparkle" or expression == AnimeEyeExpression.SPARKLE:
+        # Third small catchlight for sparkle style
+        tertiary_x = ix + int(iris_r * 0.05)
+        tertiary_y = iy - int(iris_r * 0.45)
+        tertiary_size = max(1, primary_size // 3)
+        for dy in range(-tertiary_size, tertiary_size + 1):
+            for dx in range(-tertiary_size, tertiary_size + 1):
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist <= tertiary_size:
+                    canvas.set_pixel(tertiary_x + dx, tertiary_y + dy, white)
 
     if style == "sparkle" or expression == AnimeEyeExpression.SPARKLE:
         # Extra sparkle dots
