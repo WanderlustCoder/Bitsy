@@ -52,16 +52,17 @@ Use Signed Distance Fields (SDFs) to define shapes mathematically:
 
 ## Implementation Phases
 
-### Phase 1: Grayscale Face (Current)
+### Phase 1: Grayscale Face ✓ COMPLETE
 - [x] SDF utilities (circle, ellipse, rounded rect, smooth operations)
 - [x] Basic face shape (oval with chin taper)
-- [x] Lighting model (Lambert diffuse + ambient)
-- [x] Eye socket shadows
+- [x] Lighting model (Lambert diffuse + ambient + rim)
+- [x] Eye socket shadows (ambient occlusion)
 - [x] Nose shadow
-- [ ] Eye rendering (iris, pupil, catchlight, sclera)
-- [ ] Eyebrow shapes
-- [ ] Mouth/lips
-- [ ] Ear hints (side profile shadows)
+- [x] Eye rendering (sclera, iris, pupil, dual catchlights)
+- [x] Eyebrow shapes (arched)
+- [x] Mouth rendering
+- [x] Nose detail
+- [ ] Ear hints (side profile shadows) - OPTIONAL
 
 ### Phase 2: Hair System
 - [ ] Hair silhouette shapes (various styles)

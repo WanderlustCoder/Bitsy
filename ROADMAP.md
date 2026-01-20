@@ -177,6 +177,38 @@ Nice-to-have features for completeness.
 
 ---
 
+## Active Development: Portrait Generator v3
+
+**Status:** IN PROGRESS
+
+High-quality anime portrait generation using procedural rendering with SDFs and proper lighting.
+
+### Why v3?
+Previous approaches (template-based) could not achieve the desired "cute anime" quality. v3 uses:
+- Signed Distance Fields for smooth shapes
+- Proper 3D lighting model
+- Hue-shift color system
+
+### Phases
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| 1. Grayscale Face | ✓ COMPLETE | Face shape, lighting, eyes, nose, mouth |
+| 2. Hair System | NEXT | Procedural hair with flow and highlights |
+| 3. Color System | Planned | Hue-shift shading, palette generation |
+| 4. Body & Accessories | Planned | Neck, shoulders, clothing, glasses, props |
+| 5. Variation | Planned | Face shapes, expressions, styles |
+
+### Documentation
+- **Direction:** `generators/PORTRAIT.md`
+- **Design:** `generators/portrait_v3/DESIGN.md`
+- **Code:** `generators/portrait_v3/`
+
+### Target
+Match the quality of `output/reference_downsampled.png` - a 64x96 anime portrait with soft shading, detailed hair, and expressive features.
+
+---
+
 ## Stretch Goals
 
 Ideas for future consideration.
