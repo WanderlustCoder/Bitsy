@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from core.canvas import Canvas
 from generators.portrait_v2.loader import TemplateLoader, Template
 from generators.portrait_v2.recolor import recolor_template, create_skin_palette
+from generators.portrait_parts.post_processing import apply_silhouette_rim_light
 
 
 @dataclass
@@ -116,7 +117,24 @@ class TemplatePortraitGenerator:
         # 7. Front hair (bangs, on top of face)
         self._render_hair_front(canvas, face_cx, head_y)
 
+        # 8. Post-processing: rim lighting
+        self._apply_rim_lighting(canvas)
+
         return canvas
+
+    def _apply_rim_lighting(self, canvas: Canvas) -> None:
+        """Apply rim lighting post-processing for dramatic anime effect."""
+        coloring = self.profile.coloring
+        rim_color = tuple(coloring.get("rim_light_color", [180, 210, 255]))
+        rim_intensity = coloring.get("rim_light_intensity", 0.7)
+
+        apply_silhouette_rim_light(
+            canvas,
+            rim_color=rim_color,
+            intensity=rim_intensity,
+            thickness=2,
+            direction="right"  # Light from right side
+        )
 
     def _render_face(self, canvas: Canvas, cx: int, cy: int) -> None:
         face_templates = self.profile.templates.get("faces", ["oval"])
