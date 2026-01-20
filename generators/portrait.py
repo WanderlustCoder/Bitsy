@@ -8954,8 +8954,9 @@ class PortraitGenerator:
 
         # Prepare color ramps with enhanced hue shifting
         skin_color = SKIN_TONES.get(self.config.skin_tone, SKIN_TONES["light"])
-        # Strong hue shift: shadows go cool (purple/blue), highlights go warm (yellow/peach)
-        skin_ramp = create_hue_shifted_ramp(skin_color, 6, shadow_shift=-25.0, highlight_shift=15.0)
+        # Very strong hue shift: shadows go cool (purple/blue), highlights go warm (yellow/peach)
+        # Matches professional anime skin shading with dramatic color separation
+        skin_ramp = create_hue_shifted_ramp(skin_color, 6, shadow_shift=-35.0, highlight_shift=20.0)
 
         hair_color_name = self.config.hair_color
         if hair_color_name in ["gray", "white", "black", "brown", "blonde", "red", "purple", "blue", "pink", "green"]:

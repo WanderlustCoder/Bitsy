@@ -224,8 +224,8 @@ def _render_anime_iris(canvas: Canvas, ix: int, iy: int,
     darkest = iris_ramp[0]
     dark = iris_ramp[1] if len(iris_ramp) > 1 else darkest
     mid = iris_ramp[len(iris_ramp) // 2]
-    light = iris_ramp[-2] if len(iris_ramp) > 2 else mid
-    lightest = iris_ramp[-1]
+    light = iris_ramp[3] if len(iris_ramp) > 3 else iris_ramp[-2]
+    lightest = iris_ramp[4] if len(iris_ramp) > 4 else iris_ramp[-1]
 
     # Pupil color (very dark with slight color tint)
     pupil_color = (
@@ -269,15 +269,26 @@ def _render_anime_iris(canvas: Canvas, ix: int, iy: int,
                 # Highlight ring
                 color = lightest
             else:
-                # Main iris - gradient from dark (top) to light (bottom)
-                if vert_factor < 0.4:
-                    color = dark
-                elif vert_factor < 0.6:
-                    t = (vert_factor - 0.4) / 0.2
+                # Main iris - dramatic gradient from dark (top) to light (bottom)
+                if vert_factor < 0.3:
+                    t = vert_factor / 0.3
+                    color = _blend_colors(darkest, dark, t)
+                elif vert_factor < 0.7:
+                    t = (vert_factor - 0.3) / 0.4
                     color = _blend_colors(dark, mid, t)
                 else:
-                    t = (vert_factor - 0.6) / 0.4
-                    color = _blend_colors(mid, light, t)
+                    t = (vert_factor - 0.7) / 0.3
+                    color = _blend_colors(light, lightest, t)
+
+                # Subtle bottom glow using the lightest colors
+                if vert_factor > 0.7:
+                    glow_t = (vert_factor - 0.7) / 0.3
+                    color = _blend_colors(color, lightest, glow_t * 0.35)
+
+                # Thin highlight arc near the bottom edge
+                if vert_factor > 0.82 and 0.75 < norm_dist < 0.92:
+                    arc_t = (vert_factor - 0.82) / 0.18
+                    color = _blend_colors(color, lightest, arc_t * 0.6)
 
             # Anti-alias at iris edge
             if norm_dist > 0.9:

@@ -2424,6 +2424,26 @@ def render_hair_mass(canvas: Canvas, mass: HairMass,
                         b = int(color[2] * (1 - rim_blend) + rim_color[2] * rim_blend)
                     color = (r, g, b, 255)
 
+            # Highlight streaks along the top curves for extra volume
+            if t <= 0.2:
+                top_factor = (0.2 - t) / 0.2
+                streak_width = 0.08
+                streak_left = max(0.0, 1.0 - abs(lt - 0.35) / streak_width)
+                streak_right = max(0.0, 1.0 - abs(lt - 0.65) / streak_width)
+                streak_mask = max(streak_left, streak_right) * top_factor
+                if streak_mask > 0:
+                    bright = color_ramp[5]
+                    highlight = (
+                        int(bright[0] * 0.6 + rim_color[0] * 0.4),
+                        int(bright[1] * 0.6 + rim_color[1] * 0.4),
+                        int(bright[2] * 0.6 + rim_color[2] * 0.4),
+                    )
+                    base_r, base_g, base_b = color[:3]
+                    r = int(base_r * (1 - streak_mask) + highlight[0] * streak_mask)
+                    g = int(base_g * (1 - streak_mask) + highlight[1] * streak_mask)
+                    b = int(base_b * (1 - streak_mask) + highlight[2] * streak_mask)
+                    color = (r, g, b, 255)
+
             # Anti-aliasing at edges
             alpha = 255
             if edge_dist > 0.85:
