@@ -381,6 +381,7 @@ class PortraitConfig:
     # Accessories
     has_glasses: bool = False
     glasses_style: str = "round"
+    glasses_frame_color: str = "brown"  # brown, black, gold, silver, red, blue
     has_earrings: bool = False
     earring_style: str = "stud"
     has_facial_hair: bool = False
@@ -9632,12 +9633,29 @@ def generate_portrait(config: Optional[PortraitConfig] = None,
             config.clothing_color.lower() if isinstance(config.clothing_color, str) else "blue",
             (70, 90, 140)
         )
+        # Accessory/glasses frame colors
+        accessory_colors = {
+            "brown": (80, 55, 40),
+            "black": (30, 30, 35),
+            "gold": (180, 150, 80),
+            "silver": (160, 165, 170),
+            "red": (140, 50, 50),
+            "blue": (50, 70, 130),
+            "tortoise": (100, 70, 45),
+        }
+        accessory_rgb = accessory_colors.get(
+            config.glasses_frame_color.lower() if hasattr(config, 'glasses_frame_color') else "brown",
+            (80, 55, 40)
+        )
         gen = TemplatePortraitGenerator(
             style_path=style_path,
             skin_color=skin_rgb,
             eye_color=eye_rgb,
             hair_color=hair_rgb,
             clothing_color=clothing_rgb,
+            accessory_color=accessory_rgb,
+            has_glasses=config.has_glasses,
+            glasses_style=config.glasses_style,
             seed=config.seed,
         )
         return gen.render()

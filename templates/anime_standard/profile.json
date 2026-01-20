@@ -18,7 +18,8 @@
     "mouths": ["neutral"],
     "hair_back": ["wavy_back"],
     "hair_front": ["wavy_front"],
-    "bodies": ["neutral", "holding"]
+    "bodies": ["neutral", "holding"],
+    "accessories": ["glasses_round"]
   },
   "coloring": {
     "use_hue_shift": true,

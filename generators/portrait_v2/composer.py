@@ -36,6 +36,9 @@ class TemplatePortraitGenerator:
         eye_color: Tuple[int, int, int] = (100, 80, 60),
         hair_color: Tuple[int, int, int] = (60, 40, 30),
         clothing_color: Tuple[int, int, int] = (80, 60, 120),
+        accessory_color: Tuple[int, int, int] = (60, 50, 40),
+        has_glasses: bool = False,
+        glasses_style: str = "round",
         seed: Optional[int] = None,
     ):
         self.style_path = style_path
@@ -43,6 +46,9 @@ class TemplatePortraitGenerator:
         self.eye_color = eye_color
         self.hair_color = hair_color
         self.clothing_color = clothing_color
+        self.accessory_color = accessory_color
+        self.has_glasses = has_glasses
+        self.glasses_style = glasses_style
 
         self.profile = self._load_profile()
         self.loader = TemplateLoader(style_path)
@@ -52,6 +58,7 @@ class TemplatePortraitGenerator:
         self.eye_palette = create_skin_palette(eye_color, use_hue_shift=True)
         self.hair_palette = create_skin_palette(hair_color, use_hue_shift=True)
         self.clothing_palette = create_skin_palette(clothing_color, use_hue_shift=True)
+        self.accessory_palette = create_skin_palette(accessory_color, use_hue_shift=True)
 
         self.sclera_palette = [
             (250, 248, 245, 255),
@@ -106,21 +113,24 @@ class TemplatePortraitGenerator:
         eye_spacing = int(face_width * props.get("eye_spacing", 0.24))
         self._render_eyes(canvas, face_cx, eye_y, eye_spacing)
 
-        # 5. Nose
+        # 5. Accessories (glasses, etc.) - rendered on top of eyes
+        self._render_accessories(canvas, face_cx, eye_y, eye_spacing)
+
+        # 6. Nose
         nose_y = head_y + int(head_height * props.get("nose_y", 0.58))
         self._render_nose(canvas, face_cx, nose_y)
 
-        # 6. Mouth
+        # 7. Mouth
         mouth_y = head_y + int(head_height * props.get("mouth_y", 0.68))
         self._render_mouth(canvas, face_cx, mouth_y)
 
-        # 7. Front hair (bangs, on top of face)
+        # 8. Front hair (bangs, on top of face)
         self._render_hair_front(canvas, face_cx, head_y)
 
-        # 8. Post-processing: rim lighting
+        # 9. Post-processing: rim lighting
         self._apply_rim_lighting(canvas)
 
-        # 9. Post-processing: outline
+        # 10. Post-processing: outline
         self._apply_outline(canvas)
 
         return canvas
@@ -175,6 +185,31 @@ class TemplatePortraitGenerator:
             self._composite(canvas, flipped, right_x, y - template.anchor[1])
         else:
             self._composite(canvas, recolored, right_x, y - template.anchor[1])
+
+    def _render_accessories(self, canvas: Canvas, cx: int, eye_y: int, eye_spacing: int) -> None:
+        """Render accessories like glasses on top of eyes."""
+        if not self.has_glasses:
+            return
+
+        # Map glasses style to template name
+        glasses_templates = {
+            "round": "glasses_round",
+            "square": "glasses_square",
+            "rectangular": "glasses_square",
+            "cateye": "glasses_cateye",
+            "cat_eye": "glasses_cateye",
+        }
+        template_name = glasses_templates.get(self.glasses_style.lower(), "glasses_round")
+
+        try:
+            template = self.loader.load(template_name, "accessories")
+            recolored = recolor_template(template.pixels, self.accessory_palette)
+            # Center glasses on face at eye level
+            self._composite(canvas, recolored,
+                           cx - template.anchor[0],
+                           eye_y - template.anchor[1])
+        except FileNotFoundError:
+            pass  # Template not yet created
 
     def _render_nose(self, canvas: Canvas, cx: int, y: int) -> None:
         nose_templates = self.profile.templates.get("noses", ["dot"])
