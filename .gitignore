@@ -36,6 +36,7 @@ output/
 *.png
 *.gif
 !examples/*.png
+!templates/**/*.png
 
 # OS
 .DS_Store

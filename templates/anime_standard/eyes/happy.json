@@ -1,0 +1,9 @@
+{
+  "name": "happy",
+  "anchor": [
+    6,
+    5
+  ],
+  "symmetric": true,
+  "flip_for_right": true
+}
