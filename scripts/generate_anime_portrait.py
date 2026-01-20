@@ -85,6 +85,7 @@ def generate_cleric_portrait(seed: int = 42) -> Canvas:
 
         # Composition
         composition_mode="upper_body",
+        body_pose="holding",  # Show book prop
 
         # Skin - medium tone for older character
         skin_tone="medium",

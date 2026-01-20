@@ -103,12 +103,13 @@ class Skeleton:
 
     def _apply_holding_pose(self):
         """Hands together in front, holding something."""
-        self.bones["upper_arm_l"].angle = 45
-        self.bones["upper_arm_r"].angle = 135
-        self.bones["lower_arm_l"].angle = -30
-        self.bones["lower_arm_r"].angle = 210
-        self.bones["hand_l"].angle = -45
-        self.bones["hand_r"].angle = 225
+        # Arms go down first, then bend inward to meet in center
+        self.bones["upper_arm_l"].angle = 100  # down and slightly inward
+        self.bones["upper_arm_r"].angle = 80   # down and slightly inward
+        self.bones["lower_arm_l"].angle = 45   # bend inward-down toward center
+        self.bones["lower_arm_r"].angle = 135  # bend inward-down toward center
+        self.bones["hand_l"].angle = 0         # pointing toward center
+        self.bones["hand_r"].angle = 180       # pointing toward center
 
     def _apply_arms_crossed_pose(self):
         """Arms folded across chest."""
@@ -502,7 +503,7 @@ def _draw_collar(
     shoulder_width: int,
     color_ramp: List[Tuple[int, int, int, int]]
 ):
-    """Draw collar detail."""
+    """Draws a V-neck collar detail on clothing."""
     collar_y = neck_base[1] + 2
     collar_width = 8
 
@@ -575,3 +576,52 @@ def get_hand_position(
         (hand_start[0] + hand_end[0]) // 2,
         (hand_start[1] + hand_end[1]) // 2
     )
+
+
+def render_book_prop(
+    canvas: Canvas,
+    hand_position: Tuple[int, int],
+    config: BodyConfig
+) -> None:
+    """
+    Render a simple book prop at hand level.
+
+    Args:
+        canvas: Target canvas
+        hand_position: Center position for the book
+        config: Body configuration (for rim lighting)
+    """
+    width = 15
+    height = 10
+    x0 = hand_position[0] - width // 2
+    y0 = hand_position[1] - height // 2
+
+    cover_base = (150, 110, 70)
+    cover_ramp = create_hue_shifted_ramp(cover_base, 6)
+    page_color = (245, 235, 210, 255)
+    page_shadow = (232, 220, 198, 255)
+
+    page_edge_start = width - 2
+
+    for y in range(height):
+        for x in range(width):
+            px = x0 + x
+            py = y0 + y
+            if not (0 <= px < canvas.width and 0 <= py < canvas.height):
+                continue
+
+            if x >= page_edge_start:
+                color = page_shadow if x == width - 1 else page_color
+                if y == 0 or y == height - 1:
+                    color = page_shadow
+            else:
+                if x == 0 or y == 0 or y == height - 1:
+                    color = cover_ramp[2]
+                elif x == page_edge_start - 1:
+                    color = cover_ramp[2]
+                elif config.use_rim_light and (x == 1 or y == 1):
+                    color = _blend_rim_light(cover_ramp[4], config.rim_light_color, config.rim_light_intensity)
+                else:
+                    color = cover_ramp[3]
+
+            canvas.set_pixel(px, py, color)

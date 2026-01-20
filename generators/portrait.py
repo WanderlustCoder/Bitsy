@@ -37,7 +37,8 @@ from generators.portrait_parts.hair import (
     render_anime_hair
 )
 from generators.portrait_parts.body import (
-    BodyConfig, BodyPose, ClothingStyle, render_body_base, render_neck, render_arms
+    BodyConfig, BodyPose, ClothingStyle, render_body_base, render_neck, render_arms,
+    render_book_prop, get_hand_position
 )
 from generators.color_utils import (
     get_anime_hair_ramp, get_anime_eye_ramp, ANIME_SKIN_RAMP,
@@ -422,6 +423,7 @@ class PortraitConfig:
     # Clothing
     clothing_style: str = "casual"
     clothing_color: str = "blue"
+    body_pose: str = "neutral"  # neutral, holding, reading, arms_crossed
 
     # Lighting
     light_direction: Tuple[float, float] = (1.0, -1.0)  # (x, y) normalized
@@ -9023,9 +9025,18 @@ class PortraitGenerator:
         )
         clothing_ramp = create_hue_shifted_ramp(clothing_base, 6)
 
+        # Map pose string to enum
+        pose_map = {
+            "neutral": BodyPose.NEUTRAL,
+            "holding": BodyPose.HOLDING,
+            "reading": BodyPose.READING,
+            "arms_crossed": BodyPose.ARMS_CROSSED,
+        }
+        body_pose = pose_map.get(self.config.body_pose.lower(), BodyPose.NEUTRAL)
+
         # Render body
         body_config = BodyConfig(
-            pose=BodyPose.NEUTRAL,
+            pose=body_pose,
             shoulder_width=1.0,
             clothing_style=ClothingStyle.SIMPLE,
             clothing_color=clothing_base,
@@ -9153,7 +9164,16 @@ class PortraitGenerator:
             foreground_only=True
         )
 
-        # --- Layer 9: Silhouette rim lighting ---
+        # --- Layer 9: Book prop (if holding pose) ---
+        if body_info.get("skeleton_positions") and body_config.pose in [BodyPose.HOLDING, BodyPose.READING]:
+            hand_pos = get_hand_position(body_info["skeleton_positions"], "r")
+            render_book_prop(canvas, hand_pos, body_config)
+
+        # --- Layer 9.5: Foreground arms (in front of book) ---
+        if body_info.get("skeleton_positions"):
+            render_arms(canvas, body_info["skeleton_positions"], body_config, foreground_only=True)
+
+        # --- Layer 10: Silhouette rim lighting ---
         if self.config.rim_light_enabled:
             self._apply_anime_silhouette_rim(
                 canvas, bg_color,
@@ -9286,7 +9306,7 @@ class PortraitGenerator:
                             continue
                         break
 
-        # Pass 2: Apply rim light to back-facing edges (stronger blend)
+        # Pass 2: Apply rim light to back-facing edges (very strong blend)
         for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
             norm_x, norm_y = edge_dx, edge_dy
             if norm_x == 0 and norm_y == 0:
@@ -9296,12 +9316,12 @@ class PortraitGenerator:
             dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
 
             if dot > 0:  # Edge faces toward rim light source
-                # Strength based on facing direction - more dramatic
-                strength = min(1.0, dot * 2.5) * intensity
+                # Strength based on facing direction - very dramatic
+                strength = min(1.0, dot * 3.0) * intensity
 
-                # Strong blend for visible rim effect
-                if strength > 0.1:
-                    blend = strength * 0.85  # Stronger blend factor
+                # Very strong blend for visible rim effect
+                if strength > 0.05:
+                    blend = strength * 0.95  # Near-full rim color on edges
                     new_r = int(pixel[0] * (1 - blend) + rim_color[0] * blend)
                     new_g = int(pixel[1] * (1 - blend) + rim_color[1] * blend)
                     new_b = int(pixel[2] * (1 - blend) + rim_color[2] * blend)
@@ -9309,44 +9329,44 @@ class PortraitGenerator:
 
         # Pass 3: Add bright highlight on strongest rim edges
         highlight_color = (
-            min(255, rim_color[0] + 60),
-            min(255, rim_color[1] + 50),
-            min(255, rim_color[2] + 40)
+            min(255, rim_color[0] + 70),
+            min(255, rim_color[1] + 60),
+            min(255, rim_color[2] + 50)
         )
         for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
             norm_x, norm_y = edge_dx, edge_dy
             dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
 
-            # Only apply highlight to strongly facing edges
-            if dot > 0.6 and intensity > 0.5:
+            # Apply highlight to medium-strongly facing edges
+            if dot > 0.4 and intensity > 0.3:
                 current = canvas.get_pixel(x, y)
                 if current:
-                    # Brighten toward highlight
-                    bright_blend = (dot - 0.6) * intensity * 0.6
+                    # Brighten toward highlight - stronger effect
+                    bright_blend = (dot - 0.4) * intensity * 0.8
                     new_r = int(current[0] * (1 - bright_blend) + highlight_color[0] * bright_blend)
                     new_g = int(current[1] * (1 - bright_blend) + highlight_color[1] * bright_blend)
                     new_b = int(current[2] * (1 - bright_blend) + highlight_color[2] * bright_blend)
                     canvas.set_pixel_solid(x, y, (new_r, new_g, new_b, current[3]))
 
-        # Pass 4: Add glow layer outside silhouette (2 pixels deep)
-        glow_intensity = intensity * 0.6  # Stronger glow
+        # Pass 4: Add glow layer outside silhouette (3 pixels deep)
+        glow_intensity = intensity * 0.8  # Strong glow
         if glow_intensity > 0.05:
             for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
                 norm_x, norm_y = edge_dx, edge_dy
                 dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
 
-                if dot > 0.15:
-                    # Two layers of glow
-                    for dist in [1, 2]:
+                if dot > 0.1:
+                    # Three layers of glow for more visible effect
+                    for dist in [1, 2, 3]:
                         glow_x = x + edge_dx * dist
                         glow_y = y + edge_dy * dist
                         if 0 <= glow_x < canvas.width and 0 <= glow_y < canvas.height:
                             glow_pixel = canvas.get_pixel(glow_x, glow_y)
                             if glow_pixel and is_bg(glow_pixel):
-                                falloff = 1.0 / dist
-                                alpha = int(180 * dot * glow_intensity * falloff)
-                                if alpha > 8:
-                                    canvas.set_pixel(glow_x, glow_y, (*rim_color, alpha))
+                                falloff = 1.0 / (dist * 0.8)  # Slower falloff
+                                alpha = int(220 * dot * glow_intensity * falloff)
+                                if alpha > 5:
+                                    canvas.set_pixel(glow_x, glow_y, (*rim_color, min(255, alpha)))
 
     def render(self) -> Canvas:
         """
