@@ -1,13 +1,7 @@
 {
-  "name": "heart",
   "anchor": [
     17,
-    23
+    22
   ],
-  "symmetric": true,
-  "bounds": {
-    "eye_region_y": 18,
-    "nose_region_y": 29,
-    "mouth_region_y": 36
-  }
+  "symmetric": true
 }

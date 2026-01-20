@@ -24,8 +24,8 @@
   "coloring": {
     "use_hue_shift": true,
     "shadow_hue_shift": -15,
-    "rim_light_color": [180, 210, 255],
-    "rim_light_intensity": 0.7
+    "rim_light_color": [150, 170, 255],
+    "rim_light_intensity": 0.9
   },
   "post_processing": {
     "outline": "thin",

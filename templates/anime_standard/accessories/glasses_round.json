@@ -1,8 +1,7 @@
 {
   "anchor": [
-    20,
+    16,
     6
   ],
-  "symmetric": true,
-  "flip_for_right": false
+  "symmetric": true
 }

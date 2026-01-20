@@ -1,5 +1,7 @@
 {
-  "name": "neutral",
-  "anchor": [35, 0],
-  "neck_slots": [6]
+  "anchor": [
+    40,
+    0
+  ],
+  "symmetric": false
 }

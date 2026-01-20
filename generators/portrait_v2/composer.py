@@ -138,11 +138,7 @@ class TemplatePortraitGenerator:
         body_y = head_y + head_height - 8  # Overlap slightly with head
         self._render_body(canvas, face_cx, body_y)
 
-        # 3. Props behind body (like book being held)
-        if self.has_prop:
-            self._render_prop(canvas, face_cx, body_y)
-
-        # 4. Face base
+        # 3. Face base
         self._render_face(canvas, face_cx, face_cy)
 
         # 5. Earrings (behind face features)
@@ -176,10 +172,14 @@ class TemplatePortraitGenerator:
         if self.has_hair_accessory:
             self._render_hair_accessory(canvas, face_cx, head_y)
 
-        # 13. Post-processing: rim lighting
+        # 13. Props in front (book being held at chest)
+        if self.has_prop:
+            self._render_prop(canvas, face_cx, body_y)
+
+        # 14. Post-processing: rim lighting
         self._apply_rim_lighting(canvas)
 
-        # 14. Post-processing: outline
+        # 15. Post-processing: outline
         self._apply_outline(canvas)
 
         return canvas
@@ -395,10 +395,10 @@ class TemplatePortraitGenerator:
         try:
             template = self.loader.load(template_name, "props")
             recolored = recolor_template(template.pixels, self.prop_palette)
-            # Position prop at lower body area (hands position)
+            # Position prop at chest level (hands holding position)
             self._composite(canvas, recolored,
                            cx - template.anchor[0],
-                           body_y + 20)
+                           body_y + 28)
         except FileNotFoundError:
             pass  # Template not yet created
 

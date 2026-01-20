@@ -1,1 +1,7 @@
-{"name": "bun_front", "anchor": [22, 0], "layer": "front", "symmetric": true}
+{
+  "anchor": [
+    25,
+    5
+  ],
+  "symmetric": true
+}
