@@ -2389,18 +2389,33 @@ def render_hair_mass(canvas: Canvas, mass: HairMass,
 
             color = color_ramp[used_idx]
 
-            # Apply rim lighting at edges
-            if mass.has_rim_light and edge_dist > 0.75:
+            # Apply rim lighting at edges - enhanced for dramatic effect
+            if mass.has_rim_light and edge_dist > 0.6:
                 # Check if this edge faces away from light (rim light condition)
                 edge_side = 1 if lt > 0.5 else -1
                 rim_facing = edge_side * mass.side
 
                 if rim_facing < 0:  # Edge faces away from primary light
-                    rim_blend = (edge_dist - 0.75) / 0.25 * rim_intensity
-                    rim_blend = min(1.0, rim_blend)
-                    r = int(color[0] * (1 - rim_blend) + rim_color[0] * rim_blend)
-                    g = int(color[1] * (1 - rim_blend) + rim_color[1] * rim_blend)
-                    b = int(color[2] * (1 - rim_blend) + rim_color[2] * rim_blend)
+                    # Calculate base rim blend
+                    rim_blend = (edge_dist - 0.6) / 0.4 * rim_intensity
+                    rim_blend = min(1.0, rim_blend * 1.5)  # Stronger blend
+
+                    # At very edge, add bright highlight
+                    if edge_dist > 0.85:
+                        highlight_factor = (edge_dist - 0.85) / 0.15
+                        # Brighten rim color toward white at edge
+                        bright_rim = (
+                            min(255, rim_color[0] + int(60 * highlight_factor)),
+                            min(255, rim_color[1] + int(50 * highlight_factor)),
+                            min(255, rim_color[2] + int(40 * highlight_factor))
+                        )
+                        r = int(color[0] * (1 - rim_blend) + bright_rim[0] * rim_blend)
+                        g = int(color[1] * (1 - rim_blend) + bright_rim[1] * rim_blend)
+                        b = int(color[2] * (1 - rim_blend) + bright_rim[2] * rim_blend)
+                    else:
+                        r = int(color[0] * (1 - rim_blend) + rim_color[0] * rim_blend)
+                        g = int(color[1] * (1 - rim_blend) + rim_color[1] * rim_blend)
+                        b = int(color[2] * (1 - rim_blend) + rim_color[2] * rim_blend)
                     color = (r, g, b, 255)
 
             # Anti-aliasing at edges

@@ -8950,9 +8950,10 @@ class PortraitGenerator:
             face_width, face_height, self.config.anime_eye_scale
         )
 
-        # Prepare color ramps
+        # Prepare color ramps with enhanced hue shifting
         skin_color = SKIN_TONES.get(self.config.skin_tone, SKIN_TONES["light"])
-        skin_ramp = create_hue_shifted_ramp(skin_color, 6)
+        # Strong hue shift: shadows go cool (purple/blue), highlights go warm (yellow/peach)
+        skin_ramp = create_hue_shifted_ramp(skin_color, 6, shadow_shift=-25.0, highlight_shift=15.0)
 
         hair_color_name = self.config.hair_color
         if hair_color_name in ["gray", "white", "black", "brown", "blonde", "red", "purple", "blue", "pink", "green"]:
@@ -9281,45 +9282,67 @@ class PortraitGenerator:
                             continue
                         break
 
-        # Pass 2: Apply rim light to back-facing edges
+        # Pass 2: Apply rim light to back-facing edges (stronger blend)
         for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
-            # Calculate normal direction (pointing outward from edge)
-            # This indicates which direction the edge faces
             norm_x, norm_y = edge_dx, edge_dy
             if norm_x == 0 and norm_y == 0:
                 continue
 
-            # Dot product with rim direction to determine if facing rim light
+            # Dot product with rim direction
             dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
 
             if dot > 0:  # Edge faces toward rim light source
-                # Strength based on how directly it faces the rim
-                strength = min(1.0, dot * 2.0) * intensity
+                # Strength based on facing direction - more dramatic
+                strength = min(1.0, dot * 2.5) * intensity
 
-                # Blend rim light into edge pixel
+                # Strong blend for visible rim effect
                 if strength > 0.1:
-                    new_r = int(pixel[0] * (1 - strength * 0.6) + rim_color[0] * strength * 0.6)
-                    new_g = int(pixel[1] * (1 - strength * 0.6) + rim_color[1] * strength * 0.6)
-                    new_b = int(pixel[2] * (1 - strength * 0.6) + rim_color[2] * strength * 0.6)
+                    blend = strength * 0.85  # Stronger blend factor
+                    new_r = int(pixel[0] * (1 - blend) + rim_color[0] * blend)
+                    new_g = int(pixel[1] * (1 - blend) + rim_color[1] * blend)
+                    new_b = int(pixel[2] * (1 - blend) + rim_color[2] * blend)
                     canvas.set_pixel_solid(x, y, (new_r, new_g, new_b, pixel[3]))
 
-        # Pass 3: Add a glow layer just outside the silhouette
-        glow_intensity = intensity * 0.4
+        # Pass 3: Add bright highlight on strongest rim edges
+        highlight_color = (
+            min(255, rim_color[0] + 60),
+            min(255, rim_color[1] + 50),
+            min(255, rim_color[2] + 40)
+        )
+        for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
+            norm_x, norm_y = edge_dx, edge_dy
+            dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
+
+            # Only apply highlight to strongly facing edges
+            if dot > 0.6 and intensity > 0.5:
+                current = canvas.get_pixel(x, y)
+                if current:
+                    # Brighten toward highlight
+                    bright_blend = (dot - 0.6) * intensity * 0.6
+                    new_r = int(current[0] * (1 - bright_blend) + highlight_color[0] * bright_blend)
+                    new_g = int(current[1] * (1 - bright_blend) + highlight_color[1] * bright_blend)
+                    new_b = int(current[2] * (1 - bright_blend) + highlight_color[2] * bright_blend)
+                    canvas.set_pixel_solid(x, y, (new_r, new_g, new_b, current[3]))
+
+        # Pass 4: Add glow layer outside silhouette (2 pixels deep)
+        glow_intensity = intensity * 0.6  # Stronger glow
         if glow_intensity > 0.05:
             for x, y, pixel, edge_dx, edge_dy in silhouette_edges:
                 norm_x, norm_y = edge_dx, edge_dy
                 dot = norm_x * rim_direction[0] + norm_y * rim_direction[1]
 
-                if dot > 0.2:
-                    # Add glow pixel in the background just outside edge
-                    glow_x = x + edge_dx
-                    glow_y = y + edge_dy
-                    if 0 <= glow_x < canvas.width and 0 <= glow_y < canvas.height:
-                        glow_pixel = canvas.get_pixel(glow_x, glow_y)
-                        if glow_pixel and is_bg(glow_pixel):
-                            alpha = int(150 * dot * glow_intensity)
-                            if alpha > 10:
-                                canvas.set_pixel(glow_x, glow_y, (*rim_color, alpha))
+                if dot > 0.15:
+                    # Two layers of glow
+                    for dist in [1, 2]:
+                        glow_x = x + edge_dx * dist
+                        glow_y = y + edge_dy * dist
+                        if 0 <= glow_x < canvas.width and 0 <= glow_y < canvas.height:
+                            glow_pixel = canvas.get_pixel(glow_x, glow_y)
+                            if glow_pixel and is_bg(glow_pixel):
+                                falloff = 1.0 / dist
+                                alpha = int(180 * dot * glow_intensity * falloff)
+                                if alpha > 8:
+                                    canvas.set_pixel(glow_x, glow_y, (*rim_color, alpha))
 
     def render(self) -> Canvas:
         """
