@@ -10,7 +10,7 @@
       "url": "https://api.pixellab.ai/mcp",
       "transport": "http",
       "headers": {
-        "Authorization": "Bearer YOUR_API_TOKEN"
+        "Authorization": "Bearer 09ec1ffb-7499-45c8-816e-7ded1c51440a"
       }
     }
   }
