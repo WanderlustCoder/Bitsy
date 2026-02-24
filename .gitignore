@@ -3,23 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
 venv/
 ENV/
 env/
@@ -30,13 +13,6 @@ env/
 *.swp
 *.swo
 *~
-
-# Output files
-output/
-*.png
-*.gif
-!examples/*.png
-!templates/**/*.png
 
 # OS
 .DS_Store
